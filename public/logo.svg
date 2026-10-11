@@ -1,0 +1,7 @@
+<svg width="340" height="72" viewBox="0 0 340 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(4, 8) scale(0.25)">
+    <path d="M111.5 223C173.08 223 223 173.08 223 111.5C223 49.9202 173.08 0 111.5 0C49.9202 0 0 49.9202 0 111.5H7H14C14 57.6522 57.6522 14 111.5 14C165.348 14 209 57.6522 209 111.5C209 165.348 165.348 209 111.5 209V223Z" fill="#105F68"/>
+  </g>
+  <text x="76" y="48" font-family="'Disolve', 'Kaleko 105', sans-serif" font-size="38" font-weight="400" letter-spacing="-0.04em" fill="#105F68">ovel</text>
+  <circle cx="166" cy="46" r="3.5" fill="#63C1BB" />
+</svg>
