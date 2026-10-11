@@ -22,7 +22,7 @@ import { useChannelTransition } from "@/components/ChannelTransition";
 
 export default function UserAuthNav() {
   const router = useRouter();
-  const { profile, signOut, switchDemoRole } = useAuth();
+  const { profile, signOut } = useAuth();
   const { playClick } = useAudio();
   const { triggerTransition } = useChannelTransition();
   const [isOpen, setIsOpen] = useState(false);
@@ -46,12 +46,6 @@ export default function UserAuthNav() {
     triggerTransition(() => {
       router.push("/login");
     });
-  };
-
-  const handleSwitchRole = (role: UserRole) => {
-    playClick();
-    switchDemoRole(role);
-    setIsOpen(false);
   };
 
   const getRoleBadge = (role?: UserRole) => {
@@ -135,7 +129,7 @@ export default function UserAuthNav() {
               </span>
               <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 font-light">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                Supabase Auth Active
+                Clerk Auth Active
               </span>
             </div>
             <h4 className="text-sm font-semibold text-[#105F68]">{profile.fullName}</h4>
@@ -146,60 +140,6 @@ export default function UserAuthNav() {
                 {profile.organizationName}
               </p>
             )}
-          </div>
-
-          {/* Quick Role Switcher (Developer & Demo Feature) */}
-          <div className="py-3 border-b border-[#105F68]/10">
-            <p className="text-[10px] uppercase tracking-wider text-[#3A9295] font-semibold mb-2 flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-[#63C1BB]" />
-              Quick Identity Switch
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                onClick={() => handleSwitchRole("super_admin")}
-                className={`text-[11px] text-left px-2.5 py-1.5 rounded-lg border transition-all flex items-center justify-between ${
-                  profile.role === "super_admin"
-                    ? "bg-[#105F68] text-white border-[#105F68]"
-                    : "bg-[#F6FAF9] text-[#105F68] border-[#105F68]/10 hover:border-[#105F68]/30"
-                }`}
-              >
-                <span>Developer Root</span>
-                {profile.role === "super_admin" && <Check className="w-3 h-3" />}
-              </button>
-              <button
-                onClick={() => handleSwitchRole("business_owner")}
-                className={`text-[11px] text-left px-2.5 py-1.5 rounded-lg border transition-all flex items-center justify-between ${
-                  profile.role === "business_owner"
-                    ? "bg-[#105F68] text-white border-[#105F68]"
-                    : "bg-[#F6FAF9] text-[#105F68] border-[#105F68]/10 hover:border-[#105F68]/30"
-                }`}
-              >
-                <span>Business Owner</span>
-                {profile.role === "business_owner" && <Check className="w-3 h-3" />}
-              </button>
-              <button
-                onClick={() => handleSwitchRole("staff")}
-                className={`text-[11px] text-left px-2.5 py-1.5 rounded-lg border transition-all flex items-center justify-between ${
-                  profile.role === "staff"
-                    ? "bg-[#105F68] text-white border-[#105F68]"
-                    : "bg-[#F6FAF9] text-[#105F68] border-[#105F68]/10 hover:border-[#105F68]/30"
-                }`}
-              >
-                <span>Specialist Staff</span>
-                {profile.role === "staff" && <Check className="w-3 h-3" />}
-              </button>
-              <button
-                onClick={() => handleSwitchRole("client")}
-                className={`text-[11px] text-left px-2.5 py-1.5 rounded-lg border transition-all flex items-center justify-between ${
-                  profile.role === "client"
-                    ? "bg-[#105F68] text-white border-[#105F68]"
-                    : "bg-[#F6FAF9] text-[#105F68] border-[#105F68]/10 hover:border-[#105F68]/30"
-                }`}
-              >
-                <span>Client</span>
-                {profile.role === "client" && <Check className="w-3 h-3" />}
-              </button>
-            </div>
           </div>
 
           {/* Navigation Items */}

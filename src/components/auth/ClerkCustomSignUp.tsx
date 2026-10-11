@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useSignUp } from "@clerk/nextjs";
+import { useSignUp } from "@clerk/nextjs/legacy";
 import { 
   Building2, 
   Mail, 
@@ -45,8 +45,8 @@ export default function ClerkCustomSignUp() {
     playClick();
 
     try {
-      await signUp.create({
-        emailAddress: email,
+      const result = await signUp.create({
+        emailAddress: email.trim(),
         password: password,
         firstName: fullName.split(" ")[0] || "Owner",
         lastName: fullName.split(" ").slice(1).join(" ") || "",
@@ -55,6 +55,12 @@ export default function ClerkCustomSignUp() {
           businessSlug,
         },
       });
+
+      if (result.status === "complete" && result.createdSessionId) {
+        await setActive({ session: result.createdSessionId });
+        router.replace("/auth/redirect");
+        return;
+      }
 
       // Send Clerk verification code to email
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
@@ -85,7 +91,7 @@ export default function ClerkCustomSignUp() {
       if (completeSignUp.status === "complete") {
         playSuccess();
         await setActive({ session: completeSignUp.createdSessionId });
-        router.push("/dashboard");
+        router.replace("/auth/redirect");
       } else {
         setErrorMsg("Verification incomplete. Please retry or request a new code.");
       }
@@ -98,14 +104,23 @@ export default function ClerkCustomSignUp() {
     }
   };
 
-  const handleOAuth = (strategy: "oauth_google" | "oauth_apple") => {
-    if (!isLoaded) return;
+  const handleOAuth = async (strategy: "oauth_google" | "oauth_apple") => {
+    if (!isLoaded || loading) return;
+    setLoading(true);
+    setErrorMsg(null);
     playClick();
-    signUp.authenticateWithRedirect({
+    try {
+      await signUp.authenticateWithRedirect({
       strategy,
       redirectUrl: "/sso-callback",
-      redirectUrlComplete: "/dashboard",
-    });
+      redirectUrlComplete: "/auth/redirect",
+      });
+    } catch (err: unknown) {
+      const error = err as { errors?: Array<{ longMessage?: string; message?: string }> };
+      setErrorMsg(error.errors?.[0]?.longMessage || error.errors?.[0]?.message || "Unable to start social sign-up.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (verifying) {
@@ -146,7 +161,7 @@ export default function ClerkCustomSignUp() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !isLoaded}
           className="w-full py-3.5 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-light tracking-wide transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
         >
           <span>{loading ? "Verifying with Clerk..." : "Complete Setup & Enter Dashboard"}</span>
@@ -299,7 +314,7 @@ export default function ClerkCustomSignUp() {
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || !isLoaded}
         className="w-full mt-2 py-3.5 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-light tracking-wide transition-all shadow-md hover:scale-[1.01] flex items-center justify-center gap-2 disabled:opacity-50"
       >
         <span>{loading ? "Registering with Clerk..." : "Create Merchant Account"}</span>

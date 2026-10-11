@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.local/
+
+# Local credentials and tooling state
+*.key
+*.p12
+*.pfx
+.aws/
+.codex/
+.agents/

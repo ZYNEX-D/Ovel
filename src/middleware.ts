@@ -7,6 +7,7 @@ const isPublicRoute = createRouteMatcher([
   "/login(.*)",
   "/signup(.*)",
   "/forgot-password(.*)",
+  "/sso-callback(.*)",
   "/l/(.*)",
   "/book/(.*)",
   "/quote/(.*)",
@@ -23,7 +24,14 @@ const isClerkActive = !!(
 export default isClerkActive
   ? clerkMiddleware(async (auth, req) => {
       if (!isPublicRoute(req)) {
-        await auth.protect();
+        const { userId } = await auth();
+        if (!userId) {
+          if (req.nextUrl.pathname.startsWith("/api/")) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+          }
+          const loginUrl = new URL("/login", req.url);
+          return NextResponse.redirect(loginUrl);
+        }
       }
     })
   : () => NextResponse.next();
