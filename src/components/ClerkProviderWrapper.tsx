@@ -25,6 +25,7 @@ export default function ClerkProviderWrapper({ children }: ClerkProviderWrapperP
       signUpUrl="/signup"
       signInFallbackRedirectUrl="/auth/redirect"
       signUpFallbackRedirectUrl="/auth/redirect"
+      afterSignOutUrl="/login"
     >
       {children}
     </ClerkProvider>

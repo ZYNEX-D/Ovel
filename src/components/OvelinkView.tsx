@@ -63,6 +63,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
+  const [confirmationToken, setConfirmationToken] = useState("");
 
   // Retail Upsell state
   const [selectedRetailAddons, setSelectedRetailAddons] = useState<Record<string, boolean>>({});
@@ -120,6 +121,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
     e.preventDefault();
     if (!clientName || !clientEmail || !clientPhone) return;
     playSuccess();
+    setConfirmationToken(`tok_${Math.random().toString(36).substring(2, 9)}`);
     setStep(4);
   };
 
@@ -794,7 +796,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                   </div>
                   <div className="flex justify-between">
                     <span className="opacity-75">Reference Token:</span>
-                    <span className="font-mono font-medium">tok_{Math.random().toString(36).substring(2, 9)}</span>
+                    <span className="font-mono font-medium">{confirmationToken || "tok_confirmed"}</span>
                   </div>
                 </div>
 

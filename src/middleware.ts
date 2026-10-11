@@ -18,7 +18,8 @@ const isPublicRoute = createRouteMatcher([
 
 const isClerkActive = !!(
   process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
-  !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.includes("placeholder")
+  !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.includes("placeholder") &&
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.startsWith("pk_")
 );
 
 export default isClerkActive

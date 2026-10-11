@@ -85,13 +85,10 @@ export default function UserAuthNav() {
   }
 
   const roleInfo = getRoleBadge(profile.role);
-  const initials = profile.fullName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-
+  const parts = profile.fullName.replace(/[^a-zA-Z0-9\s]/g, "").trim().split(/\s+/).filter(Boolean);
+  const initials = parts.length === 0 ? "U" : parts.length === 1
+    ? parts[0].slice(0, 2).toUpperCase()
+    : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Trigger Button */}
