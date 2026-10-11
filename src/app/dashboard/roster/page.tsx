@@ -46,6 +46,7 @@ import { useAudio } from "@/components/AudioController";
 
 export default function DashboardRosterPage() {
   const { playClick, playSuccess } = useAudio();
+  const [mounted, setMounted] = useState(false);
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [clientProfiles, setClientProfiles] = useState<ClientProfile[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -71,6 +72,7 @@ export default function DashboardRosterPage() {
   useEffect(() => {
     setBookings(getBookings());
     setClientProfiles(getClientProfiles());
+    setMounted(true);
   }, []);
 
   const showToast = (msg: string) => {
@@ -321,9 +323,13 @@ export default function DashboardRosterPage() {
                     {/* Time & Station */}
                     <td className="py-4 font-mono text-[#105F68] whitespace-nowrap">
                       <div className="font-semibold">
-                        {new Date(b.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        {" - "}
-                        {new Date(b.endTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {b.timeDisplay || (
+                          <>
+                            {new Date(b.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            {" - "}
+                            {new Date(b.endTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </>
+                        )}
                       </div>
                       {b.stationResource ? (
                         <span className="inline-block mt-0.5 text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-sans font-medium">
@@ -428,10 +434,11 @@ export default function DashboardRosterPage() {
                         <Link
                           href={`/portal/${b.rescheduleToken}`}
                           target="_blank"
-                          className="p-1 rounded-lg hover:bg-black/5 text-[#3A9295] hover:text-[#105F68] transition-colors"
+                          className="px-2.5 py-1 rounded-lg bg-[#105F68]/10 hover:bg-[#105F68]/20 text-[#105F68] text-[11px] font-semibold transition-all flex items-center gap-1 border border-[#105F68]/20"
                           title="Open Client Portal"
                         >
-                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Portal</span>
+                          <ExternalLink className="w-3 h-3" />
                         </Link>
                       </div>
                     </td>

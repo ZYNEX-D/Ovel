@@ -42,6 +42,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard/roster", label: "Appointment Roster", icon: CalendarIcon, badge: "Live" },
   { href: "/dashboard/users", label: "Users & Clients", icon: UserCheck, badge: "CRM" },
   { href: "/dashboard/ovelink", label: "Ovelink Studio", icon: Palette, badge: "Customizer" },
   { href: "/dashboard/services", label: "Catalog & Offerings", icon: ShoppingBag },

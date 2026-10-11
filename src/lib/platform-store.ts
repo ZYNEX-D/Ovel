@@ -47,6 +47,7 @@ export interface BookingRecord {
   cardLast4?: string;
   isNoShow?: boolean;
   noShowFeeChargedCents?: number;
+  timeDisplay?: string;
   createdAt: string;
 }
 
@@ -129,13 +130,161 @@ const DEFAULT_WORKING_HOURS: WeeklyWorkingHours = {
   sunday: { start: "00:00", end: "00:00", active: false },
 };
 
-export const INITIAL_SERVICES: ServiceItem[] = [];
-export const INITIAL_STAFF: StaffMember[] = [];
-export const INITIAL_BOOKINGS: BookingRecord[] = [];
-export const INITIAL_WAITLIST: WaitlistEntry[] = [];
-export const INITIAL_CLIENT_PROFILES: ClientProfile[] = [];
+export const INITIAL_SERVICES: ServiceItem[] = [
+  {
+    id: "srv_bridal_aesthetics",
+    name: "Bridal Aesthetics & Skin Rejuvenation Protocol",
+    description: "Multi-modal protocol including gentle lymphatic drainage, cellular micro-current, and regenerative barrier prep.",
+    durationMinutes: 90,
+    priceCents: 108500,
+    depositCents: 27125,
+    bufferAfterMinutes: 15,
+    isActive: true,
+  },
+  {
+    id: "srv_complexion_consult",
+    name: "Aesthetic Complexion Consultation",
+    description: "Digital dermal topography assessment and personalized medical-grade formulation roadmap.",
+    durationMinutes: 45,
+    priceCents: 12000,
+    depositCents: 3500,
+    bufferAfterMinutes: 15,
+    isActive: true,
+  },
+];
+
+export const INITIAL_STAFF: StaffMember[] = [
+  {
+    id: "st_genevieve",
+    name: "Dr. Genevieve Moreau",
+    email: "genevieve@ovel.app",
+    role: "Lead Clinical Aesthetician & Dermatologist",
+    workingHours: DEFAULT_WORKING_HOURS,
+    isActive: true,
+  },
+  {
+    id: "st_camille",
+    name: "Camille Laurent",
+    email: "camille@ovel.app",
+    role: "Senior Dermal Specialist",
+    workingHours: DEFAULT_WORKING_HOURS,
+    isActive: true,
+  },
+];
+
+export const INITIAL_BOOKINGS: BookingRecord[] = [
+  {
+    id: "bk_elena_fu38d309",
+    serviceId: "srv_bridal_aesthetics",
+    serviceName: "Bridal Aesthetics & Skin Rejuvenation Protocol",
+    staffId: "st_genevieve",
+    staffName: "Dr. Genevieve Moreau",
+    clientName: "Elena Rostova",
+    clientEmail: "elena.rostova@luxury.com",
+    clientPhone: "+1 (415) 773-9011",
+    startTime: "2026-10-11T10:00:00.000Z",
+    endTime: "2026-10-11T11:30:00.000Z",
+    status: "confirmed",
+    totalPriceCents: 108500,
+    depositPaidCents: 27125,
+    rescheduleToken: "tok_fu38d309",
+    stationResource: "Room 2 (Laser Bay)",
+    hasCardOnFile: false,
+    timeDisplay: "10:00 AM - 11:30 AM",
+    createdAt: "2026-10-11T08:00:00.000Z",
+  },
+  {
+    id: "bk_tharusha_urzyi818",
+    serviceId: "srv_complexion_consult",
+    serviceName: "Aesthetic Complexion Consultation",
+    staffId: "st_genevieve",
+    staffName: "Dr. Genevieve Moreau",
+    clientName: "Tharusha Damsara",
+    clientEmail: "tdamsara6@gmail.com",
+    clientPhone: "+94789731507",
+    startTime: "2026-10-11T12:00:00.000Z",
+    endTime: "2026-10-11T12:45:00.000Z",
+    status: "confirmed",
+    totalPriceCents: 12000,
+    depositPaidCents: 3500,
+    rescheduleToken: "tok_urzyi818",
+    stationResource: "Room 1 (Aesthetic Suite)",
+    hasCardOnFile: false,
+    timeDisplay: "12:00 PM - 12:45 PM",
+    createdAt: "2026-10-11T09:00:00.000Z",
+  },
+];
+
+export const INITIAL_WAITLIST: WaitlistEntry[] = [
+  {
+    id: "wl_sophia",
+    clientName: "Sophia Al-Mansoor",
+    clientPhone: "+1 (415) 882-1902",
+    clientEmail: "sophia.mansoor@voyage.io",
+    serviceName: "Aesthetic Complexion Consultation",
+    preferredTime: "Today 1:30 PM",
+    status: "waiting",
+  },
+];
+
+export const INITIAL_CLIENT_PROFILES: ClientProfile[] = [
+  {
+    id: "cp_elena",
+    name: "Elena Rostova",
+    email: "elena.rostova@luxury.com",
+    phone: "+1 (415) 773-9011",
+    totalVisits: 3,
+    noShowCount: 0,
+    reliabilityScore: 100,
+    formulasOrNotes: "Targeting glow protocol before winter gala. Sensitivity to high glycolic peels.",
+    membershipPlan: "VIP Lumina Black",
+    cardOnFile: undefined,
+  },
+  {
+    id: "cp_tharusha",
+    name: "Tharusha Damsara",
+    email: "tdamsara6@gmail.com",
+    phone: "+94789731507",
+    totalVisits: 1,
+    noShowCount: 0,
+    reliabilityScore: 100,
+    formulasOrNotes: "Comprehensive barrier assessment. Exploring custom anti-glycation serums.",
+    membershipPlan: "Client Member",
+    cardOnFile: undefined,
+  },
+];
+
 export const INITIAL_QUOTES: QuoteProposal[] = [];
-export const INITIAL_INVOICES: InvoiceRecord[] = [];
+
+export const INITIAL_INVOICES: InvoiceRecord[] = [
+  {
+    id: "inv_elena_fu38d309",
+    bookingId: "bk_elena_fu38d309",
+    invoiceNumber: "INV-2026-1048",
+    clientName: "Elena Rostova",
+    clientEmail: "elena.rostova@luxury.com",
+    subtotalCents: 108500,
+    depositCreditedCents: 27125,
+    taxCents: 0,
+    balanceDueCents: 81375,
+    status: "sent",
+    createdAt: "2026-10-11T08:05:00.000Z",
+  },
+  {
+    id: "inv_tharusha_urzyi818",
+    bookingId: "bk_tharusha_urzyi818",
+    invoiceNumber: "INV-2026-1049",
+    clientName: "Tharusha Damsara",
+    clientEmail: "tdamsara6@gmail.com",
+    subtotalCents: 12000,
+    depositCreditedCents: 3500,
+    taxCents: 0,
+    balanceDueCents: 8500,
+    status: "sent",
+    createdAt: "2026-10-11T09:05:00.000Z",
+  },
+];
+
 export const INITIAL_REMINDERS: ReminderLog[] = [];
 
 // Local Storage Keys
@@ -153,6 +302,7 @@ function safeGet<T>(key: string, fallback: T): T {
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return parsed;
+    
     // Filter legacy mock data
     const cleaned = parsed.filter((item: { id?: string | number } | null | undefined) => {
       if (!item || !item.id) return false;
@@ -174,6 +324,12 @@ function safeGet<T>(key: string, fallback: T): T {
         !id.startsWith("cp_2")
       );
     });
+
+    if (cleaned.length === 0 && Array.isArray(fallback) && (fallback as unknown as any[]).length > 0) {
+      localStorage.setItem(key, JSON.stringify(fallback));
+      return fallback;
+    }
+
     if (cleaned.length !== parsed.length) {
       localStorage.setItem(key, JSON.stringify(cleaned));
     }
