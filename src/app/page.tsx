@@ -1,19 +1,18 @@
 "use client";
 
 import React, { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
-import { 
-  ArrowRight, 
-  Calendar, 
-  DollarSign, 
-  FileText, 
-  MessageSquare, 
-  Sparkles, 
-  ChevronRight, 
-  Clock, 
-  ShoppingBag, 
-  Check, 
+import {
+  ArrowRight,
+  Calendar,
+  DollarSign,
+  FileText,
+  MessageSquare,
+  Sparkles,
+  ChevronRight,
+  Clock,
+  ShoppingBag,
+  Check,
   ExternalLink,
   ShieldCheck,
   TrendingUp,
@@ -52,12 +51,9 @@ export default function HomePage() {
       <header className="sticky top-0 z-40 bg-[#F6FAF9]/85 backdrop-blur-md border-b border-[#105F68]/10 transition-all duration-300">
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 h-20 sm:h-24 flex items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 transition-transform duration-500 group-hover:scale-105 group-hover:rotate-6 flex items-center justify-center">
-              <Image src="/icon.svg" alt="Ovel Icon" width={38} height={38} priority />
-            </div>
+          <Link href="/" className="flex items-center group">
             <span className="font-['Disolve'] text-2xl sm:text-3xl text-[#105F68] tracking-tight">
-              ovel
+              Ovel
             </span>
           </Link>
 
@@ -93,14 +89,15 @@ export default function HomePage() {
                 <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
             ) : (
-              <Link
-                href="/signup"
-                onClick={() => playClick()}
-                className="group bg-[#105F68] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-light tracking-tight hover:bg-[#0D4F57] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2"
-              >
-                <span>Get Your Ovelink</span>
-                <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
-              </Link>
+              <>  </>
+              // <Link
+              //   href="/signup"
+              //   onClick={() => playClick()}
+              //   className="group bg-[#105F68] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-light tracking-tight hover:bg-[#0D4F57] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2"
+              // >
+              //   <span>Get Your Ovelink</span>
+              //   <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+              // </Link>
             ))}
           </div>
         </div>
@@ -116,8 +113,8 @@ export default function HomePage() {
           </div>
 
           {/* Main Headline */}
-          <h1 
-            className="font-light text-4xl sm:text-6xl md:text-7xl lg:text-[76px] text-[#105F68] leading-[1.08] tracking-tight mb-8 sm:mb-12 max-w-5xl opacity-0 animate-[blurFadeUp_1.2s_cubic-bezier(0.22,1,0.36,1)_forwards]" 
+          <h1
+            className="font-light text-4xl sm:text-6xl md:text-7xl lg:text-[76px] text-[#105F68] leading-[1.08] tracking-tight mb-8 sm:mb-12 max-w-5xl opacity-0 animate-[blurFadeUp_1.2s_cubic-bezier(0.22,1,0.36,1)_forwards]"
             style={{ animationDelay: "150ms" }}
           >
             One <span className="font-['Disolve'] font-normal text-[#105F68]">Ovelink</span> for Everything You{" "}
@@ -126,17 +123,17 @@ export default function HomePage() {
 
           {/* Subtitle & Public CTAs */}
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-10 w-full">
-            <div 
-              className="max-w-2xl opacity-0 animate-[blurFadeUp_1.2s_cubic-bezier(0.22,1,0.36,1)_forwards]" 
+            <div
+              className="max-w-2xl opacity-0 animate-[blurFadeUp_1.2s_cubic-bezier(0.22,1,0.36,1)_forwards]"
               style={{ animationDelay: "300ms" }}
             >
-              <p className="text-lg sm:text-2xl text-[#3A9295] font-light leading-relaxed tracking-tight">
+              <p className="text-sm sm:text-lg text-[#3A9295] font-thin leading-relaxed tracking-tight">
                 Give your clients a clean, custom-branded link (<span className="font-mono text-[#105F68]">ovel.app/l/your-name</span>) to schedule appointments, reserve time slots, or place custom orders with instant deposits. Zero marketplace commissions. Fully customizable with your <span className="text-[#105F68] font-medium">brand colors &amp; fonts</span>.
               </p>
             </div>
 
-            <div 
-              className="flex flex-col items-start lg:items-end gap-5 opacity-0 animate-[blurFadeUp_1.2s_cubic-bezier(0.22,1,0.36,1)_forwards]" 
+            <div
+              className="flex flex-col items-start lg:items-end gap-5 opacity-0 animate-[blurFadeUp_1.2s_cubic-bezier(0.22,1,0.36,1)_forwards]"
               style={{ animationDelay: "450ms" }}
             >
               <div className="flex flex-wrap gap-3 w-full sm:w-auto">
@@ -502,7 +499,7 @@ export default function HomePage() {
       <footer className="bg-[#105F68] text-white py-16 px-4 sm:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6 border-b border-white/10 pb-8 text-xs">
           <div className="flex items-center gap-3">
-            <span className="font-['Disolve'] text-3xl">ovel</span>
+            <span className="font-['Disolve'] text-3xl">Ovel</span>
             <span className="text-white/40">•</span>
             <span className="text-[#C8E6E2]">The Zero-Commission Operating Platform for All Businesses</span>
           </div>

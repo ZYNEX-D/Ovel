@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -91,11 +90,8 @@ export default function DashboardLayout({
       <aside className="hidden lg:flex flex-col w-72 bg-white border-r border-[#105F68]/10 sticky top-0 h-screen z-30 select-none">
         {/* Brand Header */}
         <div className="p-6 border-b border-[#105F68]/10 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 rounded-2xl bg-[#C8E6E2]/40 border border-[#9ED5D1]/60 flex items-center justify-center p-2 transition-transform duration-300 group-hover:scale-105">
-              <Image src="/icon.svg" alt="Ovel" width={24} height={24} />
-            </div>
-            <span className="font-['Disolve'] text-2xl text-[#105F68] tracking-tight">ovel</span>
+          <Link href="/" className="flex items-center group">
+            <span className="font-['Disolve'] text-2xl text-[#105F68] tracking-tight">Ovel</span>
           </Link>
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#63C1BB]/20 text-[#105F68] font-medium">
             0% Cut

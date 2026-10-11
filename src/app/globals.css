@@ -133,3 +133,46 @@ body {
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(200, 230, 226, 0.15);
 }
+
+/* Clerk Authentication Elements: Prevent button clipping & text cutoff */
+.cl-rootBox,
+.cl-cardBox,
+.cl-card {
+  overflow: visible !important;
+}
+
+.cl-formButtonPrimary,
+.cl-socialButtonsBlockButton {
+  min-height: 48px !important;
+  height: auto !important;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  line-height: 1.4 !important;
+  overflow: visible !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 1rem !important;
+}
+
+.cl-socialButtonsBlockButtonText,
+.cl-formButtonPrimary span,
+.cl-formButtonPrimary {
+  line-height: 1.4 !important;
+  overflow: visible !important;
+}
+
+.cl-formFieldInput {
+  min-height: 46px !important;
+  height: auto !important;
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+  line-height: 1.4 !important;
+  border-radius: 1rem !important;
+}
+
+.cl-badge {
+  overflow: visible !important;
+  line-height: 1.4 !important;
+  padding: 2px 8px !important;
+}

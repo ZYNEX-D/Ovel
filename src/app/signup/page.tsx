@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
@@ -16,7 +15,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useAudio } from "@/components/AudioController";
-import ProgressiveBlur from "@/components/ProgressiveBlur";
 
 import ClerkCustomSignUp from "@/components/auth/ClerkCustomSignUp";
 
@@ -60,18 +58,13 @@ export default function SignUpPage() {
 
   return (
     <div className="min-h-screen bg-[#F6FAF9] text-[#103438] antialiased selection:bg-[#105F68] selection:text-white font-['Kaleko_105',sans-serif] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      <ProgressiveBlur position="top" height="h-20" />
-
       {/* Ambient background glows */}
       <div className="absolute top-1/4 -right-20 w-96 h-96 bg-[#C8E6E2]/60 rounded-full blur-[100px] pointer-events-none -z-10" />
       <div className="absolute bottom-1/4 -left-20 w-96 h-96 bg-[#9ED5D1]/50 rounded-full blur-[110px] pointer-events-none -z-10" />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-3">
-        <Link href="/" className="inline-flex items-center gap-3 group">
-          <div className="w-11 h-11 rounded-2xl bg-[#C8E6E2]/50 border border-[#9ED5D1]/60 flex items-center justify-center p-2.5 transition-transform group-hover:scale-105">
-            <Image src="/icon.svg" alt="Ovel Logo" width={30} height={30} />
-          </div>
-          <span className="font-['Disolve'] text-3xl text-[#105F68]">ovel</span>
+        <Link href="/" className="inline-flex items-center justify-center group">
+          <span className="font-['Disolve'] text-4xl text-[#105F68] tracking-tight">Ovel</span>
         </Link>
         <h2 className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
           Start Commission-Free Today
