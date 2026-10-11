@@ -32,14 +32,10 @@ export async function requireApiAuth(): Promise<AuthContextResult> {
   );
 
   if (!isClerkActive) {
-    // Development fallback when Clerk API keys are not yet configured
     return {
-      isAuthenticated: true,
-      userId: "dev_user_root",
-      orgId: "org_root",
-      orgRole: "admin",
-      email: "tharuux@ovel.app",
-      userFullName: "Tharuux (Developer Root)",
+      isAuthenticated: false,
+      userId: null,
+      response: NextResponse.json({ error: "Authentication is not configured" }, { status: 503 }),
     };
   }
 
@@ -83,4 +79,28 @@ export async function requireApiAuth(): Promise<AuthContextResult> {
       ),
     };
   }
+}
+
+export async function getWorkspaceProfile() {
+  const user = await currentUser();
+  if (!user) return null;
+  const email = user.primaryEmailAddress?.emailAddress || "";
+  const adminEmail = process.env.DEVELOPER_SUPER_ADMIN_EMAIL?.trim().toLowerCase();
+  const isAdmin = Boolean(adminEmail) && user.emailAddresses.some(
+    (address) => address.emailAddress.toLowerCase() === adminEmail && address.verification?.status === "verified"
+  );
+  const businessName = typeof user.unsafeMetadata.businessName === "string"
+    ? user.unsafeMetadata.businessName : "My Business";
+  const slug = typeof user.unsafeMetadata.businessSlug === "string"
+    ? user.unsafeMetadata.businessSlug : businessName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  return {
+    id: user.id, email,
+    fullName: user.fullName || email.split("@")[0],
+    role: isAdmin ? "super_admin" as const : "business_owner" as const,
+    organizationId: isAdmin ? "org_root" : `org_${user.id}`,
+    organizationName: isAdmin ? "Ovel Global Platform" : businessName,
+    organizationSlug: isAdmin ? "root" : slug,
+    permissions: isAdmin ? ["all:super_admin"] : ["bookings:manage", "invoicing:manage", "staff:manage"],
+    status: "active" as const, lastLogin: "Just now",
+  };
 }

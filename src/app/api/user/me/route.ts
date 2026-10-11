@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireApiAuth } from "@/lib/clerk-api";
+import { requireApiAuth, getWorkspaceProfile } from "@/lib/clerk-api";
 
 /**
  * Example Authenticated API Endpoint
@@ -21,5 +21,6 @@ export async function GET() {
     orgRole: authResult.orgRole,
     authProvider: "Clerk",
     status: "Authenticated",
+    profile: await getWorkspaceProfile(),
   });
 }

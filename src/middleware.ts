@@ -8,12 +8,12 @@ const isPublicRoute = createRouteMatcher([
   "/signup(.*)",
   "/forgot-password(.*)",
   "/sso-callback(.*)",
-  "/l(.*)",
-  "/book(.*)",
-  "/quote(.*)",
-  "/portal(.*)",
-  "/api/webhooks(.*)",
-  "/api/public(.*)",
+  "/l/(.*)",
+  "/book/(.*)",
+  "/quote/(.*)",
+  "/portal/(.*)",
+  "/api/webhooks/(.*)",
+  "/api/public/(.*)",
 ]);
 
 const isClerkActive = !!(
@@ -23,19 +23,18 @@ const isClerkActive = !!(
 );
 
 export default isClerkActive
-  ? clerkMiddleware(
-      async (auth, req) => {
-        if (!isPublicRoute(req)) {
-          await auth.protect({
-            unauthenticatedUrl: new URL("/login", req.url).toString(),
-          });
+  ? clerkMiddleware(async (auth, req) => {
+      if (!isPublicRoute(req)) {
+        const { userId } = await auth();
+        if (!userId) {
+          if (req.nextUrl.pathname.startsWith("/api/")) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+          }
+          const loginUrl = new URL("/login", req.url);
+          return NextResponse.redirect(loginUrl);
         }
-      },
-      {
-        signInUrl: "/login",
-        signUpUrl: "/signup",
       }
-    )
+    })
   : () => NextResponse.next();
 
 export const config = {

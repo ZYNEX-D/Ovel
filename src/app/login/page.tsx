@@ -95,11 +95,7 @@ export default function LoginPage() {
         <h2 className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
           Sign In to Your Workspace
         </h2>
-        <div className="flex items-center justify-center gap-2">
-          <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#105F68]/10 text-[#105F68] font-medium">
-            {isClerkActive ? "Clerk 10,000 MAU Free Tier" : "Ready for Clerk API Keys"}
-          </span>
-        </div>
+
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">

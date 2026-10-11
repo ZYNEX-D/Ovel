@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useSyncExternalStore } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
+  User, 
   ShieldCheck, 
   Building2, 
   LogOut, 
@@ -11,8 +12,9 @@ import {
   KeyRound, 
   Sparkles, 
   Calendar, 
-  Users, 
-  Check 
+  ExternalLink,
+  Users,
+  Check
 } from "lucide-react";
 import { useAuth, UserRole } from "@/lib/auth-context";
 import { useAudio } from "@/components/AudioController";
@@ -20,17 +22,11 @@ import { useChannelTransition } from "@/components/ChannelTransition";
 
 export default function UserAuthNav() {
   const router = useRouter();
-  const { profile, signOut, switchDemoRole } = useAuth();
+  const { profile, signOut } = useAuth();
   const { playClick } = useAudio();
   const { triggerTransition } = useChannelTransition();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const mounted = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  );
 
   // Close on outside click
   useEffect(() => {
@@ -52,12 +48,6 @@ export default function UserAuthNav() {
     });
   };
 
-  const handleSwitchRole = (role: UserRole) => {
-    playClick();
-    switchDemoRole(role);
-    setIsOpen(false);
-  };
-
   const getRoleBadge = (role?: UserRole) => {
     switch (role) {
       case "super_admin":
@@ -72,27 +62,6 @@ export default function UserAuthNav() {
         return { label: "Member", bg: "bg-gray-100 text-gray-700" };
     }
   };
-
-  const getInitials = (name?: string) => {
-    if (!name) return "U";
-    const clean = name.replace(/[^a-zA-Z0-9\s]/g, "").trim();
-    const parts = clean.split(/\s+/).filter(Boolean);
-    if (parts.length === 0) return "U";
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  };
-
-  if (!mounted) {
-    return (
-      <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full border border-[#105F68]/15 bg-white/60 animate-pulse h-9">
-        <div className="w-7 h-7 rounded-full bg-[#105F68]/20" />
-        <div className="hidden sm:block space-y-1">
-          <div className="w-16 h-2.5 bg-[#105F68]/15 rounded-full" />
-          <div className="w-10 h-2 bg-[#3A9295]/15 rounded-full" />
-        </div>
-      </div>
-    );
-  }
 
   if (!profile) {
     return (
@@ -116,31 +85,27 @@ export default function UserAuthNav() {
   }
 
   const roleInfo = getRoleBadge(profile.role);
-  const initials = getInitials(profile.fullName);
-
+  const parts = profile.fullName.replace(/[^a-zA-Z0-9\s]/g, "").trim().split(/\s+/).filter(Boolean);
+  const initials = parts.length === 0 ? "U" : parts.length === 1
+    ? parts[0].slice(0, 2).toUpperCase()
+    : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Trigger Button */}
       <button
         onClick={() => {
           playClick();
-          setIsOpen(!isOpen);
-        }}
+          setIsOpen(!isOpen)}
+        }
         className="flex items-center gap-2.5 px-3 py-1.5 rounded-full border border-[#105F68]/20 bg-white/90 hover:bg-white hover:border-[#105F68]/40 transition-all shadow-sm group"
         aria-label="User Account Menu"
       >
-        <div
-          suppressHydrationWarning
-          className="relative w-7 h-7 rounded-full bg-[#105F68] text-white flex items-center justify-center text-xs font-medium tracking-tight shadow-sm"
-        >
+        <div className="relative w-7 h-7 rounded-full bg-[#105F68] text-white flex items-center justify-center text-xs font-medium tracking-tight shadow-sm">
           {initials}
           <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white"></span>
         </div>
         <div className="text-left hidden sm:block">
-          <p
-            suppressHydrationWarning
-            className="text-xs font-medium text-[#105F68] leading-tight line-clamp-1 max-w-[120px]"
-          >
+          <p className="text-xs font-medium text-[#105F68] leading-tight line-clamp-1 max-w-[120px]">
             {profile.fullName}
           </p>
           <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-light tracking-wide ${roleInfo.bg}`}>
@@ -161,9 +126,7 @@ export default function UserAuthNav() {
               </span>
               <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 font-light">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                {Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith("pk_"))
-                  ? "Clerk Auth Active"
-                  : "Supabase Auth Active"}
+                Clerk Auth Active
               </span>
             </div>
             <h4 className="text-sm font-semibold text-[#105F68]">{profile.fullName}</h4>
@@ -174,60 +137,6 @@ export default function UserAuthNav() {
                 {profile.organizationName}
               </p>
             )}
-          </div>
-
-          {/* Quick Role Switcher (Developer & Demo Feature) */}
-          <div className="py-3 border-b border-[#105F68]/10">
-            <p className="text-[10px] uppercase tracking-wider text-[#3A9295] font-semibold mb-2 flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-[#63C1BB]" />
-              Quick Identity Switch
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                onClick={() => handleSwitchRole("super_admin")}
-                className={`text-[11px] text-left px-2.5 py-1.5 rounded-lg border transition-all flex items-center justify-between ${
-                  profile.role === "super_admin"
-                    ? "bg-[#105F68] text-white border-[#105F68]"
-                    : "bg-[#F6FAF9] text-[#105F68] border-[#105F68]/10 hover:border-[#105F68]/30"
-                }`}
-              >
-                <span>Developer Root</span>
-                {profile.role === "super_admin" && <Check className="w-3 h-3" />}
-              </button>
-              <button
-                onClick={() => handleSwitchRole("business_owner")}
-                className={`text-[11px] text-left px-2.5 py-1.5 rounded-lg border transition-all flex items-center justify-between ${
-                  profile.role === "business_owner"
-                    ? "bg-[#105F68] text-white border-[#105F68]"
-                    : "bg-[#F6FAF9] text-[#105F68] border-[#105F68]/10 hover:border-[#105F68]/30"
-                }`}
-              >
-                <span>Business Owner</span>
-                {profile.role === "business_owner" && <Check className="w-3 h-3" />}
-              </button>
-              <button
-                onClick={() => handleSwitchRole("staff")}
-                className={`text-[11px] text-left px-2.5 py-1.5 rounded-lg border transition-all flex items-center justify-between ${
-                  profile.role === "staff"
-                    ? "bg-[#105F68] text-white border-[#105F68]"
-                    : "bg-[#F6FAF9] text-[#105F68] border-[#105F68]/10 hover:border-[#105F68]/30"
-                }`}
-              >
-                <span>Specialist Staff</span>
-                {profile.role === "staff" && <Check className="w-3 h-3" />}
-              </button>
-              <button
-                onClick={() => handleSwitchRole("client")}
-                className={`text-[11px] text-left px-2.5 py-1.5 rounded-lg border transition-all flex items-center justify-between ${
-                  profile.role === "client"
-                    ? "bg-[#105F68] text-white border-[#105F68]"
-                    : "bg-[#F6FAF9] text-[#105F68] border-[#105F68]/10 hover:border-[#105F68]/30"
-                }`}
-              >
-                <span>Client</span>
-                {profile.role === "client" && <Check className="w-3 h-3" />}
-              </button>
-            </div>
           </div>
 
           {/* Navigation Items */}

@@ -8,8 +8,8 @@ export default function SSOCallbackPage() {
       <div className="p-8 rounded-3xl bg-white border border-[#105F68]/15 shadow-xl space-y-3">
         <div className="w-8 h-8 border-2 border-[#105F68] border-t-transparent rounded-full animate-spin mx-auto" />
         <AuthenticateWithRedirectCallback
-          signInFallbackRedirectUrl="/dashboard"
-          signUpFallbackRedirectUrl="/dashboard"
+          signInFallbackRedirectUrl="/auth/redirect"
+          signUpFallbackRedirectUrl="/auth/redirect"
         />
       </div>
     </div>
