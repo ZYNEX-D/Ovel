@@ -2,20 +2,20 @@
 
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
-import { 
-  Calendar as CalendarIcon, 
-  Clock, 
-  Check, 
-  Sparkles, 
-  MessageSquare, 
-  Lock, 
-  ChevronLeft, 
-  Share2, 
-  Copy, 
-  ExternalLink, 
-  ShoppingBag, 
-  MapPin, 
-  Globe, 
+import {
+  Calendar as CalendarIcon,
+  Clock,
+  Check,
+  Sparkles,
+  MessageSquare,
+  Lock,
+  ChevronLeft,
+  Share2,
+  Copy,
+  ExternalLink,
+  ShoppingBag,
+  MapPin,
+  Globe,
   ArrowRight,
   ShieldCheck,
   QrCode,
@@ -27,10 +27,10 @@ import {
   Tag,
   Mail
 } from "lucide-react";
-import { 
-  OvelinkCustomization, 
-  OvelinkOffering, 
-  OfferingType 
+import {
+  OvelinkCustomization,
+  OvelinkOffering,
+  OfferingType
 } from "@/lib/ovelink-store";
 import { getReviews } from "@/lib/reviews-store";
 import { useAudio } from "@/components/AudioController";
@@ -55,7 +55,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
   }, []);
   const [selectedDate, setSelectedDate] = useState<string>(tomorrowStr);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>("10:00 AM");
-  
+
   // Order selection
   const [orderQuantity, setOrderQuantity] = useState<number>(1);
   const [orderNotes, setOrderNotes] = useState<string>("");
@@ -128,11 +128,11 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
 
   // Button style class generator
   const getButtonClass = (isPrimary = true) => {
-    const radius = config.buttonStyle === "pill" 
-      ? "rounded-full" 
-      : config.buttonStyle === "sharp" 
-      ? "rounded-md" 
-      : "rounded-xl";
+    const radius = config.buttonStyle === "pill"
+      ? "rounded-full"
+      : config.buttonStyle === "sharp"
+        ? "rounded-md"
+        : "rounded-xl";
 
     if (isPrimary) {
       return `${radius} px-5 py-2.5 text-xs font-medium transition-all shadow-sm hover:opacity-90 active:scale-95 text-white`;
@@ -145,7 +145,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
   };
 
   return (
-    <div 
+    <div
       className={`min-h-full w-full transition-colors duration-300 ${!isEmbedPreview ? "min-h-screen" : ""}`}
       style={{
         backgroundColor: config.bgColor,
@@ -154,7 +154,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
       }}
     >
       {/* Cover Banner */}
-      <div 
+      <div
         className={`w-full bg-gradient-to-r ${config.coverGradient} relative ${isEmbedPreview ? "h-28" : "h-40 sm:h-52"} transition-all duration-300 bg-cover bg-center`}
         style={config.coverImageUrl ? { backgroundImage: `url(${config.coverImageUrl})` } : undefined}
       >
@@ -188,22 +188,22 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
       {/* Main Content Container */}
       <div className={`max-w-2xl mx-auto px-4 sm:px-6 relative ${isEmbedPreview ? "-mt-10 pb-8" : "-mt-14 pb-20"}`}>
         {/* Business Profile Header Card */}
-        <div 
+        <div
           className={`p-5 sm:p-6 shadow-xl border border-black/5 relative transition-all ${getCardRadius()}`}
           style={{ backgroundColor: config.surfaceColor }}
         >
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-center gap-4">
               {/* Avatar Circle */}
-              <div 
+              <div
                 className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center text-white text-xl sm:text-2xl font-bold shadow-md border-2 border-white transition-transform overflow-hidden relative"
                 style={{ backgroundColor: config.primaryColor }}
               >
                 {config.logoUrl ? (
-                  <img 
-                    src={config.logoUrl} 
-                    alt={config.businessName} 
-                    className="w-full h-full object-cover" 
+                  <img
+                    src={config.logoUrl}
+                    alt={config.businessName}
+                    className="w-full h-full object-cover"
                   />
                 ) : (
                   config.avatarInitials
@@ -212,12 +212,12 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
 
               <div>
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span 
+                  {/* <span 
                     className="text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider"
                     style={{ backgroundColor: `${config.accentColor}33`, color: config.primaryColor }}
                   >
                     {config.businessCategory}
-                  </span>
+                  </span> */}
                   <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     Instant Confirmation
@@ -333,7 +333,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                   <div className="flex-1 pr-2">
                     <div className="flex items-center gap-2 mb-1">
                       {off.badge && (
-                        <span 
+                        <span
                           className="text-[9px] px-2 py-0.2 rounded-full font-medium uppercase tracking-wide"
                           style={{ backgroundColor: `${config.accentColor}33`, color: config.primaryColor }}
                         >
@@ -425,7 +425,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <div 
+                      <div
                         className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm"
                         style={{ backgroundColor: config.primaryColor }}
                       >
@@ -473,7 +473,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
       {/* Booking / Ordering Checkout Modal */}
       {selectedOffering && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div 
+          <div
             className={`w-full max-w-lg shadow-2xl p-6 sm:p-8 space-y-5 relative max-h-[90vh] overflow-y-auto ${getCardRadius()}`}
             style={{ backgroundColor: config.surfaceColor, color: config.textColor }}
           >
@@ -528,11 +528,10 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                           key={slot}
                           type="button"
                           onClick={() => { playClick(); setSelectedTimeSlot(slot); }}
-                          className={`p-2.5 rounded-xl text-xs font-mono transition-all border ${
-                            isSlotActive
+                          className={`p-2.5 rounded-xl text-xs font-mono transition-all border ${isSlotActive
                               ? "text-white font-semibold"
                               : "border-black/10 hover:border-black/30"
-                          }`}
+                            }`}
                           style={{
                             backgroundColor: isSlotActive ? config.primaryColor : "transparent",
                             borderColor: isSlotActive ? config.primaryColor : undefined,
@@ -684,11 +683,10 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                         playClick();
                         setReferencePhotoAttached(!referencePhotoAttached);
                       }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        referencePhotoAttached
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${referencePhotoAttached
                           ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                           : "border border-black/15 hover:bg-black/5"
-                      }`}
+                        }`}
                     >
                       {referencePhotoAttached ? "✓ Photo Attached" : "+ Upload Photo"}
                     </button>
@@ -713,16 +711,14 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                           <div
                             key={item.id}
                             onClick={() => toggleRetailAddon(item.id)}
-                            className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${
-                              isChecked
+                            className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${isChecked
                                 ? "bg-black/[0.04] border-black/30 font-medium"
                                 : "border-black/10 hover:border-black/20"
-                            }`}
+                              }`}
                           >
                             <div className="flex items-center gap-2">
-                              <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${
-                                isChecked ? "bg-black text-white" : "border-black/30"
-                              }`}>
+                              <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${isChecked ? "bg-black text-white" : "border-black/30"
+                                }`}>
                                 {isChecked && "✓"}
                               </div>
                               <span>{item.name}</span>
@@ -794,7 +790,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
             {/* STEP 4: CONFIRMED SUCCESS */}
             {step === 4 && (
               <div className="text-center py-6 space-y-4 animate-in zoom-in-95 duration-200">
-                <div 
+                <div
                   className="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-white shadow-lg"
                   style={{ backgroundColor: config.primaryColor }}
                 >

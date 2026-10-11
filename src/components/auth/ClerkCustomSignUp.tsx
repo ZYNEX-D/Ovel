@@ -32,6 +32,9 @@ export default function ClerkCustomSignUp() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const [resending, setResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
+
   const businessSlug = businessName
     ? businessName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
     : "my-studio";
@@ -44,17 +47,31 @@ export default function ClerkCustomSignUp() {
     setErrorMsg(null);
     playClick();
 
+    const nameParts = fullName.trim().split(/\s+/);
+    const firstName = nameParts[0] || "Owner";
+    const lastName = nameParts.slice(1).join(" ") || firstName;
+
     try {
-      const result = await signUp.create({
+      let result = await signUp.create({
         emailAddress: email.trim(),
         password: password,
-        firstName: fullName.split(" ")[0] || "Owner",
-        lastName: fullName.split(" ").slice(1).join(" ") || "",
+        firstName,
+        lastName,
         unsafeMetadata: {
           businessName: businessName || "My Business",
           businessSlug,
         },
       });
+
+      // If username or other fields are immediately flagged as missing by Clerk, auto-fill what we can
+      if (result.missingFields?.includes("username")) {
+        try {
+          const autoUsername = (email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "") + Math.floor(100 + Math.random() * 900)).slice(0, 20);
+          result = await signUp.update({ username: autoUsername });
+        } catch (e) {
+          console.warn("Could not set auto-username on create:", e);
+        }
+      }
 
       if (result.status === "complete" && result.createdSessionId) {
         await setActive({ session: result.createdSessionId });
@@ -84,23 +101,108 @@ export default function ClerkCustomSignUp() {
     playClick();
 
     try {
-      const completeSignUp = await signUp.attemptEmailAddressVerification({
-        code: code.trim(),
-      });
+      // 1. If email is already verified on Clerk, reuse current signUp state
+      const isEmailAlreadyVerified = (signUp.verifications as unknown as { emailAddress?: { status?: string } })?.emailAddress?.status === "verified";
+      const completeSignUp = isEmailAlreadyVerified
+        ? signUp
+        : await signUp.attemptEmailAddressVerification({
+            code: code.trim(),
+          });
 
-      if (completeSignUp.status === "complete") {
+      // 2. Success with complete status and created session
+      if (completeSignUp.status === "complete" && completeSignUp.createdSessionId) {
         playSuccess();
         await setActive({ session: completeSignUp.createdSessionId });
         router.replace("/auth/redirect");
-      } else {
-        setErrorMsg("Verification incomplete. Please retry or request a new code.");
+        return;
       }
+
+      // 3. Session created even if additional optional steps exist
+      if (completeSignUp.createdSessionId) {
+        playSuccess();
+        await setActive({ session: completeSignUp.createdSessionId });
+        router.replace("/auth/redirect");
+        return;
+      }
+
+      // 4. Handle missing requirements (e.g. Username, LastName, Legal Terms configured in Clerk Dashboard)
+      if (completeSignUp.status === "missing_requirements") {
+        const missing = (completeSignUp as unknown as { missingFields?: string[] }).missingFields || [];
+        const updatePayload: Record<string, unknown> = {};
+
+        if (missing.includes("username")) {
+          const base = (email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "") || "user").slice(0, 15);
+          updatePayload.username = `${base}${Math.floor(1000 + Math.random() * 9000)}`;
+        }
+        if (missing.includes("last_name")) {
+          const nameParts = fullName.trim().split(/\s+/);
+          updatePayload.lastName = nameParts.slice(1).join(" ") || nameParts[0] || "Owner";
+        }
+        if (missing.includes("first_name")) {
+          updatePayload.firstName = fullName.trim().split(/\s+/)[0] || "Owner";
+        }
+        if (missing.includes("legal_accepted")) {
+          updatePayload.legalAccepted = true;
+        }
+
+        if (Object.keys(updatePayload).length > 0) {
+          try {
+            const updated = await signUp.update(updatePayload);
+            if ((updated.status === "complete" || updated.createdSessionId) && updated.createdSessionId) {
+              playSuccess();
+              await setActive({ session: updated.createdSessionId });
+              router.replace("/auth/redirect");
+              return;
+            }
+          } catch (updateErr) {
+            console.error("Auto-complete sign-up update error:", updateErr);
+          }
+        }
+
+        const missingDesc = missing.length > 0 ? missing.join(", ") : "additional account fields";
+        setErrorMsg(`Email verified! However, your Clerk dashboard requires: ${missingDesc}. Please check your Clerk settings.`);
+        return;
+      }
+
+      setErrorMsg("Verification could not be finalized. Please check your Clerk dashboard requirements.");
     } catch (err: unknown) {
-      const clerkError = err as { errors?: Array<{ message: string; longMessage?: string }> };
-      const message = clerkError?.errors?.[0]?.longMessage || clerkError?.errors?.[0]?.message || "Invalid verification code.";
+      const clerkError = err as { errors?: Array<{ message: string; longMessage?: string; code?: string }> };
+      const firstError = clerkError?.errors?.[0];
+
+      // If already verified, activate session if available
+      if (
+        firstError?.code === "verification_already_verified" ||
+        (signUp.verifications as unknown as { emailAddress?: { status?: string } })?.emailAddress?.status === "verified"
+      ) {
+        if (signUp.createdSessionId) {
+          playSuccess();
+          await setActive({ session: signUp.createdSessionId });
+          router.replace("/auth/redirect");
+          return;
+        }
+      }
+
+      const message = firstError?.longMessage || firstError?.message || "Invalid verification code.";
       setErrorMsg(message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (!isLoaded || resending) return;
+    setResending(true);
+    setErrorMsg(null);
+    playClick();
+    try {
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      setResendSuccess(true);
+      setTimeout(() => setResendSuccess(false), 5000);
+    } catch (err: unknown) {
+      const clerkError = err as { errors?: Array<{ message: string; longMessage?: string }> };
+      setErrorMsg(clerkError?.errors?.[0]?.longMessage || clerkError?.errors?.[0]?.message || "Failed to resend code.");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -168,13 +270,27 @@ export default function ClerkCustomSignUp() {
           <ArrowRight className="w-4 h-4 text-[#63C1BB]" />
         </button>
 
-        <button
-          type="button"
-          onClick={() => setVerifying(false)}
-          className="w-full text-center text-xs text-[#3A9295] hover:underline pt-1"
-        >
-          Back to edit email
-        </button>
+        <div className="flex items-center justify-between text-xs pt-2 px-1">
+          <button
+            type="button"
+            onClick={handleResendCode}
+            disabled={resending}
+            className="text-[#105F68] font-medium hover:underline disabled:opacity-50"
+          >
+            {resending ? "Sending new code..." : resendSuccess ? "✓ New code sent!" : "Resend code"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setVerifying(false);
+              setCode("");
+              setErrorMsg(null);
+            }}
+            className="text-[#3A9295] hover:underline"
+          >
+            Back to edit email
+          </button>
+        </div>
       </form>
     );
   }
