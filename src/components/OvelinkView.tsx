@@ -24,7 +24,8 @@ import {
   Star,
   Upload,
   Plus,
-  Tag
+  Tag,
+  Mail
 } from "lucide-react";
 import { 
   OvelinkCustomization, 
@@ -153,7 +154,13 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
       }}
     >
       {/* Cover Banner */}
-      <div className={`w-full bg-gradient-to-r ${config.coverGradient} relative ${isEmbedPreview ? "h-28" : "h-40 sm:h-52"} transition-all duration-300`}>
+      <div 
+        className={`w-full bg-gradient-to-r ${config.coverGradient} relative ${isEmbedPreview ? "h-28" : "h-40 sm:h-52"} transition-all duration-300 bg-cover bg-center`}
+        style={config.coverImageUrl ? { backgroundImage: `url(${config.coverImageUrl})` } : undefined}
+      >
+        {config.coverImageUrl && (
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" />
+        )}
         {/* Brand Bar */}
         <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex items-center gap-2">
           <button
@@ -189,10 +196,18 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
             <div className="flex items-center gap-4">
               {/* Avatar Circle */}
               <div 
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center text-white text-xl sm:text-2xl font-bold shadow-md border-2 border-white transition-transform"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center text-white text-xl sm:text-2xl font-bold shadow-md border-2 border-white transition-transform overflow-hidden relative"
                 style={{ backgroundColor: config.primaryColor }}
               >
-                {config.avatarInitials}
+                {config.logoUrl ? (
+                  <img 
+                    src={config.logoUrl} 
+                    alt={config.businessName} 
+                    className="w-full h-full object-cover" 
+                  />
+                ) : (
+                  config.avatarInitials
+                )}
               </div>
 
               <div>
@@ -243,6 +258,16 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
               >
                 <Phone className="w-3 h-3 text-emerald-600" />
                 <span>WhatsApp Us</span>
+              </a>
+            )}
+
+            {config.email && (
+              <a
+                href={`mailto:${config.email}`}
+                className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] text-[#105F68] bg-[#F6FAF9] border border-[#105F68]/15 hover:bg-white transition-all"
+              >
+                <Mail className="w-3 h-3 text-[#3A9295]" />
+                <span>{config.email}</span>
               </a>
             )}
 

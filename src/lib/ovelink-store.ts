@@ -48,6 +48,8 @@ export interface OvelinkCustomization {
   businessBio: string;
   businessCategory: string;
   avatarInitials: string;
+  logoUrl?: string;
+  coverImageUrl?: string;
   coverGradient: string;
   
   // Customization: Font & Colors & Styling
@@ -64,6 +66,7 @@ export interface OvelinkCustomization {
   whatsappNumber: string;
   instagramHandle?: string;
   websiteUrl?: string;
+  email?: string;
   location?: string;
   currency: string;
   
@@ -126,6 +129,28 @@ export const THEME_PRESETS: OvelinkThemePreset[] = [
     surfaceColor: "#FFFFFF",
     fontFamily: "Syne",
     coverGradient: "from-[#18181B] to-[#27272A]",
+  },
+  {
+    id: "sunset_coral",
+    name: "Sunset Coral & Rose",
+    primaryColor: "#BE123C",
+    accentColor: "#FB7185",
+    bgColor: "#FFF1F2",
+    textColor: "#881337",
+    surfaceColor: "#FFFFFF",
+    fontFamily: "Kaleko 105",
+    coverGradient: "from-[#BE123C] to-[#E11D48]",
+  },
+  {
+    id: "royal_amethyst",
+    name: "Royal Velvet Amethyst",
+    primaryColor: "#581C87",
+    accentColor: "#A855F7",
+    bgColor: "#FAF5FF",
+    textColor: "#3B0764",
+    surfaceColor: "#FFFFFF",
+    fontFamily: "Outfit",
+    coverGradient: "from-[#4A044E] to-[#6B21A8]",
   },
 ];
 
@@ -397,9 +422,29 @@ export function getOvelink(slug: string): OvelinkCustomization {
   return all[slug] || all["leclat"] || PRESET_OVELINKS["leclat"];
 }
 
-export function saveOvelink(config: OvelinkCustomization): void {
+export function saveOvelink(config: OvelinkCustomization, previousSlug?: string): void {
   if (typeof window === "undefined") return;
   const all = getAllOvelinks();
+  if (previousSlug && previousSlug !== config.slug && all[previousSlug]) {
+    delete all[previousSlug];
+  }
   all[config.slug] = config;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+
+  // Dispatch custom reactive event so dashboard, layouts, and active tabs update live
+  try {
+    window.dispatchEvent(new CustomEvent("ovel:brand_updated", { detail: config }));
+  } catch {
+    // SSR safe
+  }
+}
+
+export function updateBrandDetails(slug: string, updates: Partial<OvelinkCustomization>): OvelinkCustomization {
+  const current = getOvelink(slug);
+  const updated: OvelinkCustomization = {
+    ...current,
+    ...updates,
+  };
+  saveOvelink(updated, slug !== updated.slug ? slug : undefined);
+  return updated;
 }

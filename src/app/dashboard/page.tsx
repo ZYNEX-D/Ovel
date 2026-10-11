@@ -21,7 +21,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   Building2,
-  Users
+  Users,
+  Palette
 } from "lucide-react";
 import { 
   getBookings, 
@@ -177,6 +178,16 @@ export default function DashboardSchedulePage() {
             <Lock className="w-3.5 h-3.5 text-[#3A9295]" />
             <span>Generate Single-Use Link</span>
           </button>
+
+          {/* Brand Identity Settings */}
+          <Link
+            href="/dashboard/settings"
+            onClick={() => playClick()}
+            className="px-3.5 py-1.5 rounded-xl border border-[#105F68]/20 bg-white hover:bg-[#105F68]/5 text-xs text-[#105F68] font-light transition-all flex items-center gap-1.5 shadow-sm"
+          >
+            <Palette className="w-3.5 h-3.5 text-[#3A9295]" />
+            <span>Brand Settings</span>
+          </Link>
 
           {/* Smart Waitlist Engine */}
           <button

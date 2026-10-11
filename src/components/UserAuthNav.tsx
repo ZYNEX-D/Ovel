@@ -3,18 +3,18 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { 
-  User, 
-  ShieldCheck, 
-  Building2, 
-  LogOut, 
-  ChevronDown, 
-  KeyRound, 
-  Sparkles, 
-  Calendar, 
-  ExternalLink,
+import {
+  User,
+  ShieldCheck,
+  Building2,
+  LogOut,
+  ChevronDown,
+  KeyRound,
+  Sparkles,
+  Calendar,
   Users,
-  Check
+  Check,
+  Palette
 } from "lucide-react";
 import { useAuth, UserRole } from "@/lib/auth-context";
 import { useAudio } from "@/components/AudioController";
@@ -95,7 +95,8 @@ export default function UserAuthNav() {
       <button
         onClick={() => {
           playClick();
-          setIsOpen(!isOpen)}
+          setIsOpen(!isOpen)
+        }
         }
         className="flex items-center gap-2.5 px-3 py-1.5 rounded-full border border-[#105F68]/20 bg-white/90 hover:bg-white hover:border-[#105F68]/40 transition-all shadow-sm group"
         aria-label="User Account Menu"
@@ -149,14 +150,23 @@ export default function UserAuthNav() {
               <Calendar className="w-3.5 h-3.5 text-[#3A9295]" />
               <span>Merchant Dashboard</span>
             </Link>
-            
+
+            <Link
+              href="/dashboard/settings"
+              onClick={() => { playClick(); setIsOpen(false); }}
+              className="flex items-center gap-2.5 px-3 py-2 text-xs text-[#105F68] rounded-xl hover:bg-[#F6FAF9] transition-colors"
+            >
+              <Palette className="w-3.5 h-3.5 text-[#3A9295]" />
+              <span>Brand Details &amp; Identity</span>
+            </Link>
+
             <Link
               href="/dashboard?tab=team_auth"
               onClick={() => { playClick(); setIsOpen(false); }}
               className="flex items-center gap-2.5 px-3 py-2 text-xs text-[#105F68] rounded-xl hover:bg-[#F6FAF9] transition-colors"
             >
               <Users className="w-3.5 h-3.5 text-[#3A9295]" />
-              <span>Team & Auth Management</span>
+              <span>Team &amp; Auth Management</span>
             </Link>
 
             {profile.role === "super_admin" && (

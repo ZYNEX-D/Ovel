@@ -23,7 +23,8 @@ import {
   Building2,
   Check,
   ChevronRight,
-  Star
+  Star,
+  Settings
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getOvelink } from "@/lib/ovelink-store";
@@ -47,6 +48,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/quotes", label: "Proposals & Quotes", icon: FileText },
   { href: "/dashboard/reviews", label: "Reviews & Reputation", icon: Star, badge: "Moat" },
   { href: "/dashboard/team", label: "Team & Auth Control", icon: ShieldCheck },
+  { href: "/dashboard/settings", label: "Brand Settings", icon: Settings, badge: "Identity" },
 ];
 
 export default function DashboardLayout({

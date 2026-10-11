@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   Sparkles, 
@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { 
   getOvelink, 
+  PRESET_OVELINKS,
   saveOvelink, 
   OvelinkCustomization, 
   OvelinkOffering, 
@@ -35,12 +36,17 @@ import { useAudio } from "@/components/AudioController";
 import OvelinkView from "@/components/OvelinkView";
 
 export default function OvelinkStudioPage() {
-  const { profile } = useAuth();
+  const { profile, updateOrganizationDetails } = useAuth();
   const { playClick, playSuccess } = useAudio();
 
-  const [activeOvelink, setActiveOvelink] = useState<OvelinkCustomization>(() => 
-    getOvelink(profile?.organizationSlug || "leclat")
+  const defaultSlug = profile?.organizationSlug || "leclat";
+  const [activeOvelink, setActiveOvelink] = useState<OvelinkCustomization>(
+    () => PRESET_OVELINKS[defaultSlug] || PRESET_OVELINKS["leclat"]
   );
+
+  useEffect(() => {
+    setActiveOvelink(getOvelink(defaultSlug));
+  }, [defaultSlug]);
   const [studioSubTab, setStudioSubTab] = useState<"branding" | "themes" | "style" | "offerings" | "socials">("branding");
   const [previewDevice, setPreviewDevice] = useState<"mobile" | "desktop">("mobile");
   const [isAddOfferingOpen, setIsAddOfferingOpen] = useState(false);
@@ -76,6 +82,7 @@ export default function OvelinkStudioPage() {
   const handleSaveOvelinkSettings = () => {
     playSuccess();
     saveOvelink(activeOvelink);
+    updateOrganizationDetails(activeOvelink.businessName, activeOvelink.slug);
     showToast(`Ovelink for "${activeOvelink.businessName}" saved & published!`);
   };
 
@@ -300,6 +307,29 @@ export default function OvelinkStudioPage() {
                     value={activeOvelink.avatarInitials}
                     onChange={(e) => setActiveOvelink({ ...activeOvelink, avatarInitials: e.target.value.toUpperCase() })}
                     className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68] uppercase font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[#3A9295] font-medium block mb-1">Brand Logo Image URL</label>
+                  <input
+                    type="url"
+                    placeholder="https://.../logo.png"
+                    value={activeOvelink.logoUrl || ""}
+                    onChange={(e) => setActiveOvelink({ ...activeOvelink, logoUrl: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[#3A9295] font-medium block mb-1">Public Brand Contact Email</label>
+                  <input
+                    type="email"
+                    placeholder="hello@yourbrand.com"
+                    value={activeOvelink.email || ""}
+                    onChange={(e) => setActiveOvelink({ ...activeOvelink, email: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                   />
                 </div>
               </div>

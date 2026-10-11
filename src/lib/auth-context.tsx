@@ -47,6 +47,8 @@ interface AuthContextType {
   removeTeamMember: (id: string) => void;
   sendMagicLinkToUser: (email: string) => Promise<{ error: string | null }>;
   impersonateUser: (userId: string) => void;
+  updateProfile: (updates: Partial<UserProfile>) => void;
+  updateOrganizationDetails: (name: string, slug: string) => void;
 }
 
 export const INITIAL_SYSTEM_USERS: UserProfile[] = [
@@ -88,6 +90,8 @@ const AuthContext = createContext<AuthContextType>({
   removeTeamMember: () => {},
   sendMagicLinkToUser: async () => ({ error: null }),
   impersonateUser: () => {},
+  updateProfile: () => {},
+  updateOrganizationDetails: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -138,6 +142,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const unavailable = async () => ({ error: "Manage account invitations and recovery through Clerk." });
   // Client-side role switches and impersonation cannot change verified identity.
   const noIdentityChange = () => {};
+
+  const updateProfile = (updates: Partial<UserProfile>) => {
+    if (profile) setProfile({ ...profile, ...updates });
+  };
+
+  const updateOrganizationDetails = (name: string, slug: string) => {
+    if (profile) {
+      setProfile({
+        ...profile,
+        organizationName: name,
+        organizationSlug: slug,
+        organizationId: "org_" + slug,
+      });
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user: null, session: null, profile,
@@ -150,6 +170,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       inviteTeamMember: unavailable, updateTeamMember: noIdentityChange,
       removeTeamMember: noIdentityChange, sendMagicLinkToUser: unavailable,
       impersonateUser: noIdentityChange,
+      updateProfile,
+      updateOrganizationDetails,
     }}>
       {children}
     </AuthContext.Provider>
