@@ -1,7 +1,6 @@
 "use client";
 
 import React, { createContext, useContext, useState } from "react";
-import Image from "next/image";
 import { useAudio } from "./AudioController";
 
 interface TransitionContextType {
@@ -76,17 +75,14 @@ export function ChannelTransitionProvider({ children }: { children: React.ReactN
         {/* Subtle accent border line on the curtain leading edge */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#C8E6E2] via-[#63C1BB] to-[#3A9295]" />
 
-        {/* Minimalist Logo Mark Reveal in Center of Curtain */}
+        {/* Minimalist Logo Reveal in Center of Curtain */}
         <div
-          className={`flex flex-col items-center gap-3 transition-opacity duration-300 ${
+          className={`flex items-center justify-center transition-opacity duration-300 ${
             phase === "covering" ? "opacity-100 delay-150" : "opacity-0"
           }`}
         >
-          <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center p-2.5 shadow-xl">
-            <Image src="/icon.svg" alt="Ovel" width={36} height={36} className="brightness-200 invert" />
-          </div>
-          <span className="font-['Disolve'] text-2xl tracking-wider text-[#C8E6E2]">
-            ovel
+          <span className="font-['Disolve'] text-4xl sm:text-5xl tracking-wider text-[#C8E6E2]">
+            Ovel
           </span>
         </div>
 

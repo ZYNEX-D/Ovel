@@ -147,7 +147,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/25 backdrop-blur-md border border-white/20 text-white text-[11px] font-medium hover:bg-black/35 transition-all shadow-sm group"
           >
             <span className="opacity-80">powered by</span>
-            <span className="font-['Disolve'] font-bold tracking-wide">ovel</span>
+            <span className="font-['Disolve'] font-bold tracking-wide">Ovel</span>
           </Link>
 
           {/* Share Button */}
@@ -466,7 +466,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
           <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500">
             <span>Powered by</span>
             <Link href="/" className="font-['Disolve'] font-bold text-[#105F68] hover:underline">
-              ovel
+              Ovel
             </Link>
           </div>
         </div>
