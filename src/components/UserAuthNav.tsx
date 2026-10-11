@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
-  User, 
   ShieldCheck, 
   Building2, 
   LogOut, 
@@ -12,9 +11,8 @@ import {
   KeyRound, 
   Sparkles, 
   Calendar, 
-  ExternalLink,
-  Users,
-  Check
+  Users, 
+  Check 
 } from "lucide-react";
 import { useAuth, UserRole } from "@/lib/auth-context";
 import { useAudio } from "@/components/AudioController";
@@ -27,6 +25,12 @@ export default function UserAuthNav() {
   const { triggerTransition } = useChannelTransition();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   // Close on outside click
   useEffect(() => {
@@ -69,6 +73,27 @@ export default function UserAuthNav() {
     }
   };
 
+  const getInitials = (name?: string) => {
+    if (!name) return "U";
+    const clean = name.replace(/[^a-zA-Z0-9\s]/g, "").trim();
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "U";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full border border-[#105F68]/15 bg-white/60 animate-pulse h-9">
+        <div className="w-7 h-7 rounded-full bg-[#105F68]/20" />
+        <div className="hidden sm:block space-y-1">
+          <div className="w-16 h-2.5 bg-[#105F68]/15 rounded-full" />
+          <div className="w-10 h-2 bg-[#3A9295]/15 rounded-full" />
+        </div>
+      </div>
+    );
+  }
+
   if (!profile) {
     return (
       <div className="flex items-center gap-2">
@@ -91,12 +116,7 @@ export default function UserAuthNav() {
   }
 
   const roleInfo = getRoleBadge(profile.role);
-  const initials = profile.fullName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const initials = getInitials(profile.fullName);
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -104,17 +124,23 @@ export default function UserAuthNav() {
       <button
         onClick={() => {
           playClick();
-          setIsOpen(!isOpen)}
-        }
+          setIsOpen(!isOpen);
+        }}
         className="flex items-center gap-2.5 px-3 py-1.5 rounded-full border border-[#105F68]/20 bg-white/90 hover:bg-white hover:border-[#105F68]/40 transition-all shadow-sm group"
         aria-label="User Account Menu"
       >
-        <div className="relative w-7 h-7 rounded-full bg-[#105F68] text-white flex items-center justify-center text-xs font-medium tracking-tight shadow-sm">
+        <div
+          suppressHydrationWarning
+          className="relative w-7 h-7 rounded-full bg-[#105F68] text-white flex items-center justify-center text-xs font-medium tracking-tight shadow-sm"
+        >
           {initials}
           <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white"></span>
         </div>
         <div className="text-left hidden sm:block">
-          <p className="text-xs font-medium text-[#105F68] leading-tight line-clamp-1 max-w-[120px]">
+          <p
+            suppressHydrationWarning
+            className="text-xs font-medium text-[#105F68] leading-tight line-clamp-1 max-w-[120px]"
+          >
             {profile.fullName}
           </p>
           <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-light tracking-wide ${roleInfo.bg}`}>
@@ -135,7 +161,9 @@ export default function UserAuthNav() {
               </span>
               <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 font-light">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                Supabase Auth Active
+                {Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith("pk_"))
+                  ? "Clerk Auth Active"
+                  : "Supabase Auth Active"}
               </span>
             </div>
             <h4 className="text-sm font-semibold text-[#105F68]">{profile.fullName}</h4>

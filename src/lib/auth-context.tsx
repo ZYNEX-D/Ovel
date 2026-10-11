@@ -327,6 +327,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      if (typeof window !== "undefined" && (window as unknown as { Clerk?: { signOut: () => Promise<void> } }).Clerk?.signOut) {
+        await (window as unknown as { Clerk: { signOut: () => Promise<void> } }).Clerk.signOut();
+      }
+    } catch {
+      // safe fallback
+    }
+    try {
       await supabase.auth.signOut();
     } catch {
       // ignore

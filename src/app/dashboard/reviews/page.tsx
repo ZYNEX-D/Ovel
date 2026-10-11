@@ -257,7 +257,7 @@ export default function DashboardReviewsPage() {
                 key={tab.id}
                 onClick={() => {
                   playClick();
-                  setActiveFilter(tab.id as any);
+                  setActiveFilter(tab.id as "all" | "5star" | "critical" | "photos");
                 }}
                 className={`px-3 py-1.5 rounded-xl text-xs transition-all ${
                   activeFilter === tab.id

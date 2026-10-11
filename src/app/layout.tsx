@@ -4,6 +4,7 @@ import { AudioProvider } from "@/components/AudioController";
 import { ChannelTransitionProvider } from "@/components/ChannelTransition";
 import { AuthProvider } from "@/lib/auth-context";
 import ClerkProviderWrapper from "@/components/ClerkProviderWrapper";
+import ClerkAuthSync from "@/components/auth/ClerkAuthSync";
 
 export const metadata: Metadata = {
   title: "Ovel — The Flat-Price Booking-to-Paid Operating Platform",
@@ -27,6 +28,7 @@ export default function RootLayout({
       <body className="antialiased bg-[#F6FAF9] text-[#103438]">
         <ClerkProviderWrapper>
           <AuthProvider>
+            <ClerkAuthSync />
             <AudioProvider>
               <ChannelTransitionProvider>
                 {children}

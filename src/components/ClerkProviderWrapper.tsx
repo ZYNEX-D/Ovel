@@ -23,8 +23,9 @@ export default function ClerkProviderWrapper({ children }: ClerkProviderWrapperP
       publishableKey={publishableKey}
       signInUrl="/login"
       signUpUrl="/signup"
-      afterSignInUrl="/dashboard"
-      afterSignUpUrl="/dashboard"
+      signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/dashboard"
+      afterSignOutUrl="/login"
     >
       {children}
     </ClerkProvider>

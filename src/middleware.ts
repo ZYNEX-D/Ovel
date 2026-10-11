@@ -7,25 +7,35 @@ const isPublicRoute = createRouteMatcher([
   "/login(.*)",
   "/signup(.*)",
   "/forgot-password(.*)",
-  "/l/(.*)",
-  "/book/(.*)",
-  "/quote/(.*)",
-  "/portal/(.*)",
-  "/api/webhooks/(.*)",
-  "/api/public/(.*)",
+  "/sso-callback(.*)",
+  "/l(.*)",
+  "/book(.*)",
+  "/quote(.*)",
+  "/portal(.*)",
+  "/api/webhooks(.*)",
+  "/api/public(.*)",
 ]);
 
 const isClerkActive = !!(
   process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
-  !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.includes("placeholder")
+  !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.includes("placeholder") &&
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.startsWith("pk_")
 );
 
 export default isClerkActive
-  ? clerkMiddleware(async (auth, req) => {
-      if (!isPublicRoute(req)) {
-        await auth.protect();
+  ? clerkMiddleware(
+      async (auth, req) => {
+        if (!isPublicRoute(req)) {
+          await auth.protect({
+            unauthenticatedUrl: new URL("/login", req.url).toString(),
+          });
+        }
+      },
+      {
+        signInUrl: "/login",
+        signUpUrl: "/signup",
       }
-    })
+    )
   : () => NextResponse.next();
 
 export const config = {

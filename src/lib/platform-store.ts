@@ -154,7 +154,7 @@ function safeGet<T>(key: string, fallback: T): T {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return parsed;
     // Filter legacy mock data
-    const cleaned = parsed.filter((item: any) => {
+    const cleaned = parsed.filter((item: { id?: string | number } | null | undefined) => {
       if (!item || !item.id) return false;
       const id = String(item.id);
       return (

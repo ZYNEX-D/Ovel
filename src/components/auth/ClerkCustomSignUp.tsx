@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useSignUp } from "@clerk/nextjs";
+import { useSignUp } from "@clerk/nextjs/legacy";
 import { 
   Building2, 
   Mail, 
@@ -85,6 +85,29 @@ export default function ClerkCustomSignUp() {
       if (completeSignUp.status === "complete") {
         playSuccess();
         await setActive({ session: completeSignUp.createdSessionId });
+        try {
+          const newProfile = {
+            id: completeSignUp.createdUserId || "usr_" + Date.now(),
+            email,
+            fullName: fullName || "Owner",
+            role: "business_owner" as const,
+            organizationId: "org_" + businessSlug,
+            organizationName: businessName || "My Studio",
+            organizationSlug: businessSlug,
+            permissions: ["bookings:manage", "invoicing:manage", "staff:manage", "whatsapp:manage", "settings:manage"],
+            status: "active" as const,
+            lastLogin: "Just now",
+            createdAt: new Date().toISOString().split("T")[0],
+          };
+          localStorage.setItem("ovel_active_auth_profile_v2", JSON.stringify(newProfile));
+          const existingStr = localStorage.getItem("ovel_system_users_v2");
+          const existing = existingStr ? JSON.parse(existingStr) : [];
+          if (Array.isArray(existing)) {
+            localStorage.setItem("ovel_system_users_v2", JSON.stringify([...existing, newProfile]));
+          }
+        } catch {
+          // ignore
+        }
         router.push("/dashboard");
       } else {
         setErrorMsg("Verification incomplete. Please retry or request a new code.");
