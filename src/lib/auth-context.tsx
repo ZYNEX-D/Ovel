@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
-import { useClerk, useUser } from "@clerk/nextjs";
+import { useClerk, useUser, useSession } from "@clerk/nextjs";
 
 export type UserRole = "super_admin" | "business_owner" | "staff" | "client";
 
@@ -96,6 +96,7 @@ const AuthContext = createContext<AuthContextType>({
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { user: clerkUser, isLoaded } = useUser();
+  const { session: clerkSession, isLoaded: sessionLoaded } = useSession();
   const clerk = useClerk();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
@@ -103,11 +104,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const controller = new AbortController();
+    if (!isLoaded || !sessionLoaded) return () => controller.abort();
     setProfile(null);
     setProfileLoaded(false);
     // A cached demo identity must never become an authenticated profile.
     localStorage.removeItem(AUTH_STORAGE_KEY);
-    if (!isLoaded) return () => controller.abort();
     if (!clerkUser) {
       setAllUsers([]);
       setProfileLoaded(true);
@@ -115,7 +116,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     async function loadProfile() {
       try {
-        const response = await fetch("/api/user/me", { cache: "no-store", signal: controller.signal });
+        const token = await clerkSession?.getToken();
+        const response = await fetch("/api/user/me", {
+          cache: "no-store", signal: controller.signal,
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
         if (!response.ok) throw new Error("Unable to verify session");
         const data = await response.json();
         if (!controller.signal.aborted) {
@@ -130,7 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     void loadProfile();
     return () => controller.abort();
-  }, [isLoaded, clerkUser?.id]);
+  }, [isLoaded, sessionLoaded, clerkUser?.id, clerkSession?.id]);
 
   const signOut = async () => {
     await clerk.signOut();

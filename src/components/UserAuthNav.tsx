@@ -22,7 +22,7 @@ import { useChannelTransition } from "@/components/ChannelTransition";
 
 export default function UserAuthNav() {
   const router = useRouter();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, isLoading } = useAuth();
   const { playClick } = useAudio();
   const { triggerTransition } = useChannelTransition();
   const [isOpen, setIsOpen] = useState(false);
@@ -62,6 +62,8 @@ export default function UserAuthNav() {
         return { label: "Member", bg: "bg-gray-100 text-gray-700" };
     }
   };
+
+  if (isLoading) return null;
 
   if (!profile) {
     return (

@@ -24,10 +24,12 @@ import ThreeCanvas from "@/components/ThreeCanvas";
 import ProgressiveBlur from "@/components/ProgressiveBlur";
 import { AudioToggle, useAudio } from "@/components/AudioController";
 import UserAuthNav from "@/components/UserAuthNav";
+import { useAuth } from "@/lib/auth-context";
 
 export default function HomePage() {
   const [monthlyRevenue, setMonthlyRevenue] = useState(18000);
   const { playClick } = useAudio();
+  const { profile, isLoading } = useAuth();
 
   const marketplaceCut = Math.round(monthlyRevenue * 0.2);
   const ovelFlat = 39;
@@ -81,14 +83,14 @@ export default function HomePage() {
             <UserAuthNav />
 
             {/* Public CTA */}
-            <Link
+            {!profile && !isLoading && <Link
               href="/signup"
               onClick={() => playClick()}
               className="group bg-[#105F68] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-light tracking-tight hover:bg-[#0D4F57] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2"
             >
               <span>Get Your Ovelink</span>
               <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
-            </Link>
+            </Link>}
           </div>
         </div>
       </header>
