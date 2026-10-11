@@ -35,6 +35,10 @@ export default isClerkActive
           return NextResponse.redirect(loginUrl);
         }
       }
+    }, {
+      // Local clocks can lag Clerk by a few seconds and otherwise cause a
+      // token-refresh loop. Keep the normal verification policy in production.
+      clockSkewInMs: process.env.NODE_ENV === "development" ? 15000 : 5000,
     })
   : () => NextResponse.next();
 

@@ -164,7 +164,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
 
       {/* Main Content Container - with generous mobile padding and max-w-xl */}
       <div className={`max-w-xl mx-auto px-4 sm:px-6 relative ${isEmbedPreview ? "-mt-10 pb-8" : "-mt-16 sm:-mt-20 pb-24"}`}>
-        
+
         {/* Business Profile Header Card */}
         <div
           className={`p-5 sm:p-7 shadow-[0_12px_40px_rgba(16,95,104,0.08)] border border-black/[0.05] relative transition-all bg-white ${getCardRadius()}`}
@@ -188,7 +188,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                   config.avatarInitials
                 )}
               </div>
-              <div 
+              <div
                 className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#105F68] border-2 border-white flex items-center justify-center shadow-sm"
                 title="Verified Merchant"
               >
