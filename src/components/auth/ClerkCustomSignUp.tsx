@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useSignUp } from "@clerk/nextjs/legacy";
+import { SignUp } from "@clerk/nextjs";
 import { 
   Building2, 
   Mail, 
@@ -19,7 +19,6 @@ import {
 import { useAudio } from "@/components/AudioController";
 
 export default function ClerkCustomSignUp() {
-  const router = useRouter();
   const { isLoaded, signUp, setActive } = useSignUp();
   const { playClick, playSuccess } = useAudio();
 
@@ -34,6 +33,38 @@ export default function ClerkCustomSignUp() {
 
   const [resending, setResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
+  const needsAccountDetails = isLoaded && (
+    signUp.verifications.externalAccount.status === "verified" ||
+    (signUp.verifications.emailAddress.status === "verified" && signUp.missingFields.length > 0)
+  );
+
+  // Clerk keeps an unfinished registration across refreshes. Resume its code
+  // step instead of trying to create the same account again.
+  useEffect(() => {
+    if (needsAccountDetails) {
+      // Open Clerk's continuation step, not its new-registration form.
+      if (!window.location.hash || window.location.hash === "#/") {
+        window.location.hash = "/continue";
+      }
+      return;
+    }
+    if (!isLoaded || !signUp.emailAddress || !signUp.verifications.emailAddress.status) return;
+    setEmail(signUp.emailAddress);
+    setFullName([signUp.firstName, signUp.lastName].filter(Boolean).join(" "));
+    setVerifying(true);
+  }, [isLoaded, signUp?.id, needsAccountDetails]);
+
+  const finishSignUp = async (sessionId: string) => {
+    if (!setActive) return;
+    await setActive({
+      session: sessionId,
+      navigate: ({ session, decorateUrl }) => {
+        // The sign-in component handles any remaining Clerk session tasks.
+        // A full navigation also discards cached signed-out route state.
+        window.location.replace(decorateUrl(session.currentTask ? "/login" : "/auth/redirect"));
+      },
+    });
+  };
 
   const businessSlug = businessName
     ? businessName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
@@ -74,8 +105,7 @@ export default function ClerkCustomSignUp() {
       }
 
       if (result.status === "complete" && result.createdSessionId) {
-        await setActive({ session: result.createdSessionId });
-        router.replace("/auth/redirect");
+        await finishSignUp(result.createdSessionId);
         return;
       }
 
@@ -94,7 +124,7 @@ export default function ClerkCustomSignUp() {
 
   const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoaded || !code) return;
+    if (!isLoaded || loading || !code.trim()) return;
 
     setLoading(true);
     setErrorMsg(null);
@@ -112,16 +142,14 @@ export default function ClerkCustomSignUp() {
       // 2. Success with complete status and created session
       if (completeSignUp.status === "complete" && completeSignUp.createdSessionId) {
         playSuccess();
-        await setActive({ session: completeSignUp.createdSessionId });
-        router.replace("/auth/redirect");
+        await finishSignUp(completeSignUp.createdSessionId);
         return;
       }
 
       // 3. Session created even if additional optional steps exist
       if (completeSignUp.createdSessionId) {
         playSuccess();
-        await setActive({ session: completeSignUp.createdSessionId });
-        router.replace("/auth/redirect");
+        await finishSignUp(completeSignUp.createdSessionId);
         return;
       }
 
@@ -141,17 +169,13 @@ export default function ClerkCustomSignUp() {
         if (missing.includes("first_name")) {
           updatePayload.firstName = fullName.trim().split(/\s+/)[0] || "Owner";
         }
-        if (missing.includes("legal_accepted")) {
-          updatePayload.legalAccepted = true;
-        }
 
         if (Object.keys(updatePayload).length > 0) {
           try {
             const updated = await signUp.update(updatePayload);
             if ((updated.status === "complete" || updated.createdSessionId) && updated.createdSessionId) {
               playSuccess();
-              await setActive({ session: updated.createdSessionId });
-              router.replace("/auth/redirect");
+              await finishSignUp(updated.createdSessionId);
               return;
             }
           } catch (updateErr) {
@@ -176,8 +200,7 @@ export default function ClerkCustomSignUp() {
       ) {
         if (signUp.createdSessionId) {
           playSuccess();
-          await setActive({ session: signUp.createdSessionId });
-          router.replace("/auth/redirect");
+          await finishSignUp(signUp.createdSessionId);
           return;
         }
       }
@@ -213,9 +236,10 @@ export default function ClerkCustomSignUp() {
     playClick();
     try {
       await signUp.authenticateWithRedirect({
-      strategy,
-      redirectUrl: "/sso-callback",
-      redirectUrlComplete: "/auth/redirect",
+        strategy,
+        redirectUrl: "/sso-callback",
+        redirectUrlComplete: "/auth/redirect",
+        unsafeMetadata: businessName.trim() ? { businessName: businessName.trim(), businessSlug } : undefined,
       });
     } catch (err: unknown) {
       const error = err as { errors?: Array<{ longMessage?: string; message?: string }> };
@@ -224,6 +248,18 @@ export default function ClerkCustomSignUp() {
       setLoading(false);
     }
   };
+
+  // Google can verify the email while other required account fields remain.
+  // Resume that registration with Clerk instead of creating it again or
+  // asking for an email code that Google users were never sent.
+  if (needsAccountDetails) {
+    return <SignUp routing="hash" signInUrl="/login" forceRedirectUrl="/auth/redirect"
+      signInForceRedirectUrl="/auth/redirect"
+      appearance={{ variables: { colorPrimary: "#105F68", borderRadius: "1rem" }, elements: {
+        rootBox: "w-full", cardBox: "w-full shadow-none", card: "shadow-none border-0 p-0",
+        footer: { display: "none" },
+      } }} />;
+  }
 
   if (verifying) {
     return (
@@ -254,9 +290,12 @@ export default function ClerkCustomSignUp() {
             required
             autoFocus
             maxLength={6}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]{6}"
             placeholder="123456"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
             className="w-full text-center tracking-[0.5em] text-lg font-mono py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-[#105F68] focus:outline-none focus:border-[#105F68]"
           />
         </div>
@@ -308,6 +347,7 @@ export default function ClerkCustomSignUp() {
       <div className="pb-1">
         <button
           type="button"
+          disabled={!isLoaded || loading}
           onClick={() => handleOAuth("oauth_google")}
           className="w-full py-2.5 px-4 rounded-2xl border border-black/10 bg-[#FBFDFD] hover:bg-[#F6FAF9] text-xs text-[#105F68] font-medium transition-all flex items-center justify-center gap-2.5 shadow-sm"
         >
@@ -416,6 +456,8 @@ export default function ClerkCustomSignUp() {
         <Sparkles className="w-4 h-4 text-[#63C1BB] flex-shrink-0" />
         <span>14-day free pilot • 0% platform transaction take-rate • No credit card required.</span>
       </div>
+
+      <div id="clerk-captcha" />
 
       <button
         type="submit"

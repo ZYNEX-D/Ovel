@@ -8,6 +8,7 @@ export default function ClerkCustomSignIn() {
       routing="hash"
       signUpUrl="/signup"
       forceRedirectUrl="/auth/redirect"
+      signUpForceRedirectUrl="/auth/redirect"
       appearance={{
         variables: {
           colorPrimary: "#105F68",
