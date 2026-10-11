@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -35,11 +35,18 @@ export default function ClientPortalPage() {
   const token = (params?.token as string) || "";
   const { playClick, playSuccess } = useAudio();
 
-  const [bookings, setBookings] = useState<BookingRecord[]>(() => getBookings());
-  const [invoices, setInvoices] = useState<InvoiceRecord[]>(() => getInvoices());
+  const [mounted, setMounted] = useState(false);
+  const [bookings, setBookings] = useState<BookingRecord[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [newDate, setNewDate] = useState("2026-10-15T11:00:00");
   const [notification, setNotification] = useState<string | null>(null);
+
+  useEffect(() => {
+    setBookings(getBookings());
+    setInvoices(getInvoices());
+    setMounted(true);
+  }, []);
 
   // Review state
   const [reviewRating, setReviewRating] = useState<1 | 2 | 3 | 4 | 5>(5);
@@ -118,6 +125,14 @@ export default function ClientPortalPage() {
         : "Feedback received privately. Management notified."
     );
   };
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-[#F6FAF9] flex items-center justify-center p-6 text-center font-['Kaleko_105',sans-serif]">
+        <div className="w-8 h-8 rounded-full border-2 border-[#105F68] border-t-transparent animate-spin" />
+      </div>
+    );
+  }
 
   if (!booking) {
     return (

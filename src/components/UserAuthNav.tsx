@@ -100,7 +100,7 @@ export default function UserAuthNav() {
           setIsOpen(!isOpen)
         }
         }
-        className="flex items-center gap-2.5 px-3 py-1.5 rounded-full border border-[#105F68]/20 bg-white/90 hover:bg-white hover:border-[#105F68]/40 transition-all shadow-sm group"
+        className="flex items-center gap-2 px-1.5 py-1.5 rounded-full border border-[#105F68]/20 bg-white/90 hover:bg-white hover:border-[#105F68]/40 transition-all shadow-sm group"
         aria-label="User Account Menu"
       >
         <div className="relative w-7 h-7 rounded-full bg-[#105F68] text-white flex items-center justify-center text-xs font-medium tracking-tight shadow-sm">
@@ -111,9 +111,9 @@ export default function UserAuthNav() {
           <p className="text-xs font-medium text-[#105F68] leading-tight line-clamp-1 max-w-[120px]">
             {profile.fullName}
           </p>
-          <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-light tracking-wide ${roleInfo.bg}`}>
-            {roleInfo.label}
-          </span>
+          {/* <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-light tracking-wide ${roleInfo.bg}`}>
+              {roleInfo.label}
+            </span> */}
         </div>
         <ChevronDown className={`w-3.5 h-3.5 text-[#3A9295] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
       </button>

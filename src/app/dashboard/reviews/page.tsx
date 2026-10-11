@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { 
   Star, 
@@ -25,14 +25,20 @@ import {
   saveReputationConfig, 
   replyToCustomerReview, 
   CustomerReview, 
-  ReputationConfig 
+  ReputationConfig,
+  DEFAULT_REPUTATION_CONFIG
 } from "@/lib/reviews-store";
 import { useAudio } from "@/components/AudioController";
 
 export default function DashboardReviewsPage() {
   const { playClick, playSuccess } = useAudio();
-  const [reviews, setReviews] = useState<CustomerReview[]>(() => getReviews());
-  const [config, setConfig] = useState<ReputationConfig>(() => getReputationConfig());
+  const [reviews, setReviews] = useState<CustomerReview[]>([]);
+  const [config, setConfig] = useState<ReputationConfig>(DEFAULT_REPUTATION_CONFIG);
+
+  useEffect(() => {
+    setReviews(getReviews());
+    setConfig(getReputationConfig());
+  }, []);
   const [activeFilter, setActiveFilter] = useState<"all" | "5star" | "critical" | "photos">("all");
   
   // Reply drafting

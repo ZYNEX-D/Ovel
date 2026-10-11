@@ -1,13 +1,17 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { CreditCard, Check } from "lucide-react";
 import { getInvoices, InvoiceRecord } from "@/lib/platform-store";
 import { useAudio } from "@/components/AudioController";
 
 export default function DashboardInvoicesPage() {
   const { playSuccess } = useAudio();
-  const [invoices] = useState<InvoiceRecord[]>(() => getInvoices());
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
+
+  useEffect(() => {
+    setInvoices(getInvoices());
+  }, []);
   const [notification, setNotification] = useState<string | null>(null);
 
   const showToast = (msg: string) => {

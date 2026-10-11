@@ -82,15 +82,26 @@ export default function HomePage() {
             <AudioToggle />
             <UserAuthNav />
 
-            {/* Public CTA */}
-            {!profile && !isLoading && <Link
-              href="/signup"
-              onClick={() => playClick()}
-              className="group bg-[#105F68] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-light tracking-tight hover:bg-[#0D4F57] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2"
-            >
-              <span>Get Your Ovelink</span>
-              <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
-            </Link>}
+            {/* Header CTA Button */}
+            {!isLoading && (profile ? (
+              <Link
+                href={profile.role === "super_admin" ? "/admin" : "/dashboard"}
+                onClick={() => playClick()}
+                className="group bg-[#105F68] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-light tracking-tight hover:bg-[#0D4F57] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2"
+              >
+                <span>{profile.role === "super_admin" ? "Admin Console" : "Dashboard"}</span>
+                <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+              </Link>
+            ) : (
+              <Link
+                href="/signup"
+                onClick={() => playClick()}
+                className="group bg-[#105F68] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-light tracking-tight hover:bg-[#0D4F57] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2"
+              >
+                <span>Get Your Ovelink</span>
+                <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+              </Link>
+            ))}
           </div>
         </div>
       </header>
