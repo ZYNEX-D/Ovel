@@ -1,13 +1,17 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Sparkles, Clock, Check } from "lucide-react";
 import { getServices, saveServices, ServiceItem } from "@/lib/platform-store";
 import { useAudio } from "@/components/AudioController";
 
 export default function DashboardServicesPage() {
   const { playClick, playSuccess } = useAudio();
-  const [services, setServices] = useState<ServiceItem[]>(() => getServices());
+  const [services, setServices] = useState<ServiceItem[]>([]);
+
+  useEffect(() => {
+    setServices(getServices());
+  }, []);
   const [isAddServiceOpen, setIsAddServiceOpen] = useState(false);
   const [newServiceName, setNewServiceName] = useState("");
   const [newServicePrice, setNewServicePrice] = useState(120);

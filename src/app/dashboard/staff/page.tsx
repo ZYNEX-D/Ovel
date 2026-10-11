@@ -1,11 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Users, Clock } from "lucide-react";
 import { getStaff, StaffMember } from "@/lib/platform-store";
 
 export default function DashboardStaffPage() {
-  const [staff] = useState<StaffMember[]>(() => getStaff());
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+
+  useEffect(() => {
+    setStaff(getStaff());
+  }, []);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">

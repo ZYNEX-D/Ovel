@@ -1,13 +1,17 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { MessageSquare, Check, RotateCcw } from "lucide-react";
 import { getReminders, simulateWhatsAppReply, ReminderLog } from "@/lib/platform-store";
 import { useAudio } from "@/components/AudioController";
 
 export default function DashboardRemindersPage() {
   const { playSuccess } = useAudio();
-  const [reminders, setReminders] = useState<ReminderLog[]>(() => getReminders());
+  const [reminders, setReminders] = useState<ReminderLog[]>([]);
+
+  useEffect(() => {
+    setReminders(getReminders());
+  }, []);
   const [notification, setNotification] = useState<string | null>(null);
 
   const showToast = (msg: string) => {

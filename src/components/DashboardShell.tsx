@@ -24,7 +24,9 @@ import {
   Check,
   ChevronRight,
   Star,
-  Settings
+  Settings,
+  UserCheck,
+  LayoutDashboard
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getOvelink } from "@/lib/ovelink-store";
@@ -39,7 +41,8 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Schedule Matrix", icon: CalendarIcon },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard/users", label: "Users & Clients", icon: UserCheck, badge: "CRM" },
   { href: "/dashboard/ovelink", label: "Ovelink Studio", icon: Palette, badge: "Customizer" },
   { href: "/dashboard/services", label: "Catalog & Offerings", icon: ShoppingBag },
   { href: "/dashboard/staff", label: "Specialists & Roster", icon: Users },

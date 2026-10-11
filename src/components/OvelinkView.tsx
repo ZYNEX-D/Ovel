@@ -3,19 +3,11 @@
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import {
-  Calendar as CalendarIcon,
   Clock,
   Check,
-  Sparkles,
-  MessageSquare,
-  Lock,
-  ChevronLeft,
   Share2,
   Copy,
-  ExternalLink,
-  ShoppingBag,
   MapPin,
-  Globe,
   ArrowRight,
   ShieldCheck,
   QrCode,
@@ -23,9 +15,9 @@ import {
   Phone,
   Star,
   Upload,
-  Plus,
   Tag,
-  Mail
+  Mail,
+  MessageSquare
 } from "lucide-react";
 import {
   OvelinkCustomization,
@@ -126,77 +118,64 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
     setStep(4);
   };
 
-  // Button style class generator
-  const getButtonClass = (isPrimary = true) => {
-    const radius = config.buttonStyle === "pill"
-      ? "rounded-full"
-      : config.buttonStyle === "sharp"
-        ? "rounded-md"
-        : "rounded-xl";
-
-    if (isPrimary) {
-      return `${radius} px-5 py-2.5 text-xs font-medium transition-all shadow-sm hover:opacity-90 active:scale-95 text-white`;
-    }
-    return `${radius} px-4 py-2 text-xs font-light transition-all border hover:bg-black/5`;
-  };
-
   const getCardRadius = () => {
-    return config.cardRadius || "rounded-2xl";
+    return config.cardRadius || "rounded-3xl";
   };
 
   return (
     <div
-      className={`min-h-full w-full transition-colors duration-300 ${!isEmbedPreview ? "min-h-screen" : ""}`}
+      className={`min-h-full w-full font-sans antialiased transition-colors duration-300 relative selection:bg-[#105F68] selection:text-white ${!isEmbedPreview ? "min-h-screen" : ""}`}
       style={{
         backgroundColor: config.bgColor,
         color: config.textColor,
-        fontFamily: config.fontFamily,
       }}
     >
       {/* Cover Banner */}
       <div
-        className={`w-full bg-gradient-to-r ${config.coverGradient} relative ${isEmbedPreview ? "h-28" : "h-40 sm:h-52"} transition-all duration-300 bg-cover bg-center`}
+        className={`w-full bg-gradient-to-r ${config.coverGradient} relative ${isEmbedPreview ? "h-32" : "h-44 sm:h-56"} transition-all duration-300 bg-cover bg-center overflow-hidden`}
         style={config.coverImageUrl ? { backgroundImage: `url(${config.coverImageUrl})` } : undefined}
       >
-        {config.coverImageUrl && (
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" />
-        )}
-        {/* Brand Bar */}
-        <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex items-center gap-2">
+        {/* Ambient luxury light sheen */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent pointer-events-none" />
+        <div className="absolute -top-20 -right-20 w-72 h-72 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Brand Bar Container */}
+        <div className="max-w-xl mx-auto px-4 sm:px-6 h-full flex items-start justify-between pt-4 sm:pt-5 relative z-10">
+          {/* Powered by Ovel Tag */}
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/25 backdrop-blur-md border border-white/20 text-white text-[11px] font-medium hover:bg-black/35 transition-all shadow-sm group"
+          >
+            <span className="opacity-80">powered by</span>
+            <span className="font-['Disolve'] font-bold tracking-wide">ovel</span>
+          </Link>
+
+          {/* Share Button */}
           <button
             onClick={() => { playClick(); setIsShareModalOpen(true); }}
-            className="p-2 rounded-full bg-black/25 backdrop-blur-md text-white hover:bg-black/40 transition-all text-xs flex items-center gap-1.5 shadow-sm"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/25 backdrop-blur-md border border-white/20 text-white text-[11px] font-medium hover:bg-black/35 transition-all shadow-sm"
             title="Share Ovelink"
           >
             <Share2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline text-[11px]">Share</span>
+            <span>Share</span>
           </button>
-        </div>
-
-        {/* Powered by Ovel Tag */}
-        <div className="absolute top-3 left-3 sm:top-4 sm:left-4">
-          <Link
-            href="/"
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-white text-[10px] hover:bg-white/30 transition-all"
-          >
-            <span>powered by</span>
-            <span className="font-['Disolve'] font-semibold">ovel</span>
-          </Link>
         </div>
       </div>
 
-      {/* Main Content Container */}
-      <div className={`max-w-2xl mx-auto px-4 sm:px-6 relative ${isEmbedPreview ? "-mt-10 pb-8" : "-mt-14 pb-20"}`}>
+      {/* Main Content Container - with generous mobile padding and max-w-xl */}
+      <div className={`max-w-xl mx-auto px-4 sm:px-6 relative ${isEmbedPreview ? "-mt-10 pb-8" : "-mt-16 sm:-mt-20 pb-24"}`}>
+        
         {/* Business Profile Header Card */}
         <div
-          className={`p-5 sm:p-6 shadow-xl border border-black/5 relative transition-all ${getCardRadius()}`}
+          className={`p-5 sm:p-7 shadow-[0_12px_40px_rgba(16,95,104,0.08)] border border-black/[0.05] relative transition-all bg-white ${getCardRadius()}`}
           style={{ backgroundColor: config.surfaceColor }}
         >
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
-              {/* Avatar Circle */}
+          {/* Top Profile Row: Avatar + Title & Live Status */}
+          <div className="flex items-start gap-4 sm:gap-5">
+            {/* Avatar Squircle with Verified Badge */}
+            <div className="relative flex-shrink-0">
               <div
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center text-white text-xl sm:text-2xl font-bold shadow-md border-2 border-white transition-transform overflow-hidden relative"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl flex items-center justify-center text-white text-xl sm:text-2xl font-bold shadow-md border-2 border-white transition-transform overflow-hidden"
                 style={{ backgroundColor: config.primaryColor }}
               >
                 {config.logoUrl ? (
@@ -209,43 +188,57 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                   config.avatarInitials
                 )}
               </div>
+              <div 
+                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#105F68] border-2 border-white flex items-center justify-center shadow-sm"
+                title="Verified Merchant"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-[#63C1BB]" />
+              </div>
+            </div>
 
-              <div>
-                <div className="flex items-center gap-2 mb-0.5">
-                  {/* <span 
-                    className="text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider"
-                    style={{ backgroundColor: `${config.accentColor}33`, color: config.primaryColor }}
-                  >
-                    {config.businessCategory}
-                  </span> */}
-                  <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Instant Confirmation
-                  </span>
-                </div>
-                <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: config.primaryColor }}>
-                  {config.businessName}
-                </h1>
-                <p className="text-xs opacity-75 font-light mt-0.5">
+            {/* Title, Category & Status */}
+            <div className="min-w-0 flex-1 pt-0.5">
+              <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                <span
+                  className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
+                  style={{ backgroundColor: `${config.accentColor}25`, color: config.primaryColor }}
+                >
+                  {config.businessCategory}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-full font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Instant Confirmation
+                </span>
+              </div>
+
+              <h1
+                className="text-xl sm:text-2xl font-bold tracking-tight text-[#103438] leading-tight"
+                style={{ fontFamily: config.fontFamily }}
+              >
+                {config.businessName}
+              </h1>
+
+              {config.businessTagline && (
+                <p className="text-xs sm:text-sm text-[#3A9295] font-medium mt-0.5 leading-snug">
                   {config.businessTagline}
                 </p>
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Bio */}
+          {/* Business Bio */}
           {config.businessBio && (
-            <p className="text-xs opacity-80 leading-relaxed mt-4 pt-3 border-t border-black/5 font-light">
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mt-4 pt-3.5 border-t border-slate-100 font-normal">
               {config.businessBio}
             </p>
           )}
 
-          {/* Quick Connect & Links */}
-          <div className="mt-4 pt-3 border-t border-black/5 flex flex-wrap items-center gap-2 text-xs">
+          {/* Micro-Action Quick Connect Bar */}
+          <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-wrap items-center gap-2 text-xs">
             {config.location && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/5 text-[11px] opacity-80">
-                <MapPin className="w-3 h-3 text-[#3A9295]" />
-                <span>{config.location}</span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200/80 text-[11px] text-slate-700 font-medium">
+                <MapPin className="w-3.5 h-3.5 text-[#105F68] flex-shrink-0" />
+                <span className="truncate max-w-[190px]">{config.location}</span>
               </span>
             )}
 
@@ -254,9 +247,9 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                 href={`https://wa.me/${config.whatsappNumber.replace(/[^0-9]/g, "")}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-all"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm"
               >
-                <Phone className="w-3 h-3 text-emerald-600" />
+                <Phone className="w-3.5 h-3.5 text-emerald-600" />
                 <span>WhatsApp Us</span>
               </a>
             )}
@@ -264,30 +257,35 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
             {config.email && (
               <a
                 href={`mailto:${config.email}`}
-                className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] text-[#105F68] bg-[#F6FAF9] border border-[#105F68]/15 hover:bg-white transition-all"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium text-[#105F68] bg-[#F6FAF9] border border-[#105F68]/20 hover:bg-white transition-colors"
               >
-                <Mail className="w-3 h-3 text-[#3A9295]" />
-                <span>{config.email}</span>
+                <Mail className="w-3.5 h-3.5 text-[#3A9295]" />
+                <span>Email</span>
               </a>
             )}
 
             {config.instagramHandle && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/5 text-[11px] opacity-80 font-mono">
+              <a
+                href={`https://instagram.com/${config.instagramHandle.replace("@", "")}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200/80 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition-colors"
+              >
                 <span>{config.instagramHandle}</span>
-              </span>
+              </a>
             )}
 
             <button
               onClick={handleCopyLink}
-              className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-black/5 hover:bg-black/10 text-[11px] opacity-80 transition-all ml-auto"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#105F68]/10 hover:bg-[#105F68]/15 border border-[#105F68]/20 text-[11px] font-medium text-[#105F68] transition-colors ml-auto shadow-sm"
             >
-              <Copy className="w-3 h-3" />
-              <span>{copiedLink ? "Copied!" : "ovel.app/l/" + config.slug}</span>
+              <Copy className="w-3.5 h-3.5" />
+              <span>{copiedLink ? "Copied!" : `ovel.app/l/${config.slug}`}</span>
             </button>
           </div>
         </div>
 
-        {/* Offering Mode Filters */}
+        {/* Offering Category Filter Tabs */}
         <div className="mt-6 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           {[
             { id: "all" as const, label: "All Offerings" },
@@ -300,12 +298,14 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
               <button
                 key={tab.id}
                 onClick={() => { playClick(); setActiveFilter(tab.id); }}
-                className={`px-4 py-2 text-xs font-light whitespace-nowrap transition-all ${config.buttonStyle === "pill" ? "rounded-full" : "rounded-xl"}`}
+                className={`px-4 py-2 text-xs font-semibold whitespace-nowrap transition-all rounded-full ${
+                  isActive
+                    ? "text-white shadow-md shadow-[#105F68]/20"
+                    : "bg-white/80 hover:bg-white text-slate-600 border border-slate-200/80 shadow-sm"
+                }`}
                 style={{
-                  backgroundColor: isActive ? config.primaryColor : config.surfaceColor,
-                  color: isActive ? "#FFFFFF" : config.textColor,
-                  border: isActive ? `1px solid ${config.primaryColor}` : "1px solid rgba(0,0,0,0.06)",
-                  boxShadow: isActive ? "0 2px 8px rgba(0,0,0,0.08)" : "none",
+                  backgroundColor: isActive ? config.primaryColor : undefined,
+                  borderColor: isActive ? config.primaryColor : undefined,
                 }}
               >
                 {tab.label}
@@ -322,71 +322,73 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
               <div
                 key={off.id}
                 onClick={() => handleSelectOffering(off)}
-                className={`p-4 sm:p-5 border transition-all cursor-pointer relative hover:shadow-md ${getCardRadius()}`}
-                style={{
-                  backgroundColor: config.surfaceColor,
-                  borderColor: isSelected ? config.primaryColor : "rgba(0,0,0,0.06)",
-                  borderWidth: isSelected ? "2px" : "1px",
-                }}
+                className={`p-5 sm:p-6 bg-white border transition-all duration-200 cursor-pointer relative group hover:shadow-[0_12px_30px_rgba(16,95,104,0.08)] hover:-translate-y-0.5 ${getCardRadius()} ${
+                  isSelected ? "ring-2 ring-[#105F68] border-transparent" : "border-slate-200/70 shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
+                }`}
+                style={{ backgroundColor: config.surfaceColor }}
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex-1 pr-2">
-                    <div className="flex items-center gap-2 mb-1">
-                      {off.badge && (
-                        <span
-                          className="text-[9px] px-2 py-0.2 rounded-full font-medium uppercase tracking-wide"
-                          style={{ backgroundColor: `${config.accentColor}33`, color: config.primaryColor }}
-                        >
-                          {off.badge}
-                        </span>
-                      )}
-                      <span className="text-[10px] opacity-60 uppercase font-light">
-                        {off.type}
+                {/* Header Row: Badges + Price */}
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {off.badge && (
+                      <span
+                        className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
+                        style={{ backgroundColor: `${config.accentColor}25`, color: config.primaryColor }}
+                      >
+                        {off.badge}
                       </span>
-                    </div>
-
-                    <h3 className="text-sm sm:text-base font-semibold leading-snug" style={{ color: config.primaryColor }}>
-                      {off.name}
-                    </h3>
-                    <p className="text-xs opacity-75 font-light mt-1 leading-relaxed">
-                      {off.description}
-                    </p>
-
-                    <div className="mt-3 flex items-center gap-3 text-xs opacity-70">
-                      {off.durationMinutes && (
-                        <span className="flex items-center gap-1 text-[11px]">
-                          <Clock className="w-3 h-3" />
-                          <span>{off.durationMinutes} mins</span>
-                        </span>
-                      )}
-
-                      {off.depositCents > 0 && (
-                        <span className="text-[11px] text-emerald-600 font-medium">
-                          ${(off.depositCents / 100).toFixed(2)} deposit required
-                        </span>
-                      )}
-                    </div>
+                    )}
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">
+                      {off.type}
+                    </span>
                   </div>
 
-                  {/* Price & Action Button */}
-                  <div className="text-right flex flex-col justify-between items-end self-stretch">
-                    <div>
-                      <span className="text-base sm:text-lg font-bold block" style={{ color: config.primaryColor }}>
-                        ${(off.priceCents / 100).toFixed(2)}
-                      </span>
-                    </div>
-
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSelectOffering(off);
-                      }}
-                      className={getButtonClass(true)}
-                      style={{ backgroundColor: config.primaryColor }}
-                    >
-                      {off.type === "order" ? "Order Now" : "Book Slot"}
-                    </button>
+                  <div className="text-right flex-shrink-0">
+                    <span className="text-lg sm:text-xl font-bold tracking-tight text-[#103438]">
+                      ${(off.priceCents / 100).toFixed(2)}
+                    </span>
                   </div>
+                </div>
+
+                {/* Service Name & Description */}
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-[#103438] group-hover:text-[#105F68] transition-colors leading-snug">
+                    {off.name}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-600 font-normal mt-1.5 leading-relaxed">
+                    {off.description}
+                  </p>
+                </div>
+
+                {/* Footer: Metadata Chips + CTA Button */}
+                <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {off.durationMinutes && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-full">
+                        <Clock className="w-3 h-3 text-[#105F68]" />
+                        <span>{off.durationMinutes} mins</span>
+                      </span>
+                    )}
+
+                    {off.depositCents > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">
+                        <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                        <span>${(off.depositCents / 100).toFixed(2)} deposit</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelectOffering(off);
+                    }}
+                    className="px-5 py-2.5 rounded-full text-xs font-semibold text-white shadow-md shadow-[#105F68]/20 flex items-center gap-1.5 active:scale-95 hover:opacity-95 transition-all flex-shrink-0"
+                    style={{ backgroundColor: config.primaryColor }}
+                  >
+                    <span>{off.type === "order" ? "Order Now" : "Book Slot"}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             );
@@ -398,20 +400,20 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
           <div className="mt-10 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-[10px] uppercase font-semibold tracking-wider opacity-60">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
                   Verified Social Proof
                 </span>
-                <h2 className="text-sm sm:text-base font-semibold" style={{ color: config.primaryColor }}>
+                <h2 className="text-base sm:text-lg font-bold text-[#103438]">
                   Client Experiences &amp; Ratings
                 </h2>
               </div>
-              <div className="flex items-center gap-1.5 text-xs bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
-                <span className="font-bold text-amber-600 flex items-center gap-1">
+              <div className="flex items-center gap-1.5 text-xs bg-amber-50 border border-amber-200/80 px-3 py-1 rounded-full">
+                <span className="font-bold text-amber-700 flex items-center gap-1">
                   <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
                   {(reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)}
                 </span>
-                <span className="text-[11px] opacity-75">
-                  ({reviews.length} verified {reviews.length === 1 ? "review" : "reviews"})
+                <span className="text-[11px] text-amber-800/80 font-medium">
+                  ({reviews.length} verified)
                 </span>
               </div>
             </div>
@@ -420,36 +422,36 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
               {reviews.slice(0, 3).map((rev) => (
                 <div
                   key={rev.id}
-                  className={`p-4 border transition-all ${getCardRadius()}`}
-                  style={{ backgroundColor: config.surfaceColor, borderColor: "rgba(0,0,0,0.06)" }}
+                  className={`p-4 sm:p-5 bg-white border border-slate-200/70 shadow-sm transition-all ${getCardRadius()}`}
+                  style={{ backgroundColor: config.surfaceColor }}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center gap-2.5">
                       <div
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm"
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white shadow-sm"
                         style={{ backgroundColor: config.primaryColor }}
                       >
                         {rev.clientAvatar || rev.clientName.substring(0, 2).toUpperCase()}
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-semibold">{rev.clientName}</span>
-                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-medium">
-                            Verified
+                          <span className="text-xs sm:text-sm font-semibold text-[#103438]">{rev.clientName}</span>
+                          <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold">
+                            Verified Client
                           </span>
                         </div>
-                        <span className="text-[10px] opacity-60">{rev.serviceName}</span>
+                        <span className="text-[11px] text-slate-400 font-medium">{rev.serviceName}</span>
                       </div>
                     </div>
 
-                    <div className="flex text-amber-500">
+                    <div className="flex text-amber-400">
                       {[...Array(rev.rating)].map((_, i) => (
-                        <Star key={i} className="w-3 h-3 fill-current" />
+                        <Star key={i} className="w-3.5 h-3.5 fill-current" />
                       ))}
                     </div>
                   </div>
 
-                  <p className="text-xs opacity-80 leading-relaxed font-light italic">
+                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed italic">
                     &ldquo;{rev.comment}&rdquo;
                   </p>
                 </div>
@@ -459,11 +461,11 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
         )}
 
         {/* Footer info */}
-        <div className="mt-12 text-center text-xs opacity-60 space-y-1">
-          <p>Direct bookings &amp; orders. 0% platform transaction fees.</p>
-          <div className="flex items-center justify-center gap-1 text-[11px]">
+        <div className="mt-12 text-center text-xs text-slate-400 space-y-1.5">
+          <p className="font-medium">Direct bookings &amp; orders • 0% platform transaction take-rate</p>
+          <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500">
             <span>Powered by</span>
-            <Link href="/" className="font-['Disolve'] font-bold hover:underline" style={{ color: config.primaryColor }}>
+            <Link href="/" className="font-['Disolve'] font-bold text-[#105F68] hover:underline">
               ovel
             </Link>
           </div>
@@ -472,7 +474,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
 
       {/* Booking / Ordering Checkout Modal */}
       {selectedOffering && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div
             className={`w-full max-w-lg shadow-2xl p-6 sm:p-8 space-y-5 relative max-h-[90vh] overflow-y-auto ${getCardRadius()}`}
             style={{ backgroundColor: config.surfaceColor, color: config.textColor }}
@@ -480,13 +482,13 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-black/10">
               <div>
-                <span className="text-[10px] uppercase font-semibold tracking-wider opacity-60">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
                   {selectedOffering.type === "order" ? "Custom Order Intake" : "Reserve Time Slot"}
                 </span>
                 <h3 className="text-lg font-bold" style={{ color: config.primaryColor }}>
                   {selectedOffering.name}
                 </h3>
-                <p className="text-xs opacity-75">
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
                   Total: ${(selectedOffering.priceCents / 100).toFixed(2)}
                   {selectedOffering.depositCents > 0 && ` • Deposit: $${(selectedOffering.depositCents / 100).toFixed(2)}`}
                 </p>
@@ -494,7 +496,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
 
               <button
                 onClick={() => { playClick(); setSelectedOffering(null); setStep(1); }}
-                className="p-1.5 rounded-full hover:bg-black/5 transition-colors opacity-70"
+                className="p-2 rounded-full hover:bg-black/5 transition-colors text-slate-400 hover:text-black"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -504,7 +506,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
             {step === 1 && selectedOffering.requiresTimeSlot && (
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-semibold block mb-1.5 opacity-80">
+                  <label className="text-xs font-semibold block mb-1.5 text-slate-700">
                     Select Date
                   </label>
                   <input
@@ -512,12 +514,12 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                     min={tomorrowStr}
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-black/15 bg-black/[0.02] text-xs focus:outline-none"
+                    className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 bg-slate-50/50 text-xs text-slate-800 focus:outline-none focus:border-[#105F68] focus:bg-white transition-all font-medium"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold block mb-1.5 opacity-80">
+                  <label className="text-xs font-semibold block mb-1.5 text-slate-700">
                     Available Time Slot
                   </label>
                   <div className="grid grid-cols-3 gap-2">
@@ -528,12 +530,13 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                           key={slot}
                           type="button"
                           onClick={() => { playClick(); setSelectedTimeSlot(slot); }}
-                          className={`p-2.5 rounded-xl text-xs font-mono transition-all border ${isSlotActive
-                              ? "text-white font-semibold"
-                              : "border-black/10 hover:border-black/30"
-                            }`}
+                          className={`p-3 rounded-2xl text-xs font-mono font-semibold transition-all border ${
+                            isSlotActive
+                              ? "text-white shadow-md shadow-[#105F68]/20"
+                              : "border-slate-200 bg-white hover:border-slate-400 text-slate-700"
+                          }`}
                           style={{
-                            backgroundColor: isSlotActive ? config.primaryColor : "transparent",
+                            backgroundColor: isSlotActive ? config.primaryColor : undefined,
                             borderColor: isSlotActive ? config.primaryColor : undefined,
                           }}
                         >
@@ -547,10 +550,11 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                 <div className="pt-2 flex justify-end">
                   <button
                     onClick={() => { playClick(); setStep(2); }}
-                    className={getButtonClass(true)}
+                    className="px-6 py-3 rounded-full text-xs font-semibold text-white shadow-md shadow-[#105F68]/20 flex items-center gap-2 hover:opacity-95 transition-all"
                     style={{ backgroundColor: config.primaryColor }}
                   >
-                    Continue to Client Details
+                    <span>Continue to Client Details</span>
+                    <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -560,22 +564,22 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
             {(step === 2 || (step === 1 && !selectedOffering.requiresTimeSlot)) && (
               <form onSubmit={handleConfirmAction} className="space-y-4">
                 {selectedOffering.type === "order" && (
-                  <div className="p-3.5 rounded-2xl bg-black/[0.03] space-y-3">
+                  <div className="p-4 rounded-3xl bg-slate-50 border border-slate-200/80 space-y-3">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-medium">Quantity</label>
+                      <label className="text-xs font-semibold text-slate-700">Quantity</label>
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
                           onClick={() => setOrderQuantity(Math.max(1, orderQuantity - 1))}
-                          className="w-7 h-7 rounded-lg border border-black/20 flex items-center justify-center font-mono text-sm"
+                          className="w-8 h-8 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center font-bold text-sm"
                         >
                           -
                         </button>
-                        <span className="font-mono text-sm font-semibold">{orderQuantity}</span>
+                        <span className="font-mono text-sm font-bold text-[#103438]">{orderQuantity}</span>
                         <button
                           type="button"
                           onClick={() => setOrderQuantity(orderQuantity + 1)}
-                          className="w-7 h-7 rounded-lg border border-black/20 flex items-center justify-center font-mono text-sm"
+                          className="w-8 h-8 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center font-bold text-sm"
                         >
                           +
                         </button>
@@ -583,7 +587,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                     </div>
 
                     <div>
-                      <label className="text-[11px] font-medium block mb-1 opacity-80">
+                      <label className="text-[11px] font-semibold block mb-1 text-slate-600">
                         Custom Instructions / Delivery Preferences
                       </label>
                       <textarea
@@ -591,60 +595,60 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                         placeholder="e.g. Include custom inscription, preferred delivery hour, or color specifications..."
                         value={orderNotes}
                         onChange={(e) => setOrderNotes(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-black/15 bg-white text-xs focus:outline-none"
+                        className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#105F68] transition-all"
                       />
                     </div>
                   </div>
                 )}
 
                 <div className="space-y-3">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider opacity-80">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                     Your Contact &amp; Booking Details
                   </h4>
 
                   <div>
-                    <label className="text-[11px] block mb-1 opacity-80">Full Name</label>
+                    <label className="text-[11px] font-medium block mb-1 text-slate-600">Full Name</label>
                     <input
                       type="text"
                       placeholder="e.g. Jordan Mitchell"
                       required
                       value={clientName}
                       onChange={(e) => setClientName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-black/15 bg-black/[0.02] text-xs focus:outline-none"
+                      className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 bg-slate-50/50 text-xs text-slate-800 focus:outline-none focus:border-[#105F68] focus:bg-white transition-all font-medium"
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[11px] block mb-1 opacity-80">Email Address</label>
+                      <label className="text-[11px] font-medium block mb-1 text-slate-600">Email Address</label>
                       <input
                         type="email"
                         placeholder="jordan@example.com"
                         required
                         value={clientEmail}
                         onChange={(e) => setClientEmail(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-black/15 bg-black/[0.02] text-xs focus:outline-none"
+                        className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 bg-slate-50/50 text-xs text-slate-800 focus:outline-none focus:border-[#105F68] focus:bg-white transition-all font-medium"
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] block mb-1 opacity-80">WhatsApp / Phone</label>
+                      <label className="text-[11px] font-medium block mb-1 text-slate-600">WhatsApp / Phone</label>
                       <input
                         type="tel"
                         placeholder="+1 (555) 000-0000"
                         required
                         value={clientPhone}
                         onChange={(e) => setClientPhone(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-black/15 bg-black/[0.02] text-xs focus:outline-none"
+                        className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 bg-slate-50/50 text-xs text-slate-800 focus:outline-none focus:border-[#105F68] focus:bg-white transition-all font-medium"
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* Conditional Logic Intake Form (Dubsado/Acuity Competitor Feature) */}
-                <div className="space-y-3 pt-1 border-t border-black/10">
+                {/* Conditional Logic Intake Form */}
+                <div className="space-y-3 pt-2 border-t border-slate-100">
                   <div className="flex items-center justify-between">
-                    <label htmlFor="sensitivityToggle" className="text-xs font-medium cursor-pointer">
-                      Special requests, skin/vehicle sensitivities, or preferences?
+                    <label htmlFor="sensitivityToggle" className="text-xs font-medium cursor-pointer text-slate-700">
+                      Special requests or skin/treatment sensitivities?
                     </label>
                     <input
                       type="checkbox"
@@ -659,21 +663,21 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                     <div className="animate-in fade-in space-y-1">
                       <textarea
                         rows={2}
-                        placeholder="Please detail your sensitivities, allergies, paint condition, or preferences..."
+                        placeholder="Please detail your sensitivities, allergies, or preferences..."
                         value={sensitivityDetails}
                         onChange={(e) => setSensitivityDetails(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-black/15 bg-black/[0.02] text-xs focus:outline-none"
+                        className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-slate-50/50 text-xs text-slate-800 focus:outline-none focus:border-[#105F68] transition-all"
                       />
                     </div>
                   )}
 
-                  {/* Reference Photo Upload (Cloudflare R2) */}
-                  <div className="p-3 rounded-xl bg-black/[0.02] border border-black/10 flex items-center justify-between text-xs">
+                  {/* Reference Photo Upload */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
-                      <Upload className="w-4 h-4 opacity-60" />
+                      <Upload className="w-4 h-4 text-slate-400" />
                       <div>
-                        <span className="font-medium block">Reference / Inspiration Photo</span>
-                        <span className="text-[10px] opacity-60">Upload directly to Cloudflare R2 storage</span>
+                        <span className="font-semibold block text-slate-700">Reference / Inspiration Photo</span>
+                        <span className="text-[10px] text-slate-500 font-medium">Attach photo with your request</span>
                       </div>
                     </div>
 
@@ -683,25 +687,26 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                         playClick();
                         setReferencePhotoAttached(!referencePhotoAttached);
                       }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${referencePhotoAttached
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                        referencePhotoAttached
                           ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                          : "border border-black/15 hover:bg-black/5"
-                        }`}
+                          : "border border-slate-200 bg-white hover:bg-slate-100 text-slate-700"
+                      }`}
                     >
                       {referencePhotoAttached ? "✓ Photo Attached" : "+ Upload Photo"}
                     </button>
                   </div>
                 </div>
 
-                {/* Service + Retail Add-to-Cart (Driven by merchant order offerings) */}
+                {/* Service + Retail Add-to-Cart */}
                 {retailOfferings.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t border-black/10">
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-semibold uppercase tracking-wider opacity-80 flex items-center gap-1.5">
-                        <Tag className="w-3.5 h-3.5" />
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-[#105F68]" />
                         <span>Retail Add-Ons (Checkout Upsell)</span>
                       </h4>
-                      <span className="text-[10px] opacity-60">Products &amp; Items</span>
+                      <span className="text-[10px] text-slate-400 font-medium">Products &amp; Items</span>
                     </div>
 
                     <div className="space-y-1.5">
@@ -711,19 +716,21 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                           <div
                             key={item.id}
                             onClick={() => toggleRetailAddon(item.id)}
-                            className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${isChecked
-                                ? "bg-black/[0.04] border-black/30 font-medium"
-                                : "border-black/10 hover:border-black/20"
-                              }`}
+                            className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between text-xs ${
+                              isChecked
+                                ? "bg-slate-100/70 border-slate-400 font-semibold text-[#103438]"
+                                : "border-slate-200 hover:border-slate-300 text-slate-700 bg-white"
+                            }`}
                           >
-                            <div className="flex items-center gap-2">
-                              <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${isChecked ? "bg-black text-white" : "border-black/30"
-                                }`}>
+                            <div className="flex items-center gap-2.5">
+                              <div className={`w-4 h-4 rounded-md flex items-center justify-center border text-[10px] ${
+                                isChecked ? "bg-[#105F68] border-[#105F68] text-white" : "border-slate-300"
+                              }`}>
                                 {isChecked && "✓"}
                               </div>
                               <span>{item.name}</span>
                             </div>
-                            <span className="font-semibold">+${(item.priceCents / 100).toFixed(2)}</span>
+                            <span className="font-bold">+${(item.priceCents / 100).toFixed(2)}</span>
                           </div>
                         );
                       })}
@@ -732,22 +739,22 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                 )}
 
                 {/* Pricing Summary */}
-                <div className="p-3.5 rounded-2xl bg-black/[0.03] space-y-1.5 text-xs">
+                <div className="p-4 rounded-3xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs">
                   <div className="flex justify-between">
-                    <span className="opacity-75">Base Service / Item Total</span>
-                    <span className="font-semibold">
+                    <span className="text-slate-500 font-medium">Base Service / Item Total</span>
+                    <span className="font-semibold text-slate-800">
                       ${((selectedOffering.priceCents * orderQuantity) / 100).toFixed(2)}
                     </span>
                   </div>
 
                   {selectedRetailTotal > 0 && (
-                    <div className="flex justify-between text-[#105F68] font-medium">
+                    <div className="flex justify-between text-[#105F68] font-semibold">
                       <span>Retail Add-Ons Total</span>
                       <span>+${(selectedRetailTotal / 100).toFixed(2)}</span>
                     </div>
                   )}
 
-                  <div className="flex justify-between font-bold pt-1 border-t border-black/5">
+                  <div className="flex justify-between font-bold pt-2 border-t border-slate-200 text-sm text-[#103438]">
                     <span>Grand Total</span>
                     <span>
                       ${(((selectedOffering.priceCents * orderQuantity) + selectedRetailTotal) / 100).toFixed(2)}
@@ -755,13 +762,13 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                   </div>
 
                   {selectedOffering.depositCents > 0 && (
-                    <div className="flex justify-between text-emerald-600 font-medium">
+                    <div className="flex justify-between text-emerald-700 font-semibold">
                       <span>Deposit Due Now (Card on File)</span>
                       <span>${((selectedOffering.depositCents * orderQuantity) / 100).toFixed(2)}</span>
                     </div>
                   )}
 
-                  <div className="flex justify-between text-[11px] opacity-60 pt-1 border-t border-black/10">
+                  <div className="flex justify-between text-[11px] text-slate-400 pt-1.5 border-t border-slate-200/60 font-medium">
                     <span>Ovel Commission Fee</span>
                     <span>$0.00 (0% Flat Rate)</span>
                   </div>
@@ -771,17 +778,18 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                   <button
                     type="button"
                     onClick={() => setStep(1)}
-                    className="text-xs opacity-75 hover:opacity-100"
+                    className="text-xs text-slate-500 hover:text-slate-800 font-medium"
                   >
                     Back
                   </button>
 
                   <button
                     type="submit"
-                    className={getButtonClass(true)}
+                    className="px-6 py-3 rounded-full text-xs font-semibold text-white shadow-md shadow-[#105F68]/20 flex items-center gap-2 hover:opacity-95 transition-all"
                     style={{ backgroundColor: config.primaryColor }}
                   >
-                    Confirm &amp; Place Request
+                    <span>Confirm &amp; Place Request</span>
+                    <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </form>
@@ -801,23 +809,23 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                   <h3 className="text-xl font-bold" style={{ color: config.primaryColor }}>
                     Booking Confirmed!
                   </h3>
-                  <p className="text-xs opacity-75 mt-1 max-w-sm mx-auto">
+                  <p className="text-xs text-slate-600 mt-1 max-w-sm mx-auto leading-relaxed">
                     Thank you, <b>{clientName}</b>! Your request for <b>{selectedOffering.name}</b> has been locked in with {config.businessName}.
                   </p>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-black/[0.03] text-left text-xs space-y-2 max-w-sm mx-auto">
+                <div className="p-4 rounded-3xl bg-slate-50 border border-slate-200/80 text-left text-xs space-y-2 max-w-sm mx-auto">
                   <div className="flex justify-between">
-                    <span className="opacity-75">Date &amp; Slot:</span>
-                    <span className="font-semibold">{selectedDate} @ {selectedTimeSlot}</span>
+                    <span className="text-slate-500">Date &amp; Slot:</span>
+                    <span className="font-semibold text-slate-800">{selectedDate} @ {selectedTimeSlot}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="opacity-75">Client Contact:</span>
-                    <span>{clientPhone}</span>
+                    <span className="text-slate-500">Client Contact:</span>
+                    <span className="font-semibold text-slate-800">{clientPhone}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="opacity-75">Reference Token:</span>
-                    <span className="font-mono font-medium">{confirmationToken || "tok_confirmed"}</span>
+                    <span className="text-slate-500">Reference Token:</span>
+                    <span className="font-mono font-bold text-[#105F68]">{confirmationToken || "tok_confirmed"}</span>
                   </div>
                 </div>
 
@@ -830,7 +838,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                       )}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="px-5 py-2.5 rounded-full bg-[#25D366] text-white text-xs font-semibold hover:bg-[#1EBE5D] transition-all flex items-center justify-center gap-2 shadow-sm"
+                      className="px-5 py-3 rounded-full bg-[#25D366] text-white text-xs font-semibold hover:bg-[#1EBE5D] transition-all flex items-center justify-center gap-2 shadow-sm"
                     >
                       <MessageSquare className="w-4 h-4" />
                       <span>Send Instant Confirmation via WhatsApp</span>
@@ -843,7 +851,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                       setSelectedOffering(null);
                       setStep(1);
                     }}
-                    className="px-5 py-2 rounded-full border border-black/15 text-xs opacity-80 hover:opacity-100"
+                    className="px-5 py-2.5 rounded-full border border-slate-200 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
                   >
                     Close &amp; Return to Offerings
                   </button>
@@ -856,8 +864,8 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
 
       {/* Share Ovelink Modal */}
       {isShareModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white text-zinc-900 rounded-3xl p-6 sm:p-8 max-w-sm w-full space-y-5 shadow-2xl border border-black/10 text-center font-['Kaleko_105',sans-serif]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white text-zinc-900 rounded-3xl p-6 sm:p-8 max-w-sm w-full space-y-5 shadow-2xl border border-black/10 text-center font-sans">
             <div className="flex justify-end">
               <button onClick={() => setIsShareModalOpen(false)} className="text-gray-400 hover:text-black">
                 <X className="w-5 h-5" />
@@ -870,19 +878,19 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
 
             <div>
               <h3 className="text-lg font-bold text-[#105F68]">Share {config.businessName} Ovelink</h3>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
                 Send your link to customers or embed on Instagram bio &amp; WhatsApp.
               </p>
             </div>
 
-            <div className="p-3 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-mono break-all text-[#105F68] select-all">
+            <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-mono break-all text-[#105F68] select-all font-medium">
               https://ovel.app/l/{config.slug}
             </div>
 
             <div className="flex flex-col gap-2">
               <button
                 onClick={handleCopyLink}
-                className="w-full py-2.5 rounded-full bg-[#105F68] text-white text-xs font-semibold hover:bg-[#0D4F57] transition-all flex items-center justify-center gap-2 shadow-sm"
+                className="w-full py-3 rounded-full bg-[#105F68] text-white text-xs font-semibold hover:bg-[#0D4F57] transition-all flex items-center justify-center gap-2 shadow-sm"
               >
                 <Copy className="w-3.5 h-3.5" />
                 <span>{copiedLink ? "Link Copied to Clipboard!" : "Copy Ovelink"}</span>
@@ -895,7 +903,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                   )}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="w-full py-2.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-medium hover:bg-emerald-100 transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold hover:bg-emerald-100 transition-all flex items-center justify-center gap-2"
                 >
                   <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Share on WhatsApp</span>

@@ -33,7 +33,7 @@ export interface ReputationConfig {
   rebookingReminderWeeks: number; // e.g. 4 weeks later
 }
 
-const DEFAULT_REPUTATION_CONFIG: ReputationConfig = {
+export const DEFAULT_REPUTATION_CONFIG: ReputationConfig = {
   businessSlug: "main",
   googleMapsReviewUrl: "https://maps.google.com",
   autoRedirectThreshold: 4,

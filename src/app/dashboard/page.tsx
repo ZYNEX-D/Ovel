@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   Calendar as CalendarIcon, 
@@ -42,11 +42,17 @@ import { useAuth } from "@/lib/auth-context";
 export default function DashboardSchedulePage() {
   const { profile } = useAuth();
   const { playClick, playSuccess } = useAudio();
-  const [bookings, setBookings] = useState<BookingRecord[]>(() => getBookings());
-  const [waitlist, setWaitlist] = useState<WaitlistEntry[]>(() => getWaitlist());
-  const [clientProfiles] = useState<ClientProfile[]>(() => getClientProfiles());
+  const [bookings, setBookings] = useState<BookingRecord[]>([]);
+  const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
+  const [clientProfiles, setClientProfiles] = useState<ClientProfile[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [roundRobinActive, setRoundRobinActive] = useState(true);
+
+  useEffect(() => {
+    setBookings(getBookings());
+    setWaitlist(getWaitlist());
+    setClientProfiles(getClientProfiles());
+  }, []);
 
   // Modals & Panels
   const [isWaitlistModalOpen, setIsWaitlistModalOpen] = useState(false);
@@ -208,7 +214,7 @@ export default function DashboardSchedulePage() {
         <div className="p-5 rounded-3xl bg-white border border-[#105F68]/10 shadow-sm flex flex-col justify-between">
           <span className="text-xs uppercase tracking-wider text-[#3A9295]">Booked Volume</span>
           <div className="mt-2">
-            <h3 className="text-3xl font-light text-[#105F68]">
+            <h3 suppressHydrationWarning className="text-3xl font-light text-[#105F68]">
               ${(totalRevenue / 100).toLocaleString()}
             </h3>
             <p className="text-[11px] text-[#3A9295] mt-1">100% Direct to Merchant Stripe</p>
@@ -218,7 +224,7 @@ export default function DashboardSchedulePage() {
         <div className="p-5 rounded-3xl bg-white border border-[#105F68]/10 shadow-sm flex flex-col justify-between">
           <span className="text-xs uppercase tracking-wider text-[#3A9295]">Deposits Secured</span>
           <div className="mt-2">
-            <h3 className="text-3xl font-light text-[#105F68]">
+            <h3 suppressHydrationWarning className="text-3xl font-light text-[#105F68]">
               ${(depositsCollected / 100).toLocaleString()}
             </h3>
             <p className="text-[11px] text-[#63C1BB] font-medium mt-1">Card-on-File SetupIntents</p>
@@ -236,7 +242,7 @@ export default function DashboardSchedulePage() {
         <div className="p-5 rounded-3xl bg-[#105F68] text-white border border-[#105F68] shadow-sm flex flex-col justify-between">
           <span className="text-xs uppercase tracking-wider text-[#C8E6E2]">Fees Saved</span>
           <div className="mt-2">
-            <h3 className="text-3xl font-light text-white">
+            <h3 suppressHydrationWarning className="text-3xl font-light text-white">
               ${Math.round((totalRevenue / 100) * 0.2).toLocaleString()}
             </h3>
             <p className="text-[11px] text-[#C8E6E2] mt-1">vs 20% Marketplace Cut</p>
