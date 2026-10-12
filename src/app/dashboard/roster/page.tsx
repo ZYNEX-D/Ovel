@@ -44,6 +44,10 @@ import {
 } from "@/lib/platform-store";
 import { useAudio } from "@/components/AudioController";
 
+function temporaryClientId(): string {
+  return `cp_temp_${Date.now()}`;
+}
+
 export default function DashboardRosterPage() {
   const { playClick, playSuccess } = useAudio();
   const [mounted, setMounted] = useState(false);
@@ -135,7 +139,7 @@ export default function DashboardRosterPage() {
       setSelectedClientProfile(found);
     } else {
       setSelectedClientProfile({
-        id: `cp_temp_${Date.now()}`,
+        id: temporaryClientId(),
         name: clientName,
         email: "client@example.com",
         phone: "+1 (415) 555-0199",

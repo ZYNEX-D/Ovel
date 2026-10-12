@@ -325,7 +325,7 @@ function safeGet<T>(key: string, fallback: T): T {
       );
     });
 
-    if (cleaned.length === 0 && Array.isArray(fallback) && (fallback as unknown as any[]).length > 0) {
+    if (cleaned.length === 0 && Array.isArray(fallback) && fallback.length > 0) {
       localStorage.setItem(key, JSON.stringify(fallback));
       return fallback;
     }
