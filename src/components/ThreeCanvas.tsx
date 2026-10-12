@@ -1,7 +1,18 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import * as THREE from "three";
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Clock,
+  Color,
+  NormalBlending,
+  PerspectiveCamera,
+  Points,
+  PointsMaterial,
+  Scene,
+  WebGLRenderer,
+} from "three";
 
 export default function ThreeCanvas() {
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -11,8 +22,8 @@ export default function ThreeCanvas() {
     if (!mount) return;
 
     // Scene & Camera
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(
+    const scene = new Scene();
+    const camera = new PerspectiveCamera(
       45,
       mount.clientWidth / mount.clientHeight,
       0.1,
@@ -20,24 +31,28 @@ export default function ThreeCanvas() {
     );
     camera.position.z = 24;
 
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    const renderer = new WebGLRenderer({
+      alpha: true,
+      antialias: true,
+      powerPreference: "low-power",
+    });
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     mount.appendChild(renderer.domElement);
 
     // Ethereal Ribbon Geometry (Torus Knot with custom shader or point cloud)
     const count = 1800;
-    const geometry = new THREE.BufferGeometry();
+    const geometry = new BufferGeometry();
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
 
     // Palette: #C8E6E2, #9ED5D1, #63C1BB, #3A9295, #105F68
     const palette = [
-      new THREE.Color("#C8E6E2"),
-      new THREE.Color("#9ED5D1"),
-      new THREE.Color("#63C1BB"),
-      new THREE.Color("#3A9295"),
-      new THREE.Color("#105F68"),
+      new Color("#C8E6E2"),
+      new Color("#9ED5D1"),
+      new Color("#63C1BB"),
+      new Color("#3A9295"),
+      new Color("#105F68"),
     ];
 
     for (let i = 0; i < count; i++) {
@@ -59,18 +74,18 @@ export default function ThreeCanvas() {
       colors[i * 3 + 2] = color.b;
     }
 
-    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute("position", new BufferAttribute(positions, 3));
+    geometry.setAttribute("color", new BufferAttribute(colors, 3));
 
-    const material = new THREE.PointsMaterial({
+    const material = new PointsMaterial({
       size: 0.16,
       vertexColors: true,
       transparent: true,
       opacity: 0.65,
-      blending: THREE.NormalBlending,
+      blending: NormalBlending,
     });
 
-    const points = new THREE.Points(geometry, material);
+    const points = new Points(geometry, material);
     scene.add(points);
 
     // Smooth undulating movement & mouse interaction
@@ -87,10 +102,17 @@ export default function ThreeCanvas() {
 
     window.addEventListener("mousemove", handleMouseMove);
 
-    let frameId: number;
-    const clock = new THREE.Clock();
+    let frameId = 0;
+    let loopOn = false;
+    let stopped = false;
+    const clock = new Clock();
 
     const animate = () => {
+      if (stopped || document.hidden) {
+        loopOn = false;
+        return;
+      }
+      loopOn = true;
       const elapsedTime = clock.getElapsedTime();
 
       // Smooth interpolation for mouse movement
@@ -105,6 +127,18 @@ export default function ThreeCanvas() {
       frameId = requestAnimationFrame(animate);
     };
 
+    const handleVisibility = () => {
+      if (document.hidden) {
+        cancelAnimationFrame(frameId);
+        loopOn = false;
+        clock.stop();
+        return;
+      }
+      clock.start();
+      if (!loopOn) animate();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
     animate();
 
     const handleResize = () => {
@@ -117,10 +151,12 @@ export default function ThreeCanvas() {
     window.addEventListener("resize", handleResize);
 
     return () => {
+      stopped = true;
+      document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("resize", handleResize);
       cancelAnimationFrame(frameId);
-      if (mount && renderer.domElement) {
+      if (mount && renderer.domElement.parentNode === mount) {
         mount.removeChild(renderer.domElement);
       }
       geometry.dispose();

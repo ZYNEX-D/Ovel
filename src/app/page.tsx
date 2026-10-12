@@ -1,6 +1,3 @@
-"use client";
-
-import React, { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -14,50 +11,117 @@ import {
   ShoppingBag,
   Check,
   ExternalLink,
-  ShieldCheck,
-  TrendingUp,
-  Layers,
-  Phone
 } from "lucide-react";
-import ThreeCanvas from "@/components/ThreeCanvas";
 import ProgressiveBlur from "@/components/ProgressiveBlur";
-import { AudioToggle, useAudio } from "@/components/AudioController";
-import UserAuthNav from "@/components/UserAuthNav";
-import { useAuth } from "@/lib/auth-context";
+import DeferredThreeCanvas from "@/components/home/DeferredThreeCanvas";
+import HomeHeaderActions from "@/components/home/HomeHeaderActions";
+import ClickLink from "@/components/home/ClickLink";
+import SavingsCalculator from "@/components/home/SavingsCalculator";
+
+const DEMO_LINKS = [
+  {
+    slug: "apex-studio",
+    name: "Apex Auto Lab",
+    category: "Auto Detailing",
+    theme: "Velvet Dark • Space Grotesk",
+    bg: "bg-[#090D16] text-[#F8FAFC]",
+    accent: "text-[#38BDF8]",
+    pill: "bg-[#0284C7] text-white",
+    type: "Paint Correction & Detailing",
+    sampleUrl: "/l/apex-studio",
+  },
+  {
+    slug: "craft-bakes",
+    name: "Velvet Crumb Bakes",
+    category: "Artisanal Bakery",
+    theme: "Warm Clay • Playfair Display",
+    bg: "bg-[#FEFCE8] text-[#451A03]",
+    accent: "text-[#D97706]",
+    pill: "bg-[#854D0E] text-white",
+    type: "Custom Cake Orders & Tastings",
+    sampleUrl: "/l/craft-bakes",
+  },
+  {
+    slug: "vance-studio",
+    name: "Vance Production Loft",
+    category: "Studio Rentals",
+    theme: "Hyper Minimal • Syne Font",
+    bg: "bg-[#FAFAFA] text-[#18181B]",
+    accent: "text-[#6366F1]",
+    pill: "bg-[#18181B] text-white",
+    type: "Hourly Daylight Cyc Bookings",
+    sampleUrl: "/l/vance-studio",
+  },
+  {
+    slug: "leclat",
+    name: "L'Éclat Boutique",
+    category: "Wellness & Care",
+    theme: "Signature Teal • Kaleko 105",
+    bg: "bg-[#F6FAF9] text-[#103438]",
+    accent: "text-[#63C1BB]",
+    pill: "bg-[#105F68] text-white",
+    type: "Aesthetic Appointments",
+    sampleUrl: "/l/leclat",
+  },
+];
+
+const LOOP_STEPS = [
+  {
+    step: "01",
+    name: "Quote",
+    desc: "Send interactive digital proposals with e-signature and optional package add-ons.",
+    badge: "Auto-Convert",
+    icon: FileText,
+  },
+  {
+    step: "02",
+    name: "Book & Order",
+    desc: "Clients choose slots or items via your customized Ovelink with direct card deposits.",
+    badge: "Zero Overlaps",
+    icon: Calendar,
+  },
+  {
+    step: "03",
+    name: "Remind",
+    desc: "Automated 2-way WhatsApp reminders: Client replies '1' to confirm or '2' to reschedule.",
+    badge: "-25% No-Shows",
+    icon: MessageSquare,
+  },
+  {
+    step: "04",
+    name: "Invoice",
+    desc: "Instant automated PDF receipts crediting upfront deposits and calculating sales tax.",
+    badge: "One-Click PDF",
+    icon: Sparkles,
+  },
+  {
+    step: "05",
+    name: "Paid",
+    desc: "100% of revenue routes straight into your merchant bank account. Ovel takes 0% commission.",
+    badge: "0% Commission",
+    icon: DollarSign,
+  },
+];
 
 export default function HomePage() {
-  const [monthlyRevenue, setMonthlyRevenue] = useState(18000);
-  const { playClick } = useAudio();
-  const { profile, isLoading } = useAuth();
-
-  const marketplaceCut = Math.round(monthlyRevenue * 0.2);
-  const ovelFlat = 39;
-  const monthlySavings = marketplaceCut - ovelFlat;
-
   return (
     <div className="relative min-h-screen bg-[#F6FAF9] text-[#103438] antialiased selection:bg-[#105F68] selection:text-white font-['Kaleko_105',sans-serif] overflow-x-hidden">
-      {/* Three.js Ambient Fluid Particle Canvas */}
-      <ThreeCanvas />
+      <DeferredThreeCanvas />
 
-      {/* Progressive Blurs */}
       <ProgressiveBlur position="top" height="h-24" />
       <ProgressiveBlur position="bottom" height="h-20" />
 
-      {/* Ambient Gradient Glow Spheres */}
       <div className="absolute -top-[15%] -right-[10%] w-[700px] h-[700px] bg-[#C8E6E2]/70 rounded-full blur-[120px] -z-10 pointer-events-none animate-gradientFlow1"></div>
       <div className="absolute top-[35%] -left-[12%] w-[600px] h-[600px] bg-[#9ED5D1]/55 rounded-full blur-[130px] -z-10 pointer-events-none animate-gradientFlow2"></div>
 
-      {/* Public Marketing Top Header */}
       <header className="sticky top-0 z-40 bg-[#F6FAF9]/85 backdrop-blur-md border-b border-[#105F68]/10 transition-all duration-300">
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 h-20 sm:h-24 flex items-center justify-between">
-          {/* Logo */}
           <Link href="/" className="flex items-center group">
             <span className="font-['Disolve'] text-2xl sm:text-3xl text-[#105F68] tracking-tight">
               Ovel
             </span>
           </Link>
 
-          {/* Public Navigation */}
           <nav className="hidden lg:flex items-center gap-8 text-sm text-[#3A9295] font-light">
             <a href="#engines" className="hover:text-[#105F68] transition-colors tracking-tight">
               The 3 Engines
@@ -73,46 +137,17 @@ export default function HomePage() {
             </a>
           </nav>
 
-          {/* Right Header Controls */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            <AudioToggle />
-            <UserAuthNav />
-
-            {/* Header CTA Button */}
-            {!isLoading && (profile ? (
-              <Link
-                href={profile.role === "super_admin" ? "/admin" : "/dashboard"}
-                onClick={() => playClick()}
-                className="group bg-[#105F68] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-light tracking-tight hover:bg-[#0D4F57] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2"
-              >
-                <span>{profile.role === "super_admin" ? "Admin Console" : "Dashboard"}</span>
-                <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
-              </Link>
-            ) : (
-              <>  </>
-              // <Link
-              //   href="/signup"
-              //   onClick={() => playClick()}
-              //   className="group bg-[#105F68] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-light tracking-tight hover:bg-[#0D4F57] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2"
-              // >
-              //   <span>Get Your Ovelink</span>
-              //   <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
-              // </Link>
-            ))}
-          </div>
+          <HomeHeaderActions />
         </div>
       </header>
 
-      {/* Main Hero Section */}
       <main className="w-full">
         <section className="px-4 sm:px-8 max-w-7xl mx-auto pt-16 sm:pt-28 pb-20 sm:pb-32 flex flex-col justify-center min-h-[calc(100vh-6rem)]">
-          {/* Eyebrow Pill */}
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#C8E6E2]/40 border border-[#9ED5D1]/60 text-xs text-[#105F68] font-light tracking-wide w-fit mb-8 opacity-0 animate-[blurFadeUp_1s_cubic-bezier(0.22,1,0.36,1)_forwards]">
             <span className="w-2 h-2 rounded-full bg-[#63C1BB] animate-ping"></span>
             <span>One Link for Appointments, Bookings &amp; Orders • 0% Commission</span>
           </div>
 
-          {/* Main Headline */}
           <h1
             className="font-light text-4xl sm:text-6xl md:text-7xl lg:text-[76px] text-[#105F68] leading-[1.08] tracking-tight mb-8 sm:mb-12 max-w-5xl opacity-0 animate-[blurFadeUp_1.2s_cubic-bezier(0.22,1,0.36,1)_forwards]"
             style={{ animationDelay: "150ms" }}
@@ -121,7 +156,6 @@ export default function HomePage() {
             <span className="text-[#3A9295] font-normal">Book, Sell, or Schedule.</span>
           </h1>
 
-          {/* Subtitle & Public CTAs */}
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-10 w-full">
             <div
               className="max-w-2xl opacity-0 animate-[blurFadeUp_1.2s_cubic-bezier(0.22,1,0.36,1)_forwards]"
@@ -137,14 +171,13 @@ export default function HomePage() {
               style={{ animationDelay: "450ms" }}
             >
               <div className="flex flex-wrap gap-3 w-full sm:w-auto">
-                <Link
+                <ClickLink
                   href="/signup"
-                  onClick={() => playClick()}
                   className="bg-[#105F68] text-white px-7 py-4 rounded-full text-sm sm:text-base flex justify-center items-center gap-2 hover:bg-[#0D4F57] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 font-light tracking-tight"
                 >
                   <span>Create Your Ovelink Free</span>
                   <ArrowRight className="w-4 h-4" />
-                </Link>
+                </ClickLink>
 
                 <Link
                   href="/l/apex-studio"
@@ -167,7 +200,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Section 1: The 3 Core Business Engines */}
         <section id="engines" className="py-24 sm:py-32 px-4 sm:px-8 max-w-7xl mx-auto border-t border-[#105F68]/10">
           <div className="text-center max-w-3xl mx-auto mb-16">
             <span className="text-xs uppercase tracking-widest text-[#3A9295] font-light">
@@ -182,7 +214,6 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Engine 1 */}
             <div className="p-8 rounded-[2rem] bg-white border border-[#105F68]/10 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all space-y-5">
               <div className="w-12 h-12 rounded-2xl bg-[#C8E6E2]/40 text-[#105F68] flex items-center justify-center">
                 <Calendar className="w-6 h-6" />
@@ -200,7 +231,6 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Engine 2 */}
             <div className="p-8 rounded-[2rem] bg-white border border-[#105F68]/10 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all space-y-5">
               <div className="w-12 h-12 rounded-2xl bg-[#9ED5D1]/40 text-[#105F68] flex items-center justify-center">
                 <Clock className="w-6 h-6" />
@@ -218,7 +248,6 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Engine 3 */}
             <div className="p-8 rounded-[2rem] bg-white border border-[#105F68]/10 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all space-y-5">
               <div className="w-12 h-12 rounded-2xl bg-[#63C1BB]/30 text-[#105F68] flex items-center justify-center">
                 <ShoppingBag className="w-6 h-6" />
@@ -238,7 +267,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Section 2: Real Ovelinks Live Showcase */}
         <section id="demos" className="py-24 sm:py-32 px-4 sm:px-8 bg-gradient-to-b from-[#F6FAF9] via-[#C8E6E2]/20 to-[#F6FAF9] border-y border-[#105F68]/10">
           <div className="max-w-7xl mx-auto">
             <div className="text-center max-w-3xl mx-auto mb-16">
@@ -254,52 +282,7 @@ export default function HomePage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[
-                {
-                  slug: "apex-studio",
-                  name: "Apex Auto Lab",
-                  category: "Auto Detailing",
-                  theme: "Velvet Dark • Space Grotesk",
-                  bg: "bg-[#090D16] text-[#F8FAFC]",
-                  accent: "text-[#38BDF8]",
-                  pill: "bg-[#0284C7] text-white",
-                  type: "Paint Correction & Detailing",
-                  sampleUrl: "/l/apex-studio",
-                },
-                {
-                  slug: "craft-bakes",
-                  name: "Velvet Crumb Bakes",
-                  category: "Artisanal Bakery",
-                  theme: "Warm Clay • Playfair Display",
-                  bg: "bg-[#FEFCE8] text-[#451A03]",
-                  accent: "text-[#D97706]",
-                  pill: "bg-[#854D0E] text-white",
-                  type: "Custom Cake Orders & Tastings",
-                  sampleUrl: "/l/craft-bakes",
-                },
-                {
-                  slug: "vance-studio",
-                  name: "Vance Production Loft",
-                  category: "Studio Rentals",
-                  theme: "Hyper Minimal • Syne Font",
-                  bg: "bg-[#FAFAFA] text-[#18181B]",
-                  accent: "text-[#6366F1]",
-                  pill: "bg-[#18181B] text-white",
-                  type: "Hourly Daylight Cyc Bookings",
-                  sampleUrl: "/l/vance-studio",
-                },
-                {
-                  slug: "leclat",
-                  name: "L'Éclat Boutique",
-                  category: "Wellness & Care",
-                  theme: "Signature Teal • Kaleko 105",
-                  bg: "bg-[#F6FAF9] text-[#103438]",
-                  accent: "text-[#63C1BB]",
-                  pill: "bg-[#105F68] text-white",
-                  type: "Aesthetic Appointments",
-                  sampleUrl: "/l/leclat",
-                },
-              ].map((sample) => (
+              {DEMO_LINKS.map((sample) => (
                 <div
                   key={sample.slug}
                   className={`p-6 rounded-[2rem] border border-black/10 shadow-lg flex flex-col justify-between space-y-6 ${sample.bg}`}
@@ -333,7 +316,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Section 3: The 5-Step Commercial Loop */}
         <section id="how-it-works" className="py-24 sm:py-36 px-4 sm:px-8 max-w-7xl mx-auto">
           <div className="text-center max-w-3xl mx-auto mb-20">
             <span className="text-xs uppercase tracking-widest text-[#3A9295] font-light">
@@ -348,43 +330,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {[
-              {
-                step: "01",
-                name: "Quote",
-                desc: "Send interactive digital proposals with e-signature and optional package add-ons.",
-                badge: "Auto-Convert",
-                icon: FileText,
-              },
-              {
-                step: "02",
-                name: "Book & Order",
-                desc: "Clients choose slots or items via your customized Ovelink with direct card deposits.",
-                badge: "Zero Overlaps",
-                icon: Calendar,
-              },
-              {
-                step: "03",
-                name: "Remind",
-                desc: "Automated 2-way WhatsApp reminders: Client replies '1' to confirm or '2' to reschedule.",
-                badge: "-25% No-Shows",
-                icon: MessageSquare,
-              },
-              {
-                step: "04",
-                name: "Invoice",
-                desc: "Instant automated PDF receipts crediting upfront deposits and calculating sales tax.",
-                badge: "One-Click PDF",
-                icon: Sparkles,
-              },
-              {
-                step: "05",
-                name: "Paid",
-                desc: "100% of revenue routes straight into your merchant bank account. Ovel takes 0% commission.",
-                badge: "0% Commission",
-                icon: DollarSign,
-              },
-            ].map((item, idx) => {
+            {LOOP_STEPS.map((item, idx) => {
               const ItemIcon = item.icon;
               return (
                 <div
@@ -414,7 +360,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Section 4: 0% Commission Savings Calculator */}
         <section id="savings" className="py-24 sm:py-32 px-4 sm:px-8 bg-gradient-to-b from-[#F6FAF9] via-[#C8E6E2]/20 to-[#F6FAF9] border-y border-[#105F68]/10">
           <div className="max-w-5xl mx-auto">
             <div className="text-center max-w-2xl mx-auto mb-16">
@@ -429,73 +374,11 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="p-8 sm:p-12 rounded-[2.5rem] bg-white border border-[#105F68]/15 shadow-xl grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
-              {/* Slider (7 cols) */}
-              <div className="md:col-span-7 space-y-6">
-                <div>
-                  <div className="flex justify-between items-baseline mb-2">
-                    <span className="text-xs uppercase tracking-wider text-[#3A9295] font-light">
-                      Monthly Business Revenue:
-                    </span>
-                    <span className="text-2xl font-light text-[#105F68]">
-                      ${monthlyRevenue.toLocaleString()}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="3000"
-                    max="60000"
-                    step="1000"
-                    value={monthlyRevenue}
-                    onChange={(e) => setMonthlyRevenue(Number(e.target.value))}
-                    className="w-full h-2 bg-[#C8E6E2] rounded-lg appearance-none cursor-pointer accent-[#105F68]"
-                  />
-                  <div className="flex justify-between text-[11px] text-[#3A9295] mt-1 font-mono">
-                    <span>$3,000/mo</span>
-                    <span>$30,000/mo</span>
-                    <span>$60,000/mo</span>
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-2">
-                  <div className="flex justify-between text-xs p-3 rounded-xl bg-red-50 text-red-800 border border-red-100">
-                    <span>Marketplace 20% Take-Rate:</span>
-                    <span className="font-semibold">-${marketplaceCut.toLocaleString()} / mo</span>
-                  </div>
-                  <div className="flex justify-between text-xs p-3 rounded-xl bg-[#C8E6E2]/30 text-[#105F68] border border-[#9ED5D1]/50">
-                    <span>Ovel Flat Subscription:</span>
-                    <span className="font-semibold">${ovelFlat}.00 / mo</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Result Callout (5 cols) */}
-              <div className="md:col-span-5 p-6 rounded-3xl bg-[#105F68] text-white flex flex-col justify-between text-center space-y-4">
-                <div>
-                  <span className="text-xs uppercase tracking-widest text-[#C8E6E2] font-light">
-                    Your Annual Savings
-                  </span>
-                  <div className="text-4xl sm:text-5xl font-light text-white my-3">
-                    ${(monthlySavings * 12).toLocaleString()}
-                  </div>
-                  <p className="text-xs text-[#9ED5D1] font-light leading-relaxed">
-                    That is ${(monthlySavings).toLocaleString()} extra in your pocket each month — zero commission taken, ever.
-                  </p>
-                </div>
-                <Link
-                  href="/signup"
-                  onClick={() => playClick()}
-                  className="w-full py-3 rounded-full bg-[#63C1BB] hover:bg-[#3A9295] text-[#103438] hover:text-white text-xs font-medium tracking-tight transition-all shadow-md text-center"
-                >
-                  Start Saving Today
-                </Link>
-              </div>
-            </div>
+            <SavingsCalculator />
           </div>
         </section>
       </main>
 
-      {/* Clean Marketing Footer */}
       <footer className="bg-[#105F68] text-white py-16 px-4 sm:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6 border-b border-white/10 pb-8 text-xs">
           <div className="flex items-center gap-3">
