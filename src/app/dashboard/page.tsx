@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { 
   Calendar as CalendarIcon, 
@@ -33,25 +33,28 @@ import {
 import { 
   getBookings, 
   saveBookings,
-  BookingRecord,
+  INITIAL_BOOKINGS,
+  INITIAL_WAITLIST,
+  INITIAL_CLIENT_PROFILES,
   getWaitlist,
   dispatchWaitlistBlast,
+  selectWaitlistRecipient,
   claimWaitlistSlot,
   chargeNoShowFee,
   getClientProfiles,
+  summarizeBookings,
   ClientProfile,
-  WaitlistEntry
 } from "@/lib/platform-store";
+import { useClientStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
 import { useAuth } from "@/lib/auth-context";
 
 export default function DashboardOverviewPage() {
   const { profile } = useAuth();
   const { playClick, playSuccess } = useAudio();
-  const [mounted, setMounted] = useState(false);
-  const [bookings, setBookings] = useState<BookingRecord[]>([]);
-  const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
-  const [clientProfiles, setClientProfiles] = useState<ClientProfile[]>([]);
+  const bookings = useClientStore(getBookings, () => INITIAL_BOOKINGS);
+  const waitlist = useClientStore(getWaitlist, () => INITIAL_WAITLIST);
+  const clientProfiles = useClientStore(getClientProfiles, () => INITIAL_CLIENT_PROFILES);
   const [roundRobinActive, setRoundRobinActive] = useState(true);
 
   // Modals & Panels
@@ -62,30 +65,21 @@ export default function DashboardOverviewPage() {
   const [selectedClientProfile, setSelectedClientProfile] = useState<ClientProfile | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
 
-  useEffect(() => {
-    setBookings(getBookings());
-    setWaitlist(getWaitlist());
-    setClientProfiles(getClientProfiles());
-    setMounted(true);
-  }, []);
-
   const showToast = (msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3500);
   };
 
-  const totalRevenue = bookings.reduce((sum, b) => sum + b.totalPriceCents, 0);
-  const depositsCollected = bookings.reduce((sum, b) => sum + b.depositPaidCents, 0);
+  const { totalRevenue, depositsCollected, avgOrderValue, activeBookingsCount } = summarizeBookings(bookings);
   const feesSaved = Math.round((totalRevenue / 100) * 0.2);
-  const avgOrderValue = bookings.length > 0 ? Math.round(totalRevenue / bookings.length) : 0;
-  const activeBookingsCount = bookings.filter(b => b.status === "confirmed").length;
 
   const handleChargeNoShow = (bookingId: string) => {
-    playSuccess();
     const updated = chargeNoShowFee(bookingId, 2500);
     if (updated) {
-      setBookings(getBookings());
-      showToast(`$25.00 No-Show Penalty charged to card •••• ${updated.cardLast4 || "4242"} on file!`);
+      playSuccess();
+      showToast(`$25.00 no-show fee charged to card •••• ${updated.cardLast4}.`);
+    } else {
+      showToast("No-show fee was not charged. A card must be on file, and the booking cannot already be closed.");
     }
   };
 
@@ -94,25 +88,29 @@ export default function DashboardOverviewPage() {
     const all = getBookings();
     const updated = all.map(b => b.id === bookingId ? { ...b, status: "completed" as const } : b);
     saveBookings(updated);
-    setBookings(updated);
     showToast("Booking marked completed! Triggered automatic 2h review request & 4-week rebooking schedule.");
   };
 
   const handleDispatchWaitlist = () => {
+    const recipientIndex = selectWaitlistRecipient(waitlist, "");
+    const recipient = recipientIndex >= 0 ? waitlist[recipientIndex] : undefined;
+    if (!recipient) {
+      showToast("No one is waiting for a slot.");
+      return;
+    }
     playSuccess();
-    const updated = dispatchWaitlistBlast("2:00 PM Today", "Hydrafacial Glow & Lymphatic Drainage");
-    setWaitlist(updated);
-    showToast("WhatsApp broadcast dispatched to waitlist: 'A 2:00 PM slot just opened today! Tap to claim.'");
+    dispatchWaitlistBlast(recipient.preferredTime, recipient.serviceName);
+    showToast(`WhatsApp sent to ${recipient.clientName} for ${recipient.serviceName}.`);
   };
 
   const handleClaimWaitlist = (entryId: string) => {
-    playSuccess();
     const newBooking = claimWaitlistSlot(entryId, "Dr. Genevieve Moreau");
     if (newBooking) {
-      setBookings(getBookings());
-      setWaitlist(getWaitlist());
+      playSuccess();
       setIsWaitlistModalOpen(false);
       showToast(`Slot claimed by ${newBooking.clientName}! Revenue recovered.`);
+    } else {
+      showToast("That waitlist spot could not be claimed. It may already be taken or the time is booked.");
     }
   };
 
@@ -136,8 +134,7 @@ export default function DashboardOverviewPage() {
       totalVisits: 1,
       noShowCount: 0,
       reliabilityScore: 100,
-      formulasOrNotes: "Standard clinical roadmap. Card saved on file via Stripe SetupIntent.",
-      cardOnFile: { brand: "Visa", last4: "4242" },
+      formulasOrNotes: "Standard clinical roadmap.",
     };
     setSelectedClientProfile(found);
   };
@@ -208,7 +205,7 @@ export default function DashboardOverviewPage() {
             className="px-3.5 py-2 rounded-2xl border border-amber-300/50 bg-amber-50/60 hover:bg-amber-100/60 text-amber-900 text-xs font-medium transition-all flex items-center gap-1.5 shadow-sm"
           >
             <Zap className="w-3.5 h-3.5 text-amber-600" />
-            <span>Waitlist ({mounted ? waitlist.filter(w => w.status === "waiting").length : 0})</span>
+            <span>Waitlist ({waitlist.filter(w => w.status === "waiting").length})</span>
           </button>
 
           {/* Round-Robin Toggle */}
@@ -240,7 +237,7 @@ export default function DashboardOverviewPage() {
           </div>
           <div className="mt-3">
             <h3 className="text-2xl sm:text-3xl font-light text-[#105F68]">
-              ${mounted ? (totalRevenue / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}
+              ${(totalRevenue / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h3>
             <p className="text-[11px] text-[#3A9295] mt-1 flex items-center gap-1">
               <span className="text-emerald-600 font-semibold">100%</span> direct to Stripe
@@ -256,7 +253,7 @@ export default function DashboardOverviewPage() {
           </div>
           <div className="mt-3">
             <h3 className="text-2xl sm:text-3xl font-light text-[#105F68]">
-              ${mounted ? (depositsCollected / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}
+              ${(depositsCollected / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h3>
             <p className="text-[11px] text-[#63C1BB] font-medium mt-1">
               Upfront card verification
@@ -272,7 +269,7 @@ export default function DashboardOverviewPage() {
           </div>
           <div className="mt-3">
             <h3 className="text-2xl sm:text-3xl font-light text-white">
-              ${mounted ? feesSaved.toLocaleString() : "0"}
+              ${feesSaved.toLocaleString()}
             </h3>
             <p className="text-[11px] text-[#C8E6E2] mt-1">
               Saved vs 20% marketplace cut
@@ -288,7 +285,7 @@ export default function DashboardOverviewPage() {
           </div>
           <div className="mt-3">
             <h3 className="text-2xl sm:text-3xl font-light text-[#105F68]">
-              ${mounted ? (avgOrderValue / 100).toFixed(2) : "0.00"}
+              ${(avgOrderValue / 100).toFixed(2)}
             </h3>
             <p className="text-[11px] text-emerald-600 font-medium mt-1">
               High-value protocol mix
@@ -323,7 +320,7 @@ export default function DashboardOverviewPage() {
                     Today&apos;s Live Schedule &amp; Station Agenda
                   </h2>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#105F68]/10 text-[#105F68] font-bold">
-                    {mounted ? activeBookingsCount : 0} Active
+                    {activeBookingsCount} Active
                   </span>
                 </div>
                 <p className="text-xs text-[#3A9295] mt-0.5">
@@ -343,11 +340,7 @@ export default function DashboardOverviewPage() {
 
             {/* Schedule Cards Timeline */}
             <div className="space-y-3">
-              {!mounted ? (
-                <div className="py-12 text-center text-xs text-[#3A9295]">
-                  <div className="w-6 h-6 rounded-full border-2 border-[#105F68] border-t-transparent animate-spin mx-auto" />
-                </div>
-              ) : bookings.length === 0 ? (
+              {bookings.length === 0 ? (
                 <div className="py-10 text-center text-xs text-[#3A9295] space-y-2">
                   <CalendarIcon className="w-8 h-8 text-[#105F68]/30 mx-auto" />
                   <p className="font-semibold text-[#105F68]">No appointments scheduled for today</p>
@@ -611,7 +604,7 @@ export default function DashboardOverviewPage() {
               </h3>
             </div>
             <p className="text-xs text-[#E0F2F1] leading-relaxed">
-              1 guest ({mounted && waitlist[0] ? waitlist[0].clientName : "Sophia Al-Mansoor"}) is waiting for a slot today. When an opening occurs, click below to ping them via WhatsApp.
+              {waitlist.filter((entry) => entry.status === "waiting").length} guest(s) are waiting. When an opening occurs, click below to ping the next match via WhatsApp.
             </p>
             <button
               onClick={() => {

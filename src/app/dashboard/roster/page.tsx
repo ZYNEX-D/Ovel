@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import {
   Calendar as CalendarIcon,
@@ -33,15 +33,16 @@ import {
 import {
   getBookings,
   saveBookings,
-  BookingRecord,
-  getWaitlist,
-  dispatchWaitlistBlast,
-  claimWaitlistSlot,
+  createBooking,
+  INITIAL_BOOKINGS,
+  INITIAL_CLIENT_PROFILES,
   chargeNoShowFee,
   getClientProfiles,
+  staffIdFromName,
   ClientProfile,
-  WaitlistEntry
 } from "@/lib/platform-store";
+import { addMinutes, dollarsToCents, localDateString } from "@/lib/booking-time";
+import { useClientStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
 
 function temporaryClientId(): string {
@@ -50,9 +51,8 @@ function temporaryClientId(): string {
 
 export default function DashboardRosterPage() {
   const { playClick, playSuccess } = useAudio();
-  const [mounted, setMounted] = useState(false);
-  const [bookings, setBookings] = useState<BookingRecord[]>([]);
-  const [clientProfiles, setClientProfiles] = useState<ClientProfile[]>([]);
+  const bookings = useClientStore(getBookings, () => INITIAL_BOOKINGS);
+  const clientProfiles = useClientStore(getClientProfiles, () => INITIAL_CLIENT_PROFILES);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStation, setSelectedStation] = useState<string>("all");
@@ -72,12 +72,6 @@ export default function DashboardRosterPage() {
   const [newStaff, setNewStaff] = useState("Dr. Genevieve Moreau");
   const [newStation, setNewStation] = useState("Room 2 (Laser Bay)");
   const [newTime, setNewTime] = useState("10:00");
-
-  useEffect(() => {
-    setBookings(getBookings());
-    setClientProfiles(getClientProfiles());
-    setMounted(true);
-  }, []);
 
   const showToast = (msg: string) => {
     setNotification(msg);
@@ -113,11 +107,12 @@ export default function DashboardRosterPage() {
   }, [bookings, statusFilter, selectedStation, searchQuery]);
 
   const handleChargeNoShow = (bookingId: string) => {
-    playSuccess();
     const updated = chargeNoShowFee(bookingId, 2500);
     if (updated) {
-      setBookings(getBookings());
-      showToast(`$25.00 No-Show Penalty charged to card •••• ${updated.cardLast4 || "4242"} on file!`);
+      playSuccess();
+      showToast(`$25.00 no-show fee charged to card •••• ${updated.cardLast4}.`);
+    } else {
+      showToast("No-show fee was not charged. A card must be on file, and the booking cannot already be closed.");
     }
   };
 
@@ -128,7 +123,6 @@ export default function DashboardRosterPage() {
       b.id === bookingId ? { ...b, status: "completed" as const } : b
     );
     saveBookings(updated);
-    setBookings(updated);
     showToast("Booking marked completed! Triggered automatic review request.");
   };
 
@@ -147,7 +141,6 @@ export default function DashboardRosterPage() {
         noShowCount: 0,
         reliabilityScore: 100,
         formulasOrNotes: "Standard client profile created from booking roster.",
-        cardOnFile: { brand: "Visa", last4: "4242" },
       });
     }
   };
@@ -155,17 +148,22 @@ export default function DashboardRosterPage() {
   const handleCreateManualBooking = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClientName || !newServiceName) return;
-    playSuccess();
 
-    const today = new Date().toISOString().split("T")[0];
-    const startTime = `${today}T${newTime}:00.000Z`;
-    const endTime = `${today}T${newTime}:45.000Z`;
+    if (!/^\d{2}:\d{2}$/.test(newTime)) return;
+    const priceCents = dollarsToCents(newPrice);
+    const depositCents = dollarsToCents(newDeposit);
+    if (priceCents == null || depositCents == null || depositCents > priceCents) {
+      showToast("Enter a valid price and a deposit that does not exceed it.");
+      return;
+    }
+    const startTime = `${localDateString(new Date())}T${newTime}:00`;
+    const endTime = addMinutes(startTime, 45);
+    if (!endTime) return;
 
-    const newBooking: BookingRecord = {
-      id: `bk_${Date.now()}`,
+    const created = createBooking({
       serviceId: "srv_custom",
       serviceName: newServiceName,
-      staffId: "st_custom",
+      staffId: staffIdFromName(newStaff),
       staffName: newStaff,
       clientName: newClientName,
       clientEmail: newClientEmail || "client@lumina.co",
@@ -173,18 +171,16 @@ export default function DashboardRosterPage() {
       startTime,
       endTime,
       status: "confirmed",
-      totalPriceCents: Math.round(newPrice * 100),
-      depositPaidCents: Math.round(newDeposit * 100),
-      rescheduleToken: `tok_${Math.random().toString(36).substring(2, 9)}`,
+      totalPriceCents: priceCents,
+      depositPaidCents: depositCents,
       stationResource: newStation,
-      hasCardOnFile: true,
-      cardLast4: "4242",
-      createdAt: new Date().toISOString(),
-    };
-
-    const updated = [newBooking, ...bookings];
-    setBookings(updated);
-    saveBookings(updated);
+      hasCardOnFile: false,
+    });
+    if (!created) {
+      showToast("That specialist is already booked at this time.");
+      return;
+    }
+    playSuccess();
     setIsAddBookingOpen(false);
     showToast(`Appointment reserved for ${newClientName} at ${newStation}`);
   };
@@ -383,7 +379,7 @@ export default function DashboardRosterPage() {
                       {b.hasCardOnFile ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-full">
                           <CreditCard className="w-3 h-3 text-emerald-600" />
-                          <span>•••• {b.cardLast4 || "4242"}</span>
+                          <span>•••• {b.cardLast4 || "----"}</span>
                         </span>
                       ) : (
                         <span className="text-[11px] text-slate-400 font-medium">None</span>

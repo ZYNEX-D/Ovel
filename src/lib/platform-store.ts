@@ -5,6 +5,9 @@
  */
 
 import { WeeklyWorkingHours } from "./slot-engine";
+import { addMinutes, displayTimeToIsoLocal, localDateString } from "./booking-time";
+import { emitStoreChange } from "./store-events";
+import { interpretWhatsAppReply, WhatsAppIntent } from "./whatsapp-reply";
 
 export interface ServiceItem {
   id: string;
@@ -120,7 +123,7 @@ export interface ReminderLog {
   timestamp: string;
 }
 
-const DEFAULT_WORKING_HOURS: WeeklyWorkingHours = {
+export const DEFAULT_WORKING_HOURS: WeeklyWorkingHours = {
   monday: { start: "09:00", end: "18:00", active: true },
   tuesday: { start: "09:00", end: "18:00", active: true },
   wednesday: { start: "09:00", end: "18:00", active: true },
@@ -295,54 +298,67 @@ const KEY_QUOTES = "ovel_quotes_v1";
 const KEY_INVOICES = "ovel_invoices_v1";
 const KEY_REMINDERS = "ovel_reminders_v1";
 
+function isLegacyMockId(id: string): boolean {
+  return /^(?:bk_10|qt_50|inv_90|rem_1|wl_[12]|cp_[12])\d{0,3}$/.test(id)
+    || /^(?:srv_[1-4]|st_[12])$/.test(id);
+}
+
+const snapshotCache = new Map<string, { raw: string | null; value: unknown }>();
+
+export function clearSnapshotCache() {
+  snapshotCache.clear();
+}
+
+function remember<T>(key: string, raw: string | null, value: T): T {
+  snapshotCache.set(key, { raw, value });
+  return value;
+}
+
 function safeGet<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
+  let raw: string | null = null;
   try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return parsed;
+    raw = localStorage.getItem(key);
+  } catch {
+    return fallback;
+  }
+  const cached = snapshotCache.get(key);
+  if (cached && cached.raw === raw) return cached.value as T;
+  if (!raw) return remember(key, raw, fallback);
 
-    // Filter legacy mock data
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return remember(key, raw, parsed as T);
+
     const cleaned = parsed.filter((item: { id?: string | number } | null | undefined) => {
       if (!item || !item.id) return false;
-      const id = String(item.id);
-      return (
-        !id.startsWith("bk_10") &&
-        !id.startsWith("qt_50") &&
-        !id.startsWith("inv_90") &&
-        !id.startsWith("rem_1") &&
-        !id.startsWith("srv_1") &&
-        !id.startsWith("srv_2") &&
-        !id.startsWith("srv_3") &&
-        !id.startsWith("srv_4") &&
-        !id.startsWith("st_1") &&
-        !id.startsWith("st_2") &&
-        !id.startsWith("wl_1") &&
-        !id.startsWith("wl_2") &&
-        !id.startsWith("cp_1") &&
-        !id.startsWith("cp_2")
-      );
+      return !isLegacyMockId(String(item.id));
     });
 
     if (cleaned.length === 0 && Array.isArray(fallback) && fallback.length > 0) {
-      localStorage.setItem(key, JSON.stringify(fallback));
-      return fallback;
+      const fallbackRaw = JSON.stringify(fallback);
+      localStorage.setItem(key, fallbackRaw);
+      return remember(key, fallbackRaw, fallback);
     }
 
     if (cleaned.length !== parsed.length) {
-      localStorage.setItem(key, JSON.stringify(cleaned));
+      const cleanedRaw = JSON.stringify(cleaned);
+      localStorage.setItem(key, cleanedRaw);
+      return remember(key, cleanedRaw, cleaned as unknown as T);
     }
-    return cleaned as unknown as T;
+    return remember(key, raw, cleaned as unknown as T);
   } catch {
-    return fallback;
+    return remember(key, raw, fallback);
   }
 }
 
 function safeSet<T>(key: string, value: T) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    const raw = JSON.stringify(value);
+    localStorage.setItem(key, raw);
+    snapshotCache.set(key, { raw, value });
+    emitStoreChange();
   } catch {
     // ignore
   }
@@ -367,44 +383,128 @@ export const saveInvoices = (data: InvoiceRecord[]) => safeSet(KEY_INVOICES, dat
 export const getReminders = (): ReminderLog[] => safeGet(KEY_REMINDERS, INITIAL_REMINDERS);
 export const saveReminders = (data: ReminderLog[]) => safeSet(KEY_REMINDERS, data);
 
-// Core Loop Operations
-export function createBooking(data: Omit<BookingRecord, "id" | "rescheduleToken" | "createdAt">): BookingRecord {
+const BLOCKING_STATUSES = new Set<BookingRecord["status"]>([
+  "confirmed",
+  "pending_deposit",
+  "rescheduled",
+  "completed",
+]);
+
+export function calculateInvoiceAmounts(
+  subtotalCents: number,
+  depositPaidCents: number,
+  taxRate = 0.085,
+) {
+  const subtotal = Number.isFinite(subtotalCents) ? Math.max(0, Math.round(subtotalCents)) : 0;
+  const deposit = Number.isFinite(depositPaidCents) ? Math.max(0, Math.round(depositPaidCents)) : 0;
+  const taxCents = Math.round(subtotal * taxRate);
+  const balanceDueCents = Math.max(0, subtotal + taxCents - deposit);
+  const depositCreditedCents = Math.min(deposit, subtotal + taxCents);
+  const status: InvoiceRecord["status"] = balanceDueCents === 0 ? "paid" : "sent";
+  return { subtotalCents: subtotal, depositCreditedCents, taxCents, balanceDueCents, status };
+}
+
+export function payableBalanceCents(booking: BookingRecord, invoice?: InvoiceRecord): number {
+  if (invoice?.status === "paid") return 0;
+  if (invoice) return Math.max(0, invoice.balanceDueCents);
+  return Math.max(0, booking.totalPriceCents - booking.depositPaidCents);
+}
+
+export function summarizeBookings(bookings: BookingRecord[]) {
+  const open = bookings.filter((booking) => booking.status !== "cancelled");
+  const serviceRevenue = open.reduce((sum, booking) => sum + booking.totalPriceCents, 0);
+  const noShowFees = bookings.reduce((sum, booking) => sum + (booking.noShowFeeChargedCents ?? 0), 0);
+  const totalRevenue = serviceRevenue + noShowFees;
+  const depositsCollected = open.reduce((sum, booking) => sum + booking.depositPaidCents, 0);
+  const avgOrderValue = open.length > 0 ? Math.round(serviceRevenue / open.length) : 0;
+  const activeBookingsCount = bookings.filter(
+    (booking) => booking.status === "confirmed" || booking.status === "rescheduled",
+  ).length;
+  return { totalRevenue, depositsCollected, avgOrderValue, activeBookingsCount };
+}
+
+function blockedInterval(
+  booking: Pick<BookingRecord, "startTime" | "endTime" | "serviceId">,
+  services: ServiceItem[],
+) {
+  const start = Date.parse(booking.startTime);
+  const end = Date.parse(booking.endTime);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+  const bufferMinutes = services.find((service) => service.id === booking.serviceId)?.bufferAfterMinutes ?? 0;
+  return { start, end: end + Math.max(0, bufferMinutes) * 60000 };
+}
+
+export function hasStaffConflict(
+  bookings: BookingRecord[],
+  staffId: string,
+  startTime: string,
+  endTime: string,
+  serviceId: string,
+  ignoreBookingId?: string,
+) {
+  const services = getServices();
+  const candidate = blockedInterval({ startTime, endTime, serviceId }, services);
+  if (!candidate) return true;
+  return bookings.some((booking) => {
+    if (booking.id === ignoreBookingId || booking.staffId !== staffId) return false;
+    if (!BLOCKING_STATUSES.has(booking.status)) return false;
+    const existing = blockedInterval(booking, services);
+    if (!existing) return false;
+    return candidate.start < existing.end && candidate.end > existing.start;
+  });
+}
+
+export function staffIdFromName(name: string): string {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  return `st_${slug || "assigned"}`;
+}
+
+function uniqueId(prefix: string) {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function createBooking(
+  data: Omit<BookingRecord, "id" | "rescheduleToken" | "createdAt">,
+  options?: { checkConflicts?: boolean },
+): BookingRecord | null {
   const all = getBookings();
-  const token = "tok_" + Math.random().toString(36).substring(2, 10);
+  const checkConflicts = options?.checkConflicts !== false;
+  if (
+    checkConflicts &&
+    hasStaffConflict(all, data.staffId, data.startTime, data.endTime, data.serviceId)
+  ) {
+    return null;
+  }
+  if (!checkConflicts) {
+    const start = Date.parse(data.startTime);
+    const end = Date.parse(data.endTime);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+  }
+
   const newBooking: BookingRecord = {
     ...data,
-    id: "bk_" + Date.now(),
-    rescheduleToken: token,
+    id: uniqueId("bk"),
+    rescheduleToken: uniqueId("tok"),
     createdAt: new Date().toISOString(),
   };
 
-  const updated = [newBooking, ...all];
-  saveBookings(updated);
+  saveBookings([newBooking, ...all]);
 
-  // Automatically create invoice
-  const subtotal = data.totalPriceCents;
-  const deposit = data.depositPaidCents;
-  const tax = Math.round((subtotal - deposit) * 0.085);
-  const balance = subtotal - deposit + tax;
-
+  const amounts = calculateInvoiceAmounts(data.totalPriceCents, data.depositPaidCents);
   const newInvoice: InvoiceRecord = {
-    id: "inv_" + Date.now(),
+    id: uniqueId("inv"),
     bookingId: newBooking.id,
     invoiceNumber: "INV-" + new Date().getFullYear() + "-" + Math.floor(1000 + Math.random() * 9000),
     clientName: data.clientName,
     clientEmail: data.clientEmail,
-    subtotalCents: subtotal,
-    depositCreditedCents: deposit,
-    taxCents: tax,
-    balanceDueCents: balance,
-    status: deposit >= subtotal ? "paid" : "sent",
+    ...amounts,
     createdAt: new Date().toISOString(),
   };
   saveInvoices([newInvoice, ...getInvoices()]);
 
   // Schedule WhatsApp T-24h reminder
   const newReminder: ReminderLog = {
-    id: "rem_" + Date.now(),
+    id: uniqueId("rem"),
     bookingId: newBooking.id,
     clientName: data.clientName,
     clientPhone: data.clientPhone,
@@ -459,17 +559,27 @@ export const saveClientProfiles = (data: ClientProfile[]) => safeSet(KEY_CLIENT_
  * Moat Feature: Smart Instant-Fill Waitlist Engine
  * Broadcasts instant WhatsApp ping to waitlist when slot becomes vacant.
  */
+export function selectWaitlistRecipient(entries: WaitlistEntry[], serviceName: string): number {
+  const target = serviceName.trim().toLowerCase();
+  return entries.findIndex((entry) => {
+    if (entry.status !== "waiting") return false;
+    if (!target) return true;
+    return entry.serviceName.trim().toLowerCase() === target;
+  });
+}
+
 export function dispatchWaitlistBlast(slotTimeFormatted: string, serviceName: string): WaitlistEntry[] {
   const current = getWaitlist();
+  const recipientIndex = selectWaitlistRecipient(current, serviceName);
+  if (recipientIndex < 0) return current;
   const updated = current.map((entry, index) => {
-    if (index === 0 && entry.status === "waiting") {
-      return {
-        ...entry,
-        status: "notified" as const,
-        notifiedAt: new Date().toISOString(),
-      };
-    }
-    return entry;
+    if (index !== recipientIndex) return entry;
+    return {
+      ...entry,
+      status: "notified" as const,
+      notifiedAt: new Date().toISOString(),
+      preferredTime: slotTimeFormatted || entry.preferredTime,
+    };
   });
   saveWaitlist(updated);
   return updated;
@@ -477,37 +587,46 @@ export function dispatchWaitlistBlast(slotTimeFormatted: string, serviceName: st
 
 export function claimWaitlistSlot(entryId: string, staffName: string): BookingRecord | null {
   const entries = getWaitlist();
-  const target = entries.find((e) => e.id === entryId);
-  if (!target) return null;
+  const target = entries.find((entry) => entry.id === entryId);
+  if (!target || target.status === "claimed") return null;
 
-  // Mark claimed in waitlist
-  const updatedEntries = entries.map((e) => (e.id === entryId ? { ...e, status: "claimed" as const } : e));
-  saveWaitlist(updatedEntries);
-
-  // Create confirmed booking instantly
+  const service = getServices().find(
+    (item) => item.name.trim().toLowerCase() === target.serviceName.trim().toLowerCase(),
+  );
+  const staff = getStaff().find(
+    (member) => member.name.trim().toLowerCase() === staffName.trim().toLowerCase(),
+  );
+  const duration = service?.durationMinutes && service.durationMinutes > 0 ? service.durationMinutes : 60;
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(14, 0, 0, 0);
+  const tomorrowDate = localDateString(tomorrow);
+  const clock = /(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])/.exec(target.preferredTime);
+  const parsed = clock
+    ? displayTimeToIsoLocal(tomorrowDate, `${clock[1]}:${clock[2] ?? "00"} ${clock[3]}`)
+    : null;
+  const startTime = parsed ?? `${tomorrowDate}T14:00:00`;
+  const endTime = addMinutes(startTime, duration);
+  if (!endTime) return null;
 
   const booking = createBooking({
-    serviceId: "srv_1",
+    serviceId: service?.id ?? "srv_waitlist",
     serviceName: target.serviceName,
-    staffId: "st_1",
-    staffName,
+    staffId: staff?.id ?? staffIdFromName(staffName),
+    staffName: staff?.name ?? staffName,
     clientName: target.clientName,
     clientEmail: target.clientEmail,
     clientPhone: target.clientPhone,
-    startTime: tomorrow.toISOString(),
-    endTime: new Date(tomorrow.getTime() + 60 * 60000).toISOString(),
+    startTime,
+    endTime,
     status: "confirmed",
-    totalPriceCents: 19500,
-    depositPaidCents: 5000,
-    stationResource: "Treatment Suite 1 (Vortex Bay)",
-    hasCardOnFile: true,
-    cardLast4: "4242",
-    notes: "Instant Revenue Recovery via Smart Waitlist Engine.",
+    totalPriceCents: service?.priceCents ?? 0,
+    depositPaidCents: service?.depositCents ?? 0,
+    hasCardOnFile: false,
+    notes: "Instant revenue recovery via smart waitlist.",
   });
+  if (!booking) return null;
 
+  saveWaitlist(entries.map((entry) => (entry.id === entryId ? { ...entry, status: "claimed" as const } : entry)));
   return booking;
 }
 
@@ -515,23 +634,63 @@ export function claimWaitlistSlot(entryId: string, staffName: string): BookingRe
  * Moat Feature: 1-Click No-Show & Late-Cancellation Fee via Stripe Card-on-File
  */
 export function chargeNoShowFee(bookingId: string, feeCents = 2500): BookingRecord | null {
+  if (!Number.isFinite(feeCents) || feeCents <= 0) return null;
   const bookings = getBookings();
-  let updatedBooking: BookingRecord | null = null;
+  const current = bookings.find((booking) => booking.id === bookingId);
+  if (!current || current.isNoShow || current.status === "cancelled" || current.status === "completed") return null;
+  if (!current.hasCardOnFile || !current.cardLast4) return null;
 
-  const updated = bookings.map((b) => {
-    if (b.id === bookingId) {
-      updatedBooking = {
-        ...b,
-        status: "cancelled" as const,
-        isNoShow: true,
-        noShowFeeChargedCents: feeCents,
-        notes: `${b.notes || ""} [Enforced 24h Late Policy: $${(feeCents / 100).toFixed(2)} No-Show Fee charged to card •••• ${b.cardLast4 || "4242"}]`,
-      };
-      return updatedBooking;
-    }
-    return b;
+  let updatedBooking: BookingRecord | null = null;
+  const updated = bookings.map((booking) => {
+    if (booking.id !== bookingId) return booking;
+    updatedBooking = {
+      ...booking,
+      status: "cancelled" as const,
+      isNoShow: true,
+      noShowFeeChargedCents: feeCents,
+      notes: `${booking.notes || ""} [Enforced 24h late policy: $${(feeCents / 100).toFixed(2)} no-show fee charged to card •••• ${booking.cardLast4}]`.trim(),
+    };
+    return updatedBooking;
   });
 
   saveBookings(updated);
   return updatedBooking;
+}
+
+export function rescheduleBooking(bookingId: string, startTime: string, endTime: string): BookingRecord | null {
+  const bookings = getBookings();
+  const current = bookings.find((booking) => booking.id === bookingId);
+  if (!current || current.status === "cancelled" || current.status === "completed") return null;
+  if (hasStaffConflict(bookings, current.staffId, startTime, endTime, current.serviceId, bookingId)) return null;
+  const updatedBooking: BookingRecord = {
+    ...current,
+    startTime,
+    endTime,
+    status: "rescheduled",
+  };
+  saveBookings(bookings.map((booking) => (booking.id === bookingId ? updatedBooking : booking)));
+  return updatedBooking;
+}
+
+export function applyWhatsAppIntent(bookingId: string, intent: Exclude<WhatsAppIntent, "unknown">) {
+  if (intent === "confirm") {
+    simulateWhatsAppReply(bookingId, "1");
+    return;
+  }
+  if (intent === "reschedule") {
+    simulateWhatsAppReply(bookingId, "2");
+    return;
+  }
+  const reminders = getReminders().map((reminder) =>
+    reminder.bookingId === bookingId ? { ...reminder, status: "replied_cancelled" as const } : reminder,
+  );
+  saveReminders(reminders);
+  updateBookingStatus(bookingId, "cancelled");
+}
+
+export function applyWhatsAppText(bookingId: string, text: string) {
+  const intent = interpretWhatsAppReply(text);
+  if (intent === "unknown") return intent;
+  applyWhatsAppIntent(bookingId, intent);
+  return intent;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Clock,
@@ -24,8 +24,18 @@ import {
   OvelinkOffering,
   OfferingType
 } from "@/lib/ovelink-store";
-import { getReviews } from "@/lib/reviews-store";
+import { getReviews, INITIAL_REVIEWS } from "@/lib/reviews-store";
 import { useAudio } from "@/components/AudioController";
+import ThemeFontLoader from "@/components/ThemeFontLoader";
+import { addDaysLocal, addMinutes, displayTimeToIsoLocal, localDateString } from "@/lib/booking-time";
+import {
+  createBooking,
+  DEFAULT_WORKING_HOURS,
+  getBookings,
+  INITIAL_BOOKINGS,
+} from "@/lib/platform-store";
+import { computeAvailableSlots } from "@/lib/slot-engine";
+import { useClientStore, useHydrated } from "@/lib/use-client-store";
 
 interface OvelinkViewProps {
   config: OvelinkCustomization;
@@ -39,14 +49,13 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
   const [selectedOffering, setSelectedOffering] = useState<OvelinkOffering | null>(null);
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1); // 1: offering details, 2: schedule/order specifics, 3: client intake, 4: confirmed
 
-  // Schedule selection
-  const tomorrowStr = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split("T")[0];
-  }, []);
-  const [selectedDate, setSelectedDate] = useState<string>(tomorrowStr);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>("10:00 AM");
+  const hydrated = useHydrated();
+  const bookings = useClientStore(getBookings, () => INITIAL_BOOKINGS);
+  const tomorrowStr = hydrated ? addDaysLocal(new Date(), 1) : "";
+  const [selectedDate, setSelectedDate] = useState("");
+  const dateValue = selectedDate || tomorrowStr;
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState("");
+  const [bookingError, setBookingError] = useState<string | null>(null);
 
   // Order selection
   const [orderQuantity, setOrderQuantity] = useState<number>(1);
@@ -67,14 +76,29 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
   const [referencePhotoAttached, setReferencePhotoAttached] = useState(false);
 
   // Social Proof Reviews
-  const reviews = useMemo(() => getReviews(), []);
+  const reviews = useClientStore(getReviews, () => INITIAL_REVIEWS);
 
   // Share / QR Modal
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Available time slots simulation
-  const timeSlots = ["09:00 AM", "10:30 AM", "01:00 PM", "02:30 PM", "04:00 PM", "05:30 PM"];
+  const staffId = `st_${config.slug}`;
+  const openSlots = useMemo(() => {
+    if (!hydrated || !selectedOffering?.requiresTimeSlot || !dateValue) return [];
+    const duration = selectedOffering.durationMinutes && selectedOffering.durationMinutes > 0
+      ? selectedOffering.durationMinutes
+      : 60;
+    return computeAvailableSlots({
+      date: dateValue,
+      serviceDurationMinutes: duration,
+      bufferAfterMinutes: 15,
+      workingHours: DEFAULT_WORKING_HOURS,
+      existingBookings: bookings.filter((booking) => booking.staffId === staffId),
+    }).filter((slot) => slot.available);
+  }, [hydrated, selectedOffering, dateValue, bookings, staffId]);
+  const activeSlot = openSlots.some((slot) => slot.time === selectedTimeSlot)
+    ? selectedTimeSlot
+    : (openSlots[0]?.time ?? "");
 
   const retailOfferings = useMemo(() => {
     return config.offerings.filter((o) => o.type === "order" && o.id !== selectedOffering?.id && o.isActive);
@@ -112,9 +136,57 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
 
   const handleConfirmAction = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientName || !clientEmail || !clientPhone) return;
+    if (!selectedOffering || !clientName || !clientEmail || !clientPhone) return;
+    const quantity = selectedOffering.type === "order" ? orderQuantity : 1;
+    const totalCents = selectedOffering.priceCents * quantity + selectedRetailTotal;
+    const depositCents = selectedOffering.depositCents * quantity;
+    let startTime: string;
+    let endTime: string | null;
+    if (selectedOffering.requiresTimeSlot) {
+      if (!activeSlot) {
+        setBookingError("Choose an open time.");
+        return;
+      }
+      const start = displayTimeToIsoLocal(dateValue, activeSlot);
+      const duration = selectedOffering.durationMinutes && selectedOffering.durationMinutes > 0
+        ? selectedOffering.durationMinutes
+        : 60;
+      endTime = start ? addMinutes(start, duration) : null;
+      if (!start || !endTime) {
+        setBookingError("Choose an open time.");
+        return;
+      }
+      startTime = start;
+    } else {
+      const now = new Date();
+      startTime = `${localDateString(now)}T${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:00`;
+      endTime = addMinutes(startTime, 30);
+      if (!endTime) return;
+    }
+
+    const booking = createBooking({
+      serviceId: selectedOffering.id,
+      serviceName: selectedOffering.name,
+      staffId,
+      staffName: config.businessName,
+      clientName,
+      clientEmail,
+      clientPhone,
+      startTime,
+      endTime,
+      status: depositCents > 0 && depositCents < totalCents ? "pending_deposit" : "confirmed",
+      totalPriceCents: totalCents,
+      depositPaidCents: Math.min(depositCents, totalCents),
+      notes: orderNotes || undefined,
+    }, { checkConflicts: Boolean(selectedOffering.requiresTimeSlot) });
+
+    if (!booking) {
+      setBookingError("That time was just taken. Pick another slot.");
+      return;
+    }
     playSuccess();
-    setConfirmationToken(`tok_${Math.random().toString(36).substring(2, 9)}`);
+    setBookingError(null);
+    setConfirmationToken(booking.rescheduleToken);
     setStep(4);
   };
 
@@ -128,8 +200,10 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
       style={{
         backgroundColor: config.bgColor,
         color: config.textColor,
+        fontFamily: config.fontFamily,
       }}
     >
+      <ThemeFontLoader family={config.fontFamily} />
       {/* Cover Banner */}
       <div
         className={`w-full bg-gradient-to-r ${config.coverGradient} relative ${isEmbedPreview ? "h-32" : "h-44 sm:h-56"} transition-all duration-300 bg-cover bg-center overflow-hidden`}
@@ -512,7 +586,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                   <input
                     type="date"
                     min={tomorrowStr}
-                    value={selectedDate}
+                    value={dateValue}
                     onChange={(e) => setSelectedDate(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 bg-slate-50/50 text-xs text-slate-800 focus:outline-none focus:border-[#105F68] focus:bg-white transition-all font-medium"
                   />
@@ -522,33 +596,38 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                   <label className="text-xs font-semibold block mb-1.5 text-slate-700">
                     Available Time Slot
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {timeSlots.map((slot) => {
-                      const isSlotActive = selectedTimeSlot === slot;
-                      return (
-                        <button
-                          key={slot}
-                          type="button"
-                          onClick={() => { playClick(); setSelectedTimeSlot(slot); }}
-                          className={`p-3 rounded-2xl text-xs font-mono font-semibold transition-all border ${
-                            isSlotActive
-                              ? "text-white shadow-md shadow-[#105F68]/20"
-                              : "border-slate-200 bg-white hover:border-slate-400 text-slate-700"
-                          }`}
-                          style={{
-                            backgroundColor: isSlotActive ? config.primaryColor : undefined,
-                            borderColor: isSlotActive ? config.primaryColor : undefined,
-                          }}
-                        >
-                          {slot}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {openSlots.length === 0 ? (
+                    <p className="text-xs text-slate-500">No open times on this date. Try another day.</p>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2">
+                      {openSlots.map((slot) => {
+                        const isSlotActive = activeSlot === slot.time;
+                        return (
+                          <button
+                            key={slot.isoString}
+                            type="button"
+                            onClick={() => { playClick(); setSelectedTimeSlot(slot.time); }}
+                            className={`p-3 rounded-2xl text-xs font-mono font-semibold transition-all border ${
+                              isSlotActive
+                                ? "text-white shadow-md shadow-[#105F68]/20"
+                                : "border-slate-200 bg-white hover:border-slate-400 text-slate-700"
+                            }`}
+                            style={{
+                              backgroundColor: isSlotActive ? config.primaryColor : undefined,
+                              borderColor: isSlotActive ? config.primaryColor : undefined,
+                            }}
+                          >
+                            {slot.time}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-2 flex justify-end">
                   <button
+                    disabled={!activeSlot}
                     onClick={() => { playClick(); setStep(2); }}
                     className="px-6 py-3 rounded-full text-xs font-semibold text-white shadow-md shadow-[#105F68]/20 flex items-center gap-2 hover:opacity-95 transition-all"
                     style={{ backgroundColor: config.primaryColor }}
@@ -774,6 +853,10 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                   </div>
                 </div>
 
+                {bookingError && (
+                  <p className="text-xs text-red-700">{bookingError}</p>
+                )}
+
                 <div className="pt-2 flex items-center justify-between">
                   <button
                     type="button"
@@ -817,7 +900,9 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                 <div className="p-4 rounded-3xl bg-slate-50 border border-slate-200/80 text-left text-xs space-y-2 max-w-sm mx-auto">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Date &amp; Slot:</span>
-                    <span className="font-semibold text-slate-800">{selectedDate} @ {selectedTimeSlot}</span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedOffering.requiresTimeSlot ? `${dateValue} @ ${activeSlot}` : `Qty ${orderQuantity}`}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Client Contact:</span>
@@ -834,7 +919,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                   {config.whatsappNumber && (
                     <a
                       href={`https://wa.me/${config.whatsappNumber.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
-                        `Hi ${config.businessName}! I just booked "${selectedOffering.name}" for ${selectedDate} via your Ovelink. My name is ${clientName}.`
+                        `Hi ${config.businessName}! I just booked "${selectedOffering.name}"${selectedOffering.requiresTimeSlot ? ` for ${dateValue}` : ""} via your Ovelink. My name is ${clientName}. Ref ${confirmationToken}.`
                       )}`}
                       target="_blank"
                       rel="noreferrer"
