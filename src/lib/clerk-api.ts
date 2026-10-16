@@ -81,7 +81,17 @@ export async function requireApiAuth(): Promise<AuthContextResult> {
   }
 }
 
+function clerkConfigured() {
+  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  return Boolean(
+    publishableKey &&
+    !publishableKey.includes("placeholder") &&
+    publishableKey.startsWith("pk_"),
+  );
+}
+
 export async function getWorkspaceProfile() {
+  if (!clerkConfigured()) return null;
   const user = await currentUser();
   if (!user) return null;
   const email = user.primaryEmailAddress?.emailAddress || "";
