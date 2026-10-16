@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { 
   Sparkles, 
@@ -24,7 +24,6 @@ import {
   getOvelink, 
   PRESET_OVELINKS,
   saveOvelink, 
-  OvelinkCustomization, 
   OvelinkOffering, 
   OvelinkFont, 
   THEME_PRESETS, 
@@ -34,19 +33,19 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { useAudio } from "@/components/AudioController";
 import OvelinkView from "@/components/OvelinkView";
+import { dollarsToCents } from "@/lib/booking-time";
+import { useClientStore, useDraftStore } from "@/lib/use-client-store";
 
 export default function OvelinkStudioPage() {
   const { profile, updateOrganizationDetails } = useAuth();
   const { playClick, playSuccess } = useAudio();
 
   const defaultSlug = profile?.organizationSlug || "leclat";
-  const [activeOvelink, setActiveOvelink] = useState<OvelinkCustomization>(
-    () => PRESET_OVELINKS[defaultSlug] || PRESET_OVELINKS["leclat"]
+  const storedOvelink = useClientStore(
+    () => getOvelink(defaultSlug),
+    () => PRESET_OVELINKS[defaultSlug] || PRESET_OVELINKS["leclat"],
   );
-
-  useEffect(() => {
-    setActiveOvelink(getOvelink(defaultSlug));
-  }, [defaultSlug]);
+  const [activeOvelink, setActiveOvelink] = useDraftStore(storedOvelink);
   const [studioSubTab, setStudioSubTab] = useState<"branding" | "themes" | "style" | "offerings" | "socials">("branding");
   const [previewDevice, setPreviewDevice] = useState<"mobile" | "desktop">("mobile");
   const [isAddOfferingOpen, setIsAddOfferingOpen] = useState(false);
@@ -110,17 +109,21 @@ export default function OvelinkStudioPage() {
 
   const handleCreateOffering = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newOffName) return;
+    const priceCents = dollarsToCents(Number(newOffPrice));
+    const depositCents = dollarsToCents(Number(newOffDeposit));
+    const durationMinutes = Number(newOffDuration);
+    if (!newOffName || priceCents == null || depositCents == null || depositCents > priceCents) return;
+    if (newOffType !== "order" && (!Number.isFinite(durationMinutes) || durationMinutes <= 0)) return;
     playSuccess();
 
     const newOff: OvelinkOffering = {
-      id: "off_" + Date.now(),
+      id: "off_" + Date.now().toString(36),
       type: newOffType,
       name: newOffName,
       description: newOffDesc || "Custom offering.",
-      priceCents: Math.round(Number(newOffPrice) * 100),
-      depositCents: Math.round(Number(newOffDeposit) * 100),
-      durationMinutes: newOffType !== "order" ? Number(newOffDuration) : undefined,
+      priceCents,
+      depositCents,
+      durationMinutes: newOffType !== "order" ? durationMinutes : undefined,
       requiresTimeSlot: newOffType !== "order",
       badge: newOffBadge || undefined,
       category: newOffCategory,

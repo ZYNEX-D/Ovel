@@ -1,3 +1,5 @@
+import { emitStoreChange } from "./store-events";
+
 /**
  * Customer Reviews & Reputation Store
  * Powers:
@@ -46,22 +48,36 @@ export const INITIAL_REVIEWS: CustomerReview[] = [];
 
 const STORAGE_KEY_REVIEWS = "ovel_reviews_v1";
 const STORAGE_KEY_CONFIG = "ovel_reputation_config_v1";
+const reviewCache = new Map<string, { raw: string | null; value: unknown }>();
+
+function readCached<T>(key: string, raw: string | null, fallback: T, parse: (raw: string) => T): T {
+  const cached = reviewCache.get(key);
+  if (cached && cached.raw === raw) return cached.value as T;
+  const value = raw ? parse(raw) : fallback;
+  reviewCache.set(key, { raw, value });
+  return value;
+}
 
 export function getReviews(): CustomerReview[] {
   if (typeof window === "undefined") return INITIAL_REVIEWS;
+  let raw: string | null = null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_REVIEWS);
-    if (!raw) {
-      return INITIAL_REVIEWS;
-    }
-    const parsed = JSON.parse(raw);
+    raw = localStorage.getItem(STORAGE_KEY_REVIEWS);
+  } catch {
+    return INITIAL_REVIEWS;
+  }
+  try {
+  return readCached(STORAGE_KEY_REVIEWS, raw, INITIAL_REVIEWS, (stored) => {
+    const parsed = JSON.parse(stored);
     if (!Array.isArray(parsed)) return INITIAL_REVIEWS;
-    // Clean out any legacy mock/dummy reviews
-    const cleaned = parsed.filter((r: CustomerReview) => !r.id.startsWith("rev_10"));
+    const cleaned = parsed.filter((review: CustomerReview) => !String(review.id).startsWith("rev_10"));
     if (cleaned.length !== parsed.length) {
-      localStorage.setItem(STORAGE_KEY_REVIEWS, JSON.stringify(cleaned));
+      const cleanedRaw = JSON.stringify(cleaned);
+      localStorage.setItem(STORAGE_KEY_REVIEWS, cleanedRaw);
+      raw = cleanedRaw;
     }
     return cleaned;
+  });
   } catch {
     return INITIAL_REVIEWS;
   }
@@ -70,7 +86,10 @@ export function getReviews(): CustomerReview[] {
 export function saveReviews(reviews: CustomerReview[]): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(STORAGE_KEY_REVIEWS, JSON.stringify(reviews));
+    const raw = JSON.stringify(reviews);
+    localStorage.setItem(STORAGE_KEY_REVIEWS, raw);
+    reviewCache.set(STORAGE_KEY_REVIEWS, { raw, value: reviews });
+    emitStoreChange();
   } catch (err) {
     console.error("Failed to save reviews", err);
   }
@@ -78,18 +97,24 @@ export function saveReviews(reviews: CustomerReview[]): void {
 
 export function getReputationConfig(): ReputationConfig {
   if (typeof window === "undefined") return DEFAULT_REPUTATION_CONFIG;
+  let raw: string | null = null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_CONFIG);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(DEFAULT_REPUTATION_CONFIG));
-      return DEFAULT_REPUTATION_CONFIG;
-    }
-    const parsed = JSON.parse(raw);
+    raw = localStorage.getItem(STORAGE_KEY_CONFIG);
+  } catch {
+    return DEFAULT_REPUTATION_CONFIG;
+  }
+  try {
+  return readCached(STORAGE_KEY_CONFIG, raw, DEFAULT_REPUTATION_CONFIG, (stored) => {
+    const parsed = JSON.parse(stored) as ReputationConfig;
+    const config = { ...DEFAULT_REPUTATION_CONFIG, ...parsed };
     if (parsed.googleMapsReviewUrl?.includes("leclat-aesthetic-sf")) {
-      parsed.googleMapsReviewUrl = "https://maps.google.com";
-      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(parsed));
+      config.googleMapsReviewUrl = "https://maps.google.com";
+      const nextRaw = JSON.stringify(config);
+      localStorage.setItem(STORAGE_KEY_CONFIG, nextRaw);
+      raw = nextRaw;
     }
-    return parsed;
+    return config;
+  });
   } catch {
     return DEFAULT_REPUTATION_CONFIG;
   }
@@ -98,7 +123,10 @@ export function getReputationConfig(): ReputationConfig {
 export function saveReputationConfig(config: ReputationConfig): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
+    const raw = JSON.stringify(config);
+    localStorage.setItem(STORAGE_KEY_CONFIG, raw);
+    reviewCache.set(STORAGE_KEY_CONFIG, { raw, value: config });
+    emitStoreChange();
   } catch (err) {
     console.error("Failed to save reputation config", err);
   }

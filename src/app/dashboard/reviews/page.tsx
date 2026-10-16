@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import { 
   Star, 
@@ -24,21 +24,17 @@ import {
   getReputationConfig, 
   saveReputationConfig, 
   replyToCustomerReview, 
-  CustomerReview, 
-  ReputationConfig,
+  INITIAL_REVIEWS,
   DEFAULT_REPUTATION_CONFIG
 } from "@/lib/reviews-store";
+import { useClientStore, useDraftStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
 
 export default function DashboardReviewsPage() {
   const { playClick, playSuccess } = useAudio();
-  const [reviews, setReviews] = useState<CustomerReview[]>([]);
-  const [config, setConfig] = useState<ReputationConfig>(DEFAULT_REPUTATION_CONFIG);
-
-  useEffect(() => {
-    setReviews(getReviews());
-    setConfig(getReputationConfig());
-  }, []);
+  const reviews = useClientStore(getReviews, () => INITIAL_REVIEWS);
+  const storedConfig = useClientStore(getReputationConfig, () => DEFAULT_REPUTATION_CONFIG);
+  const [config, setConfig] = useDraftStore(storedConfig);
   const [activeFilter, setActiveFilter] = useState<"all" | "5star" | "critical" | "photos">("all");
   
   // Reply drafting
@@ -77,8 +73,7 @@ export default function DashboardReviewsPage() {
     const text = replyTextMap[reviewId]?.trim();
     if (!text) return;
     playSuccess();
-    const updated = replyToCustomerReview(reviewId, text);
-    setReviews(updated);
+    replyToCustomerReview(reviewId, text);
     setActiveReplyingId(null);
     setReplyTextMap((prev) => ({ ...prev, [reviewId]: "" }));
     showToast("Merchant response published and emailed to customer!");

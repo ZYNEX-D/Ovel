@@ -1,17 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { MessageSquare, Check, RotateCcw } from "lucide-react";
-import { getReminders, simulateWhatsAppReply, ReminderLog } from "@/lib/platform-store";
+import { getReminders, INITIAL_REMINDERS, simulateWhatsAppReply } from "@/lib/platform-store";
+import { useClientStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
 
 export default function DashboardRemindersPage() {
   const { playSuccess } = useAudio();
-  const [reminders, setReminders] = useState<ReminderLog[]>([]);
-
-  useEffect(() => {
-    setReminders(getReminders());
-  }, []);
+  const reminders = useClientStore(getReminders, () => INITIAL_REMINDERS);
   const [notification, setNotification] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -22,7 +19,6 @@ export default function DashboardRemindersPage() {
   const handleSimulateWhatsApp = (bookingId: string, replyBody: "1" | "2") => {
     playSuccess();
     simulateWhatsAppReply(bookingId, replyBody);
-    setReminders(getReminders());
     showToast(
       replyBody === "1"
         ? "Client replied '1': Appointment automatically confirmed!"

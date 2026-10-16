@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import {
   Users,
@@ -30,79 +30,20 @@ import {
 import {
   getClientProfiles,
   saveClientProfiles,
+  INITIAL_CLIENT_PROFILES,
   ClientProfile,
   getBookings,
-  BookingRecord
+  INITIAL_BOOKINGS,
 } from "@/lib/platform-store";
+import { useClientStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
-
-const INITIAL_DEMO_CLIENTS: ClientProfile[] = [
-  {
-    id: "usr_elena_101",
-    name: "Elena Rostova",
-    email: "elena.rostova@lumina.co",
-    phone: "+1 (415) 890-4120",
-    totalVisits: 6,
-    noShowCount: 0,
-    reliabilityScore: 100,
-    membershipPlan: "VIP Premier",
-    formulasOrNotes: "Prefers 15% peptide formulation. Sensitive to high retinol peel. Room 2 (Laser Bay) preferred.",
-    cardOnFile: { brand: "Visa", last4: "4242" },
-  },
-  {
-    id: "usr_marcus_102",
-    name: "Marcus Vance",
-    email: "marcus.vance@studio.org",
-    phone: "+1 (415) 782-9910",
-    totalVisits: 4,
-    noShowCount: 0,
-    reliabilityScore: 98,
-    membershipPlan: "Gold Studio",
-    formulasOrNotes: "Custom barrier hydration shield step 3. Evening appointments only.",
-    cardOnFile: { brand: "Mastercard", last4: "8821" },
-  },
-  {
-    id: "usr_sophia_103",
-    name: "Sophia Sterling",
-    email: "sophia.sterling@vanguard.io",
-    phone: "+1 (415) 304-5120",
-    totalVisits: 3,
-    noShowCount: 1,
-    reliabilityScore: 88,
-    membershipPlan: "Studio Member",
-    formulasOrNotes: "Light botanical cleanse, allergic to eucalyptus fragrance. Remind 4 hours prior.",
-    cardOnFile: { brand: "Amex", last4: "1009" },
-  },
-  {
-    id: "usr_liam_104",
-    name: "Liam O'Connor",
-    email: "liam.oconnor@apex.design",
-    phone: "+1 (415) 671-8833",
-    totalVisits: 8,
-    noShowCount: 0,
-    reliabilityScore: 100,
-    membershipPlan: "VIP Premier",
-    formulasOrNotes: "Scalp barrier detox + cold jade roll. 60-minute cycle.",
-    cardOnFile: { brand: "Visa", last4: "9134" },
-  },
-];
 
 export default function DashboardUsersPage() {
   const { playClick, playSuccess } = useAudio();
 
   // Load clients from storage, fall back to initial demo list if empty
-  const [clients, setClients] = useState<ClientProfile[]>(INITIAL_DEMO_CLIENTS);
-  const [bookings, setBookings] = useState<BookingRecord[]>([]);
-
-  useEffect(() => {
-    const saved = getClientProfiles();
-    if (saved && saved.length > 0) {
-      setClients(saved);
-    } else {
-      saveClientProfiles(INITIAL_DEMO_CLIENTS);
-    }
-    setBookings(getBookings());
-  }, []);
+  const clients = useClientStore(getClientProfiles, () => INITIAL_CLIENT_PROFILES);
+  const bookings = useClientStore(getBookings, () => INITIAL_BOOKINGS);
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -195,7 +136,6 @@ export default function DashboardUsersPage() {
         }
         return c;
       });
-      setClients(updated);
       saveClientProfiles(updated);
       showToast(`Updated user profile for ${formName}`);
       setEditingClient(null);
@@ -215,7 +155,6 @@ export default function DashboardUsersPage() {
       };
 
       const updated = [newClient, ...clients];
-      setClients(updated);
       saveClientProfiles(updated);
       showToast(`Registered new client ${newClient.name}`);
       setIsAddModalOpen(false);
@@ -246,7 +185,6 @@ export default function DashboardUsersPage() {
     playClick();
     if (confirm(`Remove client ${name} from your CRM directory?`)) {
       const updated = clients.filter((c) => c.id !== id);
-      setClients(updated);
       saveClientProfiles(updated);
       if (selectedDossier?.id === id) setSelectedDossier(null);
       showToast(`Removed ${name} from clients`);

@@ -28,7 +28,8 @@ import {
   LayoutDashboard
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { getOvelink } from "@/lib/ovelink-store";
+import { getOvelink, PRESET_OVELINKS } from "@/lib/ovelink-store";
+import { useClientStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
 import UserAuthNav from "@/components/UserAuthNav";
 
@@ -66,7 +67,11 @@ export default function DashboardLayout({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const activeOvelink = getOvelink(profile?.organizationSlug || "leclat");
+  const ovelinkSlug = profile?.organizationSlug || "leclat";
+  const activeOvelink = useClientStore(
+    () => getOvelink(ovelinkSlug),
+    () => PRESET_OVELINKS[ovelinkSlug] || PRESET_OVELINKS.leclat,
+  );
 
   const handleCopyOvelink = () => {
     playClick();
