@@ -1,17 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { CreditCard, Check } from "lucide-react";
-import { getInvoices, InvoiceRecord } from "@/lib/platform-store";
+import { getInvoices, INITIAL_INVOICES } from "@/lib/platform-store";
+import { useClientStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
 
 export default function DashboardInvoicesPage() {
   const { playSuccess } = useAudio();
-  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
-
-  useEffect(() => {
-    setInvoices(getInvoices());
-  }, []);
+  const invoices = useClientStore(getInvoices, () => INITIAL_INVOICES);
   const [notification, setNotification] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -73,7 +70,7 @@ export default function DashboardInvoicesPage() {
                     Deposit Credited: ${(inv.depositCreditedCents / 100).toFixed(2)}
                   </span>
                   <span className="text-sm font-semibold text-[#105F68] block">
-                    Balance Paid: ${(inv.balanceDueCents / 100).toFixed(2)}
+                    {inv.status === "paid" ? "Balance Paid" : "Balance Due"}: ${(inv.balanceDueCents / 100).toFixed(2)}
                   </span>
                 </div>
 

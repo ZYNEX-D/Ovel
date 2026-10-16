@@ -48,6 +48,41 @@ const DAYS_OF_WEEK = [
   "saturday",
 ] as const;
 
+function calendarDate(date: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const resolved = new Date(year, month - 1, day);
+  if (
+    resolved.getFullYear() !== year ||
+    resolved.getMonth() !== month - 1 ||
+    resolved.getDate() !== day
+  ) {
+    return null;
+  }
+  return resolved;
+}
+
+function bookingMinutesOnDate(
+  startIso: string,
+  endIso: string,
+  dayStart: Date,
+): { start: number; end: number } | null {
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return null;
+  const dayEnd = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() + 1);
+  if (end <= dayStart || start >= dayEnd) return null;
+  const clippedStart = start < dayStart ? dayStart : start;
+  const clippedEnd = end > dayEnd ? dayEnd : end;
+  return {
+    start: (clippedStart.getTime() - dayStart.getTime()) / 60000,
+    end: (clippedEnd.getTime() - dayStart.getTime()) / 60000,
+  };
+}
+
 export function computeAvailableSlots(params: SlotComputationParams): ComputedSlot[] {
   const {
     date,
@@ -59,37 +94,48 @@ export function computeAvailableSlots(params: SlotComputationParams): ComputedSl
     slotIntervalMinutes = 30,
   } = params;
 
-  // 1. Identify Day of Week
-  const targetDate = new Date(date + "T00:00:00");
-  const dayName = DAYS_OF_WEEK[targetDate.getDay()];
-  const rule = workingHours[dayName];
-
-  if (!rule || !rule.active) {
-    return []; // Business or staff is off on this day
+  if (
+    serviceDurationMinutes <= 0 ||
+    slotIntervalMinutes <= 0 ||
+    bufferBeforeMinutes < 0 ||
+    bufferAfterMinutes < 0
+  ) {
+    return [];
   }
 
-  // 2. Parse working hour limits in minutes from midnight
+  const dayStart = calendarDate(date);
+  if (!dayStart) return [];
+
+  const dayName = DAYS_OF_WEEK[dayStart.getDay()];
+  const rule = workingHours[dayName];
+  if (!rule || !rule.active) return [];
+
   const [startHour, startMin] = rule.start.split(":").map(Number);
   const [endHour, endMin] = rule.end.split(":").map(Number);
-
   const dayStartMinutes = startHour * 60 + startMin;
   const dayEndMinutes = endHour * 60 + endMin;
+  if (
+    !Number.isFinite(dayStartMinutes) ||
+    !Number.isFinite(dayEndMinutes) ||
+    dayEndMinutes <= dayStartMinutes
+  ) {
+    return [];
+  }
 
   const totalRequiredSpan = bufferBeforeMinutes + serviceDurationMinutes + bufferAfterMinutes;
-  const slots: ComputedSlot[] = [];
-
-  // 3. Convert existing bookings to minute ranges relative to this date
   const bookedRanges = existingBookings
-    .filter((b) => b.status !== "cancelled")
-    .map((b) => {
-      const bStart = new Date(b.startTime);
-      const bEnd = new Date(b.endTime);
-      const startMin = bStart.getHours() * 60 + bStart.getMinutes();
-      const endMin = bEnd.getHours() * 60 + bEnd.getMinutes();
-      return { start: startMin, end: endMin };
-    });
+    .filter((booking) => booking.status !== "cancelled")
+    .map((booking) => {
+      const range = bookingMinutesOnDate(booking.startTime, booking.endTime, dayStart);
+      if (!range) return null;
+      return {
+        start: range.start - bufferBeforeMinutes,
+        end: range.end + bufferAfterMinutes,
+      };
+    })
+    .filter((range): range is { start: number; end: number } => range !== null);
 
-  // 4. Step through the day by slot interval
+  const slots: ComputedSlot[] = [];
   for (
     let currentMin = dayStartMinutes;
     currentMin + totalRequiredSpan <= dayEndMinutes;
@@ -97,10 +143,7 @@ export function computeAvailableSlots(params: SlotComputationParams): ComputedSl
   ) {
     const slotStartMin = currentMin + bufferBeforeMinutes;
     const slotEndMin = slotStartMin + serviceDurationMinutes;
-
-    // Check collision with any existing booking
     const hasCollision = bookedRanges.some((booking) => {
-      // Overlap condition: startA < endB && endA > startB
       return slotStartMin < booking.end && slotEndMin > booking.start;
     });
 
@@ -110,15 +153,12 @@ export function computeAvailableSlots(params: SlotComputationParams): ComputedSl
     const displayHours = hours % 12 === 0 ? 12 : hours % 12;
     const displayMins = mins < 10 ? `0${mins}` : mins;
     const formattedDisplay = `${displayHours}:${displayMins} ${ampm}`;
-
-    const dateStr = date;
     const padH = String(hours).padStart(2, "0");
     const padM = String(mins).padStart(2, "0");
-    const iso = `${dateStr}T${padH}:${padM}:00`;
 
     slots.push({
       time: formattedDisplay,
-      isoString: iso,
+      isoString: `${date}T${padH}:${padM}:00`,
       available: !hasCollision,
       conflictReason: hasCollision ? "Already reserved" : undefined,
     });

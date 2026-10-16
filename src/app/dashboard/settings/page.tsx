@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef } from "react";
 import Link from "next/link";
 import { 
   Building2, 
@@ -32,6 +32,7 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { useAudio } from "@/components/AudioController";
 import OvelinkView from "@/components/OvelinkView";
+import { useClientStore, useDraftStore } from "@/lib/use-client-store";
 
 const FONT_OPTIONS: { id: OvelinkFont; name: string; sample: string; styleName: string }[] = [
   { id: "Kaleko 105", name: "Kaleko 105 (Signature)", sample: "Boutique & Modernist Elegance", styleName: "font-['Kaleko_105',sans-serif]" },
@@ -60,29 +61,17 @@ export default function BrandSettingsPage() {
   const currentSlug = profile?.organizationSlug || "leclat";
   const [initialSlug] = useState<string>(currentSlug);
 
-  const [brand, setBrand] = useState<OvelinkCustomization>(
-    () => PRESET_OVELINKS[currentSlug] || PRESET_OVELINKS["leclat"]
+  const storedBrand = useClientStore(
+    () => getOvelink(currentSlug),
+    () => PRESET_OVELINKS[currentSlug] || PRESET_OVELINKS["leclat"],
   );
+  const [brand, setBrand] = useDraftStore(storedBrand);
   const [activeTab, setActiveTab] = useState<"identity" | "palette" | "typography" | "channels">("identity");
   const [previewDevice, setPreviewDevice] = useState<"mobile" | "desktop">("mobile");
   const [copiedLink, setCopiedLink] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Sync state when brand is updated across sessions/events
-  useEffect(() => {
-    setBrand(getOvelink(currentSlug));
-
-    const handleUpdate = (e: Event) => {
-      const customEvent = e as CustomEvent<OvelinkCustomization>;
-      if (customEvent.detail) {
-        setBrand(customEvent.detail);
-      }
-    };
-    window.addEventListener("ovel:brand_updated", handleUpdate);
-    return () => window.removeEventListener("ovel:brand_updated", handleUpdate);
-  }, [currentSlug]);
 
   const showToast = (msg: string) => {
     setNotification(msg);

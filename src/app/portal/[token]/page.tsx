@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -20,12 +20,15 @@ import {
 } from "lucide-react";
 import { 
   getBookings, 
-  saveBookings, 
   getInvoices, 
   saveInvoices, 
-  BookingRecord, 
-  InvoiceRecord 
+  INITIAL_BOOKINGS,
+  INITIAL_INVOICES,
+  rescheduleBooking,
+  payableBalanceCents,
 } from "@/lib/platform-store";
+import { addMinutes, durationMinutes } from "@/lib/booking-time";
+import { useClientStore, useHydrated } from "@/lib/use-client-store";
 import { submitCustomerReview, getReputationConfig } from "@/lib/reviews-store";
 import { useAudio } from "@/components/AudioController";
 import ProgressiveBlur from "@/components/ProgressiveBlur";
@@ -35,18 +38,12 @@ export default function ClientPortalPage() {
   const token = (params?.token as string) || "";
   const { playClick, playSuccess } = useAudio();
 
-  const [mounted, setMounted] = useState(false);
-  const [bookings, setBookings] = useState<BookingRecord[]>([]);
-  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
+  const hydrated = useHydrated();
+  const bookings = useClientStore(getBookings, () => INITIAL_BOOKINGS);
+  const invoices = useClientStore(getInvoices, () => INITIAL_INVOICES);
   const [isRescheduling, setIsRescheduling] = useState(false);
-  const [newDate, setNewDate] = useState("2026-10-15T11:00:00");
+  const [newDate, setNewDate] = useState("2026-10-15T11:00");
   const [notification, setNotification] = useState<string | null>(null);
-
-  useEffect(() => {
-    setBookings(getBookings());
-    setInvoices(getInvoices());
-    setMounted(true);
-  }, []);
 
   // Review state
   const [reviewRating, setReviewRating] = useState<1 | 2 | 3 | 4 | 5>(5);
@@ -72,20 +69,15 @@ export default function ClientPortalPage() {
     if (!booking) return;
     playSuccess();
 
-    const updated = bookings.map((b) => {
-      if (b.id === booking.id) {
-        return {
-          ...b,
-          startTime: newDate,
-          endTime: new Date(new Date(newDate).getTime() + 60 * 60000).toISOString(),
-          status: "rescheduled" as const,
-        };
-      }
-      return b;
-    });
-
-    setBookings(updated);
-    saveBookings(updated);
+    const duration = durationMinutes(booking.startTime, booking.endTime) ?? 60;
+    const startTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(newDate) ? `${newDate}:00` : newDate;
+    const endTime = addMinutes(startTime, duration);
+    if (!endTime) return;
+    const updated = rescheduleBooking(booking.id, startTime, endTime);
+    if (!updated) {
+      showToast("That time is not open. Pick another slot.");
+      return;
+    }
     setIsRescheduling(false);
     showToast("Appointment rescheduled successfully!");
   };
@@ -95,11 +87,10 @@ export default function ClientPortalPage() {
     playSuccess();
     const updated = invoices.map((inv) => {
       if (inv.id === invoice.id) {
-        return { ...inv, status: "paid" as const, paidAt: new Date().toISOString() };
+        return { ...inv, status: "paid" as const, paidAt: new Date().toISOString(), balanceDueCents: 0 };
       }
       return inv;
     });
-    setInvoices(updated);
     saveInvoices(updated);
     showToast("Remaining balance paid in full! Receipt updated.");
   };
@@ -126,7 +117,7 @@ export default function ClientPortalPage() {
     );
   };
 
-  if (!mounted) {
+  if (!hydrated) {
     return (
       <div className="min-h-screen bg-[#F6FAF9] flex items-center justify-center p-6 text-center font-['Kaleko_105',sans-serif]">
         <div className="w-8 h-8 rounded-full border-2 border-[#105F68] border-t-transparent animate-spin" />
@@ -158,7 +149,7 @@ export default function ClientPortalPage() {
     );
   }
 
-  const balanceDue = (booking.totalPriceCents - booking.depositPaidCents) / 100;
+  const balanceDue = payableBalanceCents(booking, invoice) / 100;
   const isInvoicePaid = invoice?.status === "paid";
 
   return (

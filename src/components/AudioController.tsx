@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useRef, useState, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Volume2, VolumeX } from "lucide-react";
 
 interface AudioContextType {
@@ -368,16 +368,23 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const actionsRef = useRef({ toggleSound, playClick, playChannelSwitch, playSuccess });
+  useEffect(() => {
+    actionsRef.current = { toggleSound, playClick, playChannelSwitch, playSuccess };
+  });
+  const stableActions = useMemo(() => ({
+    toggleSound: () => actionsRef.current.toggleSound(),
+    playClick: () => actionsRef.current.playClick(),
+    playChannelSwitch: () => actionsRef.current.playChannelSwitch(),
+    playSuccess: () => actionsRef.current.playSuccess(),
+  }), []);
+  const value = useMemo(() => ({
+    isMuted,
+    ...stableActions,
+  }), [isMuted, stableActions]);
+
   return (
-    <AudioContext.Provider
-      value={{
-        isMuted,
-        toggleSound,
-        playClick,
-        playChannelSwitch,
-        playSuccess,
-      }}
-    >
+    <AudioContext.Provider value={value}>
       {children}
     </AudioContext.Provider>
   );

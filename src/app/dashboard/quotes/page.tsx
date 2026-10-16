@@ -1,16 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { FileText, ExternalLink } from "lucide-react";
-import { getQuotes, QuoteProposal } from "@/lib/platform-store";
+import { getQuotes, INITIAL_QUOTES } from "@/lib/platform-store";
+import { useClientStore } from "@/lib/use-client-store";
 
 export default function DashboardQuotesPage() {
-  const [quotes, setQuotes] = useState<QuoteProposal[]>([]);
-
-  useEffect(() => {
-    setQuotes(getQuotes());
-  }, []);
+  const quotes = useClientStore(getQuotes, () => INITIAL_QUOTES);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">

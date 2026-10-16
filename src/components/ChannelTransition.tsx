@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useAudio } from "./AudioController";
 
 interface TransitionContextType {
@@ -20,34 +20,35 @@ export function ChannelTransitionProvider({ children }: { children: React.ReactN
   // Phase: 'idle' | 'covering' | 'uncovering'
   const [phase, setPhase] = useState<"idle" | "covering" | "uncovering">("idle");
   const { playClick } = useAudio();
+  const phaseRef = useRef(phase);
+  const playClickRef = useRef(playClick);
+  useEffect(() => {
+    phaseRef.current = phase;
+    playClickRef.current = playClick;
+  });
 
-  const triggerTransition = (callback?: () => void) => {
-    if (phase !== "idle") return;
-    playClick();
-
-    // 1. Curtain rises from bottom to cover page (translateY: 100% -> 0%)
+  const triggerTransition = useCallback((callback?: () => void) => {
+    if (phaseRef.current !== "idle") return;
+    playClickRef.current();
     setPhase("covering");
-
-    // After curtain covers the viewport (500ms)
     setTimeout(() => {
       if (callback) callback();
-
-      // 2. Short pause then curtain carries on off the top (translateY: 0% -> -100%)
       setTimeout(() => {
         setPhase("uncovering");
-
-        // 3. Reset to idle after curtain leaves top (550ms)
         setTimeout(() => {
           setPhase("idle");
         }, 550);
       }, 80);
     }, 500);
-  };
+  }, []);
 
-  const isTransitioning = phase !== "idle";
+  const value = useMemo(() => ({
+    triggerTransition,
+    isTransitioning: phase !== "idle",
+  }), [triggerTransition, phase]);
 
   return (
-    <TransitionContext.Provider value={{ triggerTransition, isTransitioning }}>
+    <TransitionContext.Provider value={value}>
       {/* Page Content with subtle drift and fade matching Interlude Curtain */}
       <div
         className={`w-full min-h-screen transition-transform transition-opacity duration-500 ease-[cubic-bezier(0.76,0,0.24,1)] ${

@@ -25,6 +25,8 @@ export default function ClerkCustomSignUp() {
   const [fullName, setFullName] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [email, setEmail] = useState("");
+  const clerkEmail = isLoaded && signUp?.emailAddress ? signUp.emailAddress : "";
+  const visibleEmail = email || clerkEmail;
   const [password, setPassword] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [code, setCode] = useState("");
@@ -37,22 +39,21 @@ export default function ClerkCustomSignUp() {
     signUp.verifications.externalAccount.status === "verified" ||
     (signUp.verifications.emailAddress.status === "verified" && signUp.missingFields.length > 0)
   );
+  const resumeVerification = Boolean(
+    isLoaded &&
+    signUp?.emailAddress &&
+    signUp.verifications.emailAddress.status &&
+    !needsAccountDetails
+  );
 
   // Clerk keeps an unfinished registration across refreshes. Resume its code
   // step instead of trying to create the same account again.
   useEffect(() => {
-    if (needsAccountDetails) {
-      // Open Clerk's continuation step, not its new-registration form.
-      if (!window.location.hash || window.location.hash === "#/") {
-        window.location.hash = "/continue";
-      }
-      return;
+    if (!needsAccountDetails) return;
+    if (!window.location.hash || window.location.hash === "#/") {
+      window.location.hash = "/continue";
     }
-    if (!isLoaded || !signUp.emailAddress || !signUp.verifications.emailAddress.status) return;
-    setEmail(signUp.emailAddress);
-    setFullName([signUp.firstName, signUp.lastName].filter(Boolean).join(" "));
-    setVerifying(true);
-  }, [isLoaded, signUp?.id, needsAccountDetails]);
+  }, [needsAccountDetails]);
 
   const finishSignUp = async (sessionId: string) => {
     if (!setActive) return;
@@ -261,7 +262,7 @@ export default function ClerkCustomSignUp() {
       } }} />;
   }
 
-  if (verifying) {
+  if (verifying || resumeVerification) {
     return (
       <form onSubmit={handleVerifyCode} className="space-y-4">
         <div className="text-center space-y-1">
@@ -270,7 +271,7 @@ export default function ClerkCustomSignUp() {
           </div>
           <h3 className="text-base font-semibold text-[#105F68]">Verify Your Email</h3>
           <p className="text-xs text-[#3A9295]">
-            We sent a 6-digit confirmation code to <b>{email}</b> via Clerk.
+            We sent a 6-digit confirmation code to <b>{visibleEmail}</b> via Clerk.
           </p>
         </div>
 

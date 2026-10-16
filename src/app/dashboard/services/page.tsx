@@ -1,17 +1,15 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Plus, Sparkles, Clock, Check } from "lucide-react";
-import { getServices, saveServices, ServiceItem } from "@/lib/platform-store";
+import { getServices, INITIAL_SERVICES, saveServices, ServiceItem } from "@/lib/platform-store";
+import { dollarsToCents } from "@/lib/booking-time";
+import { useClientStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
 
 export default function DashboardServicesPage() {
   const { playClick, playSuccess } = useAudio();
-  const [services, setServices] = useState<ServiceItem[]>([]);
-
-  useEffect(() => {
-    setServices(getServices());
-  }, []);
+  const services = useClientStore(getServices, () => INITIAL_SERVICES);
   const [isAddServiceOpen, setIsAddServiceOpen] = useState(false);
   const [newServiceName, setNewServiceName] = useState("");
   const [newServicePrice, setNewServicePrice] = useState(120);
@@ -27,23 +25,25 @@ export default function DashboardServicesPage() {
 
   const handleCreateService = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newServiceName) return;
+    const priceCents = dollarsToCents(Number(newServicePrice));
+    const depositCents = dollarsToCents(Number(newServiceDeposit));
+    const durationMinutes = Number(newServiceDuration);
+    if (!newServiceName || priceCents == null || depositCents == null || depositCents > priceCents) return;
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) return;
     playSuccess();
 
     const newSrv: ServiceItem = {
-      id: "srv_" + Date.now(),
+      id: "srv_" + Date.now().toString(36),
       name: newServiceName,
       description: newServiceDesc || "Custom service treatment.",
-      durationMinutes: Number(newServiceDuration),
-      priceCents: Math.round(Number(newServicePrice) * 100),
-      depositCents: Math.round(Number(newServiceDeposit) * 100),
+      durationMinutes,
+      priceCents,
+      depositCents,
       bufferAfterMinutes: 15,
       isActive: true,
     };
 
-    const updated = [...services, newSrv];
-    setServices(updated);
-    saveServices(updated);
+    saveServices([...services, newSrv]);
     setIsAddServiceOpen(false);
     setNewServiceName("");
     setNewServiceDesc("");

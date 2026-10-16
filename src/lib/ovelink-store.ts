@@ -1,3 +1,5 @@
+import { emitStoreChange } from "./store-events";
+
 /**
  * Ovelink Store & Customization Engine
  * Powers universal public booking & ordering pages (ovel.app/l/[slug])
@@ -402,19 +404,30 @@ export const PRESET_OVELINKS: Record<string, OvelinkCustomization> = {
 };
 
 const STORAGE_KEY = "ovel_customized_ovelinks_v1";
+let cachedOvelinkRaw: string | null | undefined;
+let cachedOvelinks: Record<string, OvelinkCustomization> | null = null;
 
 export function getAllOvelinks(): Record<string, OvelinkCustomization> {
   if (typeof window === "undefined") return PRESET_OVELINKS;
+  let raw: string | null = null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return { ...PRESET_OVELINKS, ...parsed };
-    }
+    raw = localStorage.getItem(STORAGE_KEY);
   } catch {
-    // fallback
+    return PRESET_OVELINKS;
   }
-  return PRESET_OVELINKS;
+  if (cachedOvelinks && cachedOvelinkRaw === raw) return cachedOvelinks;
+  let merged: Record<string, OvelinkCustomization> = PRESET_OVELINKS;
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as Record<string, OvelinkCustomization>;
+      if (parsed && typeof parsed === "object") merged = { ...PRESET_OVELINKS, ...parsed };
+    } catch {
+      merged = PRESET_OVELINKS;
+    }
+  }
+  cachedOvelinkRaw = raw;
+  cachedOvelinks = merged;
+  return merged;
 }
 
 export function getOvelink(slug: string): OvelinkCustomization {
@@ -429,7 +442,10 @@ export function saveOvelink(config: OvelinkCustomization, previousSlug?: string)
     delete all[previousSlug];
   }
   all[config.slug] = config;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  const raw = JSON.stringify(all);
+  localStorage.setItem(STORAGE_KEY, raw);
+  cachedOvelinkRaw = raw;
+  cachedOvelinks = all;
 
   // Dispatch custom reactive event so dashboard, layouts, and active tabs update live
   try {
@@ -437,6 +453,7 @@ export function saveOvelink(config: OvelinkCustomization, previousSlug?: string)
   } catch {
     // SSR safe
   }
+  emitStoreChange();
 }
 
 export function updateBrandDetails(slug: string, updates: Partial<OvelinkCustomization>): OvelinkCustomization {

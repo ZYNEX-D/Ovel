@@ -28,6 +28,8 @@ import {
   createBooking, 
   QuoteProposal 
 } from "@/lib/platform-store";
+import { addDaysLocal, addMinutes, displayTimeToIsoLocal } from "@/lib/booking-time";
+import { useHydrated } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
 import ProgressiveBlur from "@/components/ProgressiveBlur";
 
@@ -63,14 +65,12 @@ export default function InteractiveQuotePage() {
   const [userIpAddress] = useState("127.0.0.1 (Verified Client)");
   const [signedTimestamp] = useState(() => new Date().toISOString().replace("T", " ").substring(0, 19) + " UTC");
 
-  // Step 3: Calendar & Slot state
-  const tomorrowStr = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 2);
-    return d.toISOString().split("T")[0];
-  }, []);
-  const [selectedDay, setSelectedDay] = useState(tomorrowStr);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState("10:00 AM");
+  const hydrated = useHydrated();
+  const defaultDay = hydrated ? addDaysLocal(new Date(), 2) : "";
+  const [selectedDay, setSelectedDay] = useState("");
+  const dayValue = selectedDay || defaultDay;
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState("09:00 AM");
+  const [flowError, setFlowError] = useState<string | null>(null);
 
   // Step 4: Card on file state (Stripe SetupIntent)
   const [cardNumber, setCardNumber] = useState("•••• •••• •••• 4242");
@@ -147,11 +147,21 @@ export default function InteractiveQuotePage() {
       scrollToSection(signSectionRef);
       return;
     }
+    if (isConverted || quote.status === "accepted" || quote.status === "converted") return;
+    if (quote.expiresAt && Date.parse(quote.expiresAt) < Date.now()) {
+      setFlowError("This proposal has expired.");
+      return;
+    }
 
-    playSuccess();
+    const bookingStartTime = displayTimeToIsoLocal(dayValue, selectedTimeSlot);
+    const bookingEndTime = bookingStartTime ? addMinutes(bookingStartTime, 90) : null;
+    if (!bookingStartTime || !bookingEndTime) {
+      setFlowError("Choose a valid appointment time.");
+      return;
+    }
 
-    // Auto-convert to confirmed booking
-    const bookingStartTime = `${selectedDay}T${selectedTimeSlot === "10:00 AM" ? "10:00:00" : "14:00:00"}`;
+    const enteredLast4 = cardNumber.replace(/\D/g, "").slice(-4);
+    const keepCard = saveCardOnFile && enteredLast4.length === 4;
     const booking = createBooking({
       serviceId: "srv_" + Date.now(),
       serviceName: quote.title,
@@ -161,15 +171,21 @@ export default function InteractiveQuotePage() {
       clientEmail: quote.clientEmail,
       clientPhone: quote.clientPhone,
       startTime: bookingStartTime,
-      endTime: new Date(new Date(bookingStartTime).getTime() + 90 * 60000).toISOString(),
+      endTime: bookingEndTime,
       status: "confirmed",
       totalPriceCents: dynamicTotal,
       depositPaidCents: dynamicDeposit,
       stationResource: "Main Suite",
-      hasCardOnFile: saveCardOnFile,
-      cardLast4: "4242",
+      hasCardOnFile: keepCard,
+      cardLast4: keepCard ? enteredLast4 : undefined,
       notes: `Single-Page Flow Auto-Conversion. E-Signed: ${typedSignature} (${userIpAddress}). Deposit: $${(dynamicDeposit / 100).toFixed(2)}.`,
     });
+    if (!booking) {
+      setFlowError("That time is already booked. Choose another slot.");
+      return;
+    }
+    playSuccess();
+    setFlowError(null);
 
     const updated = quotes.map((q) => {
       if (q.id === quote.id) {
@@ -469,7 +485,7 @@ export default function InteractiveQuotePage() {
                     </label>
                     <input
                       type="date"
-                      value={selectedDay}
+                      value={dayValue}
                       onChange={(e) => setSelectedDay(e.target.value)}
                       className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68]"
                     />
@@ -581,6 +597,9 @@ export default function InteractiveQuotePage() {
                     <span>0% Platform Commission Guarantee • 100% Direct Payout</span>
                   </div>
 
+                  {flowError && (
+                    <p className="text-xs text-red-700">{flowError}</p>
+                  )}
                   <button
                     type="submit"
                     className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-sm font-light transition-all flex items-center justify-center gap-3 shadow-xl hover:scale-[1.02]"
@@ -611,7 +630,7 @@ export default function InteractiveQuotePage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#2E7D32]">Scheduled Date:</span>
-                  <span className="font-semibold">{selectedDay} at {selectedTimeSlot}</span>
+                  <span className="font-semibold">{dayValue} at {selectedTimeSlot}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#2E7D32]">Signature IP Logged:</span>
