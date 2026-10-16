@@ -1,8 +1,9 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { useClerk, useUser, useSession } from "@clerk/nextjs";
+import { clerkSessionView } from "./auth-session";
 
 export type UserRole = "super_admin" | "business_owner" | "staff" | "client";
 
@@ -70,6 +71,7 @@ export const INITIAL_SYSTEM_USERS: UserProfile[] = [
 
 const AUTH_STORAGE_KEY = "ovel_active_auth_profile_v2";
 const USERS_STORAGE_KEY = "ovel_system_users_v2";
+const EMPTY_TEAM: UserProfile[] = [];
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
@@ -134,28 +136,26 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
   const { session: clerkSession, isLoaded: sessionLoaded } = useSession();
   const clerk = useClerk();
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
-  const [loadedUserId, setLoadedUserId] = useState<string | null | undefined>(undefined);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const clerkReady = isLoaded && sessionLoaded;
   const activeUserId = clerkUser?.id ?? null;
+  const sessionRef = useRef(clerkSession);
+  const view = clerkSessionView(clerkReady, activeUserId, loadedFor, profile);
+  const team = useMemo(() => (view.profile ? [view.profile] : EMPTY_TEAM), [view.profile]);
 
-  if (clerkReady && !activeUserId && (profile || loadedUserId !== null)) {
-    setProfile(null);
-    setAllUsers([]);
-    setLoadedUserId(null);
-  } else if (clerkReady && activeUserId && loadedUserId && loadedUserId !== activeUserId) {
-    setProfile(null);
-    setAllUsers([]);
-    setLoadedUserId(undefined);
-  }
+  useEffect(() => {
+    sessionRef.current = clerkSession;
+  });
 
   useEffect(() => {
     if (!clerkReady || !activeUserId) return;
     const controller = new AbortController();
+    let ignore = false;
+    const userId = activeUserId;
     localStorage.removeItem(AUTH_STORAGE_KEY);
     async function loadProfile() {
       try {
-        const token = await clerkSession?.getToken();
+        const token = await sessionRef.current?.getToken();
         const response = await fetch("/api/user/me", {
           cache: "no-store",
           signal: controller.signal,
@@ -163,26 +163,26 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
         });
         if (!response.ok) throw new Error("Unable to verify session");
         const data = await response.json();
-        if (controller.signal.aborted) return;
-        setProfile(data.profile);
-        setAllUsers(data.profile ? [data.profile] : []);
-        setLoadedUserId(activeUserId);
+        if (ignore || controller.signal.aborted) return;
+        setProfile(data.profile ?? null);
+        setLoadedFor(userId);
       } catch {
-        if (controller.signal.aborted) return;
+        if (ignore || controller.signal.aborted) return;
         setProfile(null);
-        setAllUsers([]);
-        setLoadedUserId(activeUserId);
+        setLoadedFor(userId);
       }
     }
     void loadProfile();
-    return () => controller.abort();
-  }, [clerkReady, activeUserId, clerkSession]);
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }, [clerkReady, activeUserId]);
 
   const signOut = useCallback(async () => {
     await clerk.signOut();
     setProfile(null);
-    setAllUsers([]);
-    setLoadedUserId(null);
+    setLoadedFor(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
   }, [clerk]);
   const useLogin = useCallback(async () => ({ error: "Use the Clerk sign-in form at /login." }), []);
@@ -205,10 +205,10 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AuthContextType>(() => ({
     user: null,
     session: null,
-    profile,
-    isLoading: !clerkReady || (activeUserId ? loadedUserId !== activeUserId : false),
-    teamMembers: allUsers,
-    allSystemUsers: allUsers,
+    profile: view.profile,
+    isLoading: view.isLoading,
+    teamMembers: team,
+    allSystemUsers: team,
     signInWithPassword: useLogin,
     signUpWithPassword: useLogin,
     signInWithMagicLink: useLogin,
@@ -224,11 +224,9 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
     updateProfile,
     updateOrganizationDetails,
   }), [
-    profile,
-    clerkReady,
-    activeUserId,
-    loadedUserId,
-    allUsers,
+    view.profile,
+    view.isLoading,
+    team,
     useLogin,
     signOut,
     unavailable,

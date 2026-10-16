@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/lib/booking-rules.test.ts"
+    "test": "tsx --test src/lib/booking-rules.test.ts src/lib/auth-session.test.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.14",

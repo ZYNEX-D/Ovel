@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from "react";
 import { STORE_EVENT } from "./store-events";
 
 function subscribe(notify: () => void) {
@@ -25,11 +25,14 @@ export function useHydrated(): boolean {
 }
 
 export function useDraftStore<T>(stored: T): [T, Dispatch<SetStateAction<T>>] {
-  const [draft, setDraft] = useState(stored);
-  const [seen, setSeen] = useState(stored);
-  if (!Object.is(stored, seen)) {
-    setSeen(stored);
-    setDraft(stored);
-  }
+  const [override, setOverride] = useState<{ base: T; value: T } | null>(null);
+  const draft = override && Object.is(override.base, stored) ? override.value : stored;
+  const setDraft = useCallback<Dispatch<SetStateAction<T>>>((action) => {
+    setOverride((current) => {
+      const baseValue = current && Object.is(current.base, stored) ? current.value : stored;
+      const value = typeof action === "function" ? (action as (prev: T) => T)(baseValue) : action;
+      return { base: stored, value };
+    });
+  }, [stored]);
   return [draft, setDraft];
 }
