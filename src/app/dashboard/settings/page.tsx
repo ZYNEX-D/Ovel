@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { 
   Building2, 
@@ -18,8 +18,20 @@ import {
   Monitor, 
   RotateCcw,
   CheckCircle2,
-  Trash2
+  Trash2,
+  Calendar,
+  Clock,
+  Plus,
+  X,
+  Info,
+  ShieldAlert,
+  AlertTriangle,
+  KeyRound,
+  Lock,
+  UserX,
+  Sparkles
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { 
   getOvelink, 
   PRESET_OVELINKS,
@@ -27,7 +39,9 @@ import {
   OvelinkCustomization, 
   OvelinkFont, 
   THEME_PRESETS, 
-  OvelinkThemePreset 
+  OvelinkThemePreset,
+  sanitizeSlug,
+  validateSlug
 } from "@/lib/ovelink-store";
 import { useAuth } from "@/lib/auth-context";
 import { useAudio } from "@/components/AudioController";
@@ -55,23 +69,106 @@ const COVER_GRADIENTS = [
 ];
 
 export default function BrandSettingsPage() {
-  const { profile, updateOrganizationDetails } = useAuth();
+  const router = useRouter();
+  const { profile, updateOrganizationDetails, deleteAccount } = useAuth();
   const { playClick, playSuccess } = useAudio();
 
   const currentSlug = profile?.organizationSlug || "leclat";
-  const [initialSlug] = useState<string>(currentSlug);
+  const [initialSlug, setInitialSlug] = useState<string>(currentSlug);
 
   const storedBrand = useClientStore(
-    () => getOvelink(currentSlug),
+    () => getOvelink(currentSlug, profile?.organizationName, profile?.organizationId),
     () => PRESET_OVELINKS[currentSlug] || PRESET_OVELINKS["leclat"],
   );
   const [brand, setBrand] = useDraftStore(storedBrand);
-  const [activeTab, setActiveTab] = useState<"identity" | "palette" | "typography" | "channels">("identity");
+  const [activeTab, setActiveTab] = useState<
+    "identity" | "scheduling" | "palette" | "typography" | "channels" | "account"
+  >("identity");
   const [previewDevice, setPreviewDevice] = useState<"mobile" | "desktop">("mobile");
   const [copiedLink, setCopiedLink] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [newSlotInput, setNewSlotInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Account Deletion State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Live URL Handle Validation
+  const slugValidation = useMemo(() => {
+    return validateSlug(brand.slug, profile?.organizationId);
+  }, [brand.slug, profile?.organizationId]);
+
+  const handleAutoGenerateSlug = () => {
+    playClick();
+    const generated = sanitizeSlug(brand.businessName);
+    if (generated) {
+      setBrand((prev) => ({ ...prev, slug: generated }));
+      showToast(`Generated handle: ovel.app/l/${generated}`);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      if (tabParam === "account" || tabParam === "danger") {
+        setActiveTab("account");
+      }
+    }
+  }, []);
+
+  const handleAddTimeSlot = (slot: string) => {
+    const trimmed = slot.trim().toUpperCase();
+    if (!trimmed) return;
+    const current = brand.timeSlots || ["09:00 AM", "10:30 AM", "01:00 PM", "02:30 PM", "04:00 PM", "05:30 PM"];
+    if (current.includes(trimmed)) {
+      showToast(`Slot "${trimmed}" already exists`);
+      return;
+    }
+    const updated = [...current, trimmed];
+    setBrand((prev) => ({ ...prev, timeSlots: updated }));
+    setNewSlotInput("");
+    showToast(`Added time slot "${trimmed}"`);
+  };
+
+  const handleRemoveTimeSlot = (slotToRemove: string) => {
+    const current = brand.timeSlots || [];
+    if (current.length <= 1) {
+      showToast("You must keep at least one available time slot");
+      return;
+    }
+    const updated = current.filter((s) => s !== slotToRemove);
+    setBrand((prev) => ({ ...prev, timeSlots: updated }));
+    showToast(`Removed slot "${slotToRemove}"`);
+  };
+
+  const handleApplySlotPreset = (presetSlots: string[], presetName: string) => {
+    playClick();
+    setBrand((prev) => ({ ...prev, timeSlots: presetSlots }));
+    showToast(`Applied "${presetName}" schedule`);
+  };
+
+  // Sync state when brand is updated across sessions/events
+  useEffect(() => {
+    if (profile?.organizationSlug) {
+      setBrand(getOvelink(profile.organizationSlug, profile.organizationName, profile.organizationId));
+      setInitialSlug(profile.organizationSlug);
+    }
+  }, [profile?.organizationSlug, profile?.organizationName, profile?.organizationId]);
+
+  useEffect(() => {
+    const handleUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<OvelinkCustomization>;
+      if (customEvent.detail) {
+        setBrand(customEvent.detail);
+      }
+    };
+    window.addEventListener("ovel:brand_updated", handleUpdate);
+    return () => window.removeEventListener("ovel:brand_updated", handleUpdate);
+  }, []);
 
   const showToast = (msg: string) => {
     setNotification(msg);
@@ -137,23 +234,34 @@ export default function BrandSettingsPage() {
       return;
     }
 
+    const validation = validateSlug(brand.slug, profile?.organizationId);
+    if (!validation.valid) {
+      showToast(validation.error || "Please enter a valid URL handle.");
+      return;
+    }
+
     setIsSaving(true);
     playSuccess();
 
-    // Sanitize slug
-    const cleanSlug = brand.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "") || "my-brand";
+    const cleanSlug = validation.cleanSlug;
+    const previous = initialSlug;
+
     const updatedBrand: OvelinkCustomization = {
       ...brand,
       slug: cleanSlug,
+      businessBio: brand.businessBio?.includes("Welcome to My Business")
+        ? brand.businessBio.replace("Welcome to My Business", `Welcome to ${brand.businessName}`)
+        : brand.businessBio,
     };
 
     setBrand(updatedBrand);
-    saveOvelink(updatedBrand, initialSlug !== cleanSlug ? initialSlug : undefined);
+    saveOvelink(updatedBrand, previous !== cleanSlug ? previous : undefined);
+    setInitialSlug(cleanSlug);
     updateOrganizationDetails(updatedBrand.businessName, updatedBrand.slug);
 
     setTimeout(() => {
       setIsSaving(false);
-      showToast(`Brand details for "${updatedBrand.businessName}" saved and published live!`);
+      showToast(`Brand details for "${updatedBrand.businessName}" saved & published live!`);
     }, 300);
   };
 
@@ -231,9 +339,11 @@ export default function BrandSettingsPage() {
           <div className="flex flex-wrap items-center gap-1.5 border-b border-black/5 pb-3">
             {[
               { id: "identity" as const, label: "Brand Identity & Bio", icon: Building2 },
+              { id: "scheduling" as const, label: "Time Slots & Booking Details", icon: Calendar },
               { id: "palette" as const, label: "Colors & Palette", icon: Palette },
               { id: "typography" as const, label: "Typography & Shapes", icon: Type },
               { id: "channels" as const, label: "Contact & Localization", icon: Phone },
+              { id: "account" as const, label: "Account & Danger Zone", icon: ShieldAlert },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -278,13 +388,26 @@ export default function BrandSettingsPage() {
                 </p>
               </div>
 
-              {/* Public URL Slug */}
-              <div>
-                <label className="text-[#3A9295] font-medium block mb-1">
-                  Public Link Slug &amp; URL Handle
-                </label>
-                <div className="flex items-center rounded-xl bg-[#F6FAF9] border border-black/10 overflow-hidden focus-within:border-[#105F68] focus-within:bg-white transition-colors">
-                  <span className="px-3.5 py-2.5 text-[#3A9295] text-xs bg-black/5 font-mono select-none">
+              {/* Public URL Slug & Handle Management */}
+              <div className="space-y-2 p-4 rounded-2xl bg-[#F6FAF9] border border-black/5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[#105F68] font-semibold text-xs flex items-center gap-1.5">
+                    <span>Public Link Slug &amp; URL Handle</span>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={handleAutoGenerateSlug}
+                    className="text-[11px] text-[#105F68] hover:text-[#0D4F57] hover:underline flex items-center gap-1 font-medium"
+                    title="Auto-create a clean handle from your business name"
+                  >
+                    <Sparkles className="w-3 h-3 text-[#3A9295]" />
+                    <span>Auto-Generate from Name</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center rounded-xl bg-white border border-black/10 overflow-hidden focus-within:border-[#105F68] focus-within:ring-1 focus-within:ring-[#105F68]/20 transition-all shadow-sm">
+                  <span className="px-3.5 py-2.5 text-[#3A9295] text-xs bg-[#F6FAF9] border-r border-black/5 font-mono select-none">
                     ovel.app/l/
                   </span>
                   <input
@@ -299,9 +422,63 @@ export default function BrandSettingsPage() {
                     placeholder="your-brand-handle"
                     className="flex-1 px-3 py-2.5 bg-transparent text-xs text-[#105F68] font-mono focus:outline-none"
                   />
+                  
+                  {/* Status Indicator */}
+                  <div className="pr-3 flex items-center gap-1.5">
+                    {slugValidation.valid ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <Check className="w-3 h-3" />
+                        Available
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700 border border-red-200">
+                        <X className="w-3 h-3" />
+                        Invalid
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <p className="text-[11px] text-[#3A9295] font-light mt-1">
-                  Your clients book at: <span className="font-mono text-[#105F68]">ovel.app/l/{brand.slug}</span>
+
+                {/* Validation message / Handle URL display & quick actions */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px]">
+                  <div>
+                    {!slugValidation.valid ? (
+                      <span className="text-red-600 font-medium">
+                        {slugValidation.error}
+                      </span>
+                    ) : (
+                      <span className="text-[#3A9295]">
+                        Live booking page:{" "}
+                        <span className="font-mono text-[#105F68] font-medium">
+                          ovel.app/l/{brand.slug}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyLink}
+                      className="text-[#105F68] hover:underline flex items-center gap-1"
+                    >
+                      <Copy className="w-3 h-3 text-[#3A9295]" />
+                      <span>Copy</span>
+                    </button>
+                    <span className="text-black/20">•</span>
+                    <Link
+                      href={`/l/${brand.slug}`}
+                      target="_blank"
+                      className="text-[#105F68] hover:underline flex items-center gap-1"
+                    >
+                      <ExternalLink className="w-3 h-3 text-[#3A9295]" />
+                      <span>Test Open</span>
+                    </Link>
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-[#3A9295]/80 pt-1 border-t border-black/5 leading-relaxed">
+                  Tip: When you rename your URL handle, Ovel automatically forwards previous links to your new address so existing clients never encounter broken links.
                 </p>
               </div>
 
@@ -458,6 +635,249 @@ export default function BrandSettingsPage() {
                       )}
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: TIME SLOTS & BOOKING DETAILS */}
+          {activeTab === "scheduling" && (
+            <div className="space-y-6 text-xs animate-in fade-in duration-150">
+              {/* Modal Titles & Headings */}
+              <div className="space-y-3.5">
+                <div className="border-b border-black/5 pb-2">
+                  <h4 className="font-semibold text-[#105F68] text-sm">Booking Sheet & Modal Header</h4>
+                  <p className="text-[11px] text-[#3A9295]">
+                    Customize the title and intake headings your clients see when reserving a slot.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[#3A9295] font-medium block mb-1">
+                      Appointment Booking Title
+                    </label>
+                    <input
+                      type="text"
+                      value={brand.bookingModalTitle || ""}
+                      placeholder="Reserve Time Slot"
+                      onChange={(e) => setBrand({ ...brand, bookingModalTitle: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">e.g. Reserve Time Slot, Book Appointment, Schedule Session</p>
+                  </div>
+
+                  <div>
+                    <label className="text-[#3A9295] font-medium block mb-1">
+                      Time Slot Section Heading
+                    </label>
+                    <input
+                      type="text"
+                      value={brand.timeSlotLabel || ""}
+                      placeholder="Available Time Slot"
+                      onChange={(e) => setBrand({ ...brand, timeSlotLabel: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Label shown above the time buttons</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[#3A9295] font-medium block mb-1">
+                      Order Intake Sheet Title
+                    </label>
+                    <input
+                      type="text"
+                      value={brand.orderModalTitle || ""}
+                      placeholder="Custom Order Intake"
+                      onChange={(e) => setBrand({ ...brand, orderModalTitle: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Used for product purchases & custom orders</p>
+                  </div>
+
+                  <div>
+                    <label className="text-[#3A9295] font-medium block mb-1">
+                      Session & Duration Note
+                    </label>
+                    <input
+                      type="text"
+                      value={brand.slotDurationNotice || ""}
+                      placeholder="Includes setup and consultation"
+                      onChange={(e) => setBrand({ ...brand, slotDurationNotice: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">e.g. Includes 15 min setup or buffer time</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Available Time Slots */}
+              <div className="space-y-3.5 pt-2 border-t border-black/5">
+                <div className="border-b border-black/5 pb-2">
+                  <h4 className="font-semibold text-[#105F68] text-sm">Available Daily Time Slots</h4>
+                  <p className="text-[11px] text-[#3A9295]">
+                    Configure which appointment slots are bookable on your public link.
+                  </p>
+                </div>
+
+                {/* Preset Schedules */}
+                <div>
+                  <label className="text-[11px] text-[#3A9295] font-medium block mb-1.5">
+                    Quick Schedule Templates
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleApplySlotPreset(
+                        ["09:00 AM", "10:30 AM", "01:00 PM", "02:30 PM", "04:00 PM", "05:30 PM"],
+                        "Standard 9 AM - 5:30 PM"
+                      )}
+                      className="px-2.5 py-1 rounded-full border border-[#105F68]/20 bg-[#F6FAF9] hover:bg-[#105F68] hover:text-white text-[#105F68] text-[11px] transition-all"
+                    >
+                      Standard (9 AM - 5:30 PM)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplySlotPreset(
+                        ["09:00 AM", "10:00 AM", "11:00 AM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"],
+                        "Hourly 9 AM - 5 PM"
+                      )}
+                      className="px-2.5 py-1 rounded-full border border-[#105F68]/20 bg-[#F6FAF9] hover:bg-[#105F68] hover:text-white text-[#105F68] text-[11px] transition-all"
+                    >
+                      Hourly (9 AM - 5 PM)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplySlotPreset(
+                        ["08:00 AM", "09:30 AM", "11:00 AM", "12:30 PM"],
+                        "Morning Express"
+                      )}
+                      className="px-2.5 py-1 rounded-full border border-[#105F68]/20 bg-[#F6FAF9] hover:bg-[#105F68] hover:text-white text-[#105F68] text-[11px] transition-all"
+                    >
+                      Morning Express (8 AM - 12:30 PM)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplySlotPreset(
+                        ["02:00 PM", "03:30 PM", "05:00 PM", "06:30 PM", "08:00 PM"],
+                        "Afternoon & Evening"
+                      )}
+                      className="px-2.5 py-1 rounded-full border border-[#105F68]/20 bg-[#F6FAF9] hover:bg-[#105F68] hover:text-white text-[#105F68] text-[11px] transition-all"
+                    >
+                      Afternoon & Evening (2 PM - 8 PM)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Active Time Slot Chips */}
+                <div>
+                  <label className="text-[11px] text-[#3A9295] font-medium block mb-1.5">
+                    Active Time Slots ({ (brand.timeSlots || []).length })
+                  </label>
+                  <div className="flex flex-wrap gap-2 p-3 rounded-2xl bg-[#F6FAF9] border border-black/5 min-h-[60px] items-center">
+                    {(brand.timeSlots && brand.timeSlots.length > 0
+                      ? brand.timeSlots
+                      : ["09:00 AM", "10:30 AM", "01:00 PM", "02:30 PM", "04:00 PM", "05:30 PM"]
+                    ).map((slot) => (
+                      <div
+                        key={slot}
+                        className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-2xs font-mono font-medium text-[#105F68] text-xs flex items-center gap-2 group"
+                      >
+                        <span>{slot}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTimeSlot(slot)}
+                          title={`Remove ${slot}`}
+                          className="text-slate-400 hover:text-red-500 rounded p-0.5 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Add Custom Slot Input */}
+                <div className="flex items-center gap-2 max-w-sm">
+                  <input
+                    type="text"
+                    value={newSlotInput}
+                    placeholder="e.g. 11:15 AM or 03:45 PM"
+                    onChange={(e) => setNewSlotInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddTimeSlot(newSlotInput);
+                      }
+                    }}
+                    className="flex-1 px-4 py-2 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] font-mono focus:outline-none focus:border-[#105F68]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddTimeSlot(newSlotInput)}
+                    className="px-3.5 py-2 rounded-xl bg-[#105F68] text-white text-xs font-semibold hover:bg-[#0D4F57] transition-all flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Slot</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Booking Guidelines & Policies */}
+              <div className="space-y-3.5 pt-2 border-t border-black/5">
+                <div className="border-b border-black/5 pb-2">
+                  <h4 className="font-semibold text-[#105F68] text-sm">Booking Guidelines & Policy</h4>
+                  <p className="text-[11px] text-[#3A9295]">
+                    Inform clients of advance booking notice, arrival expectations, and cancellation policies.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-[#3A9295] font-medium block mb-1">
+                    Client Booking Instructions / Arrival Notes
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={brand.bookingInstructions || ""}
+                    placeholder="e.g. Please arrive 5 minutes before your scheduled slot. Free parking available in rear lot."
+                    onChange={(e) => setBrand({ ...brand, bookingInstructions: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Appears as an informational banner above the date/time picker.</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[#3A9295] font-medium block mb-1">
+                      Minimum Advance Notice (Lead Time)
+                    </label>
+                    <select
+                      value={typeof brand.minNoticeDays === "number" ? brand.minNoticeDays : 1}
+                      onChange={(e) => setBrand({ ...brand, minNoticeDays: Number(e.target.value) })}
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                    >
+                      <option value={0}>Same-day bookings allowed (Today onward)</option>
+                      <option value={1}>At least 24 hours in advance (Tomorrow onward)</option>
+                      <option value={2}>At least 48 hours in advance (2 days onward)</option>
+                      <option value={3}>At least 3 days notice</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[#3A9295] font-medium block mb-1">
+                      Cancellation & Rescheduling Policy
+                    </label>
+                    <input
+                      type="text"
+                      value={brand.cancellationPolicy || ""}
+                      placeholder="Free cancellation or rescheduling up to 24 hours prior."
+                      onChange={(e) => setBrand({ ...brand, cancellationPolicy: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Displayed below the time slots on checkout</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -787,27 +1207,132 @@ export default function BrandSettingsPage() {
             </div>
           )}
 
-          {/* Sticky Bottom Actions inside Control Card */}
-          <div className="pt-6 border-t border-black/5 flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={handleResetToCurrent}
-              className="px-3.5 py-2 rounded-xl text-xs text-[#3A9295] hover:text-[#105F68] hover:bg-[#F6FAF9] transition-all flex items-center gap-1.5"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset Edits</span>
-            </button>
+          {/* TAB 6: ACCOUNT & DANGER ZONE */}
+          {activeTab === "account" && (
+            <div className="space-y-6 text-xs animate-in fade-in duration-150">
+              {/* Profile Credentials */}
+              <div className="p-5 rounded-2xl bg-[#F6FAF9] border border-black/5 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#105F68] text-white flex items-center justify-center text-sm font-semibold shadow-sm">
+                    {profile?.fullName
+                      ? profile.fullName.slice(0, 2).toUpperCase()
+                      : "ME"}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-[#105F68]">
+                      {profile?.fullName || "Account Owner"}
+                    </h3>
+                    <p className="text-[#3A9295] text-xs">{profile?.email || "owner@business.com"}</p>
+                  </div>
+                  <span className="ml-auto px-2.5 py-0.5 rounded-full text-[10px] font-medium uppercase bg-[#63C1BB]/20 text-[#105F68] border border-[#63C1BB]/40">
+                    {profile?.role === "super_admin" ? "Super Admin" : "Business Owner"}
+                  </span>
+                </div>
 
-            <button
-              type="button"
-              onClick={() => handleSaveBrandDetails()}
-              disabled={isSaving}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-semibold shadow-md shadow-[#105F68]/20 transition-all active:scale-95 disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" />
-              <span>{isSaving ? "Saving..." : "Save Brand Details"}</span>
-            </button>
-          </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-black/5">
+                  <div>
+                    <span className="text-[11px] text-[#3A9295] block">Organization ID</span>
+                    <span className="font-mono text-xs font-medium text-[#105F68]">
+                      {profile?.organizationId || `org_${brand.slug}`}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-[#3A9295] block">Active Public Slug</span>
+                    <span className="font-mono text-xs font-medium text-[#105F68]">
+                      ovel.app/l/{brand.slug}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Password & Authentication Recovery */}
+              <div className="p-5 rounded-2xl bg-white border border-black/10 shadow-sm space-y-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-[#105F68]">
+                  <KeyRound className="w-4 h-4 text-[#3A9295]" />
+                  <span>Security &amp; Password Recovery</span>
+                </div>
+                <p className="text-[#3A9295] text-xs">
+                  Your identity is secured by Clerk multi-factor authentication. If you need to reset your password or update sign-in methods, you can request a password recovery email below.
+                </p>
+                <div>
+                  <Link
+                    href="/forgot-password"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-black/10 bg-[#F6FAF9] hover:bg-[#105F68]/5 text-xs text-[#105F68] transition-all font-medium"
+                  >
+                    <Lock className="w-3.5 h-3.5 text-[#3A9295]" />
+                    <span>Reset Password via Email</span>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Danger Zone */}
+              <div className="p-5 sm:p-6 rounded-2xl border border-red-200 bg-red-50/30 space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-red-100 text-red-600 flex items-center justify-center">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-red-700">
+                      Danger Zone: Permanent Account Deletion
+                    </h3>
+                    <p className="text-[11px] text-red-600/80">
+                      Irreversible action that permanently purges your account and workspace.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 text-xs text-red-900/80 pl-2">
+                  <p>Deleting your account will immediately and permanently:</p>
+                  <ul className="list-disc list-inside space-y-1 text-[11px] text-red-800">
+                    <li>Delete your authentication credentials and Clerk user account.</li>
+                    <li>Wipe all customer appointments, schedules, and roster shifts.</li>
+                    <li>Remove your catalog of offerings, treatments, and pricing.</li>
+                    <li>Delete all invoices, quotes, CRM client profiles, and balance ledgers.</li>
+                    <li>Permanently release your public brand link (ovel.app/l/{brand.slug}).</li>
+                  </ul>
+                </div>
+
+                <div className="pt-2 border-t border-red-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClick();
+                      setDeleteConfirmText("");
+                      setIsDeleteModalOpen(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-sm transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete Account &amp; Workspace</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Sticky Bottom Actions inside Control Card (Branding Tabs) */}
+          {activeTab !== "account" && (
+            <div className="pt-6 border-t border-black/5 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleResetToCurrent}
+                className="px-3.5 py-2 rounded-xl text-xs text-[#3A9295] hover:text-[#105F68] hover:bg-[#F6FAF9] transition-all flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset Edits</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSaveBrandDetails()}
+                disabled={isSaving}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-semibold shadow-md shadow-[#105F68]/20 transition-all active:scale-95 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSaving ? "Saving..." : "Save Brand Details"}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Right Column: Live Interactive Dual-Device Preview (5 cols) */}
@@ -873,6 +1398,89 @@ export default function BrandSettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Delete Account Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-5 shadow-2xl border border-red-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-red-700">
+                  Delete Account Permanently?
+                </h3>
+                <p className="text-xs text-[#3A9295] mt-0.5">
+                  This action cannot be undone under any circumstances.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-[#103438] leading-relaxed">
+              All your business data, customer bookings, staff profiles, invoices, and your public booking URL{" "}
+              <b className="text-red-700">ovel.app/l/{brand.slug}</b> will be destroyed immediately.
+            </p>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-[#103438] block">
+                To confirm, type <span className="font-mono text-red-600 font-bold">DELETE</span> below:
+              </label>
+              <input
+                type="text"
+                placeholder="DELETE"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-[#F6FAF9] border border-black/15 focus:border-red-500 text-red-700 font-mono focus:outline-none transition-all uppercase"
+                disabled={isDeleting}
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/5">
+              <button
+                type="button"
+                onClick={() => {
+                  playClick();
+                  setIsDeleteModalOpen(false);
+                }}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-full border border-black/10 text-xs text-[#3A9295] hover:bg-black/5 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (deleteConfirmText.trim().toUpperCase() !== "DELETE") return;
+                  setIsDeleting(true);
+                  playClick();
+                  const res = await deleteAccount();
+                  if (res?.error) {
+                    setIsDeleting(false);
+                    showToast(`Error deleting account: ${res.error}`);
+                  } else {
+                    showToast("Account deleted successfully. Farewell!");
+                    setTimeout(() => {
+                      router.push("/login?deleted=1");
+                    }, 500);
+                  }
+                }}
+                disabled={deleteConfirmText.trim().toUpperCase() !== "DELETE" || isDeleting}
+                className="px-5 py-2 rounded-full bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:hover:bg-red-600 text-white text-xs font-semibold shadow-sm transition-all flex items-center gap-2"
+              >
+                {isDeleting ? (
+                  <span>Deleting...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Confirm Deletion</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -5,10 +5,13 @@ import { MessageSquare, Check, RotateCcw } from "lucide-react";
 import { getReminders, INITIAL_REMINDERS, simulateWhatsAppReply } from "@/lib/platform-store";
 import { useClientStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
+import { useAuth } from "@/lib/auth-context";
 
 export default function DashboardRemindersPage() {
+  const { profile, isLoading } = useAuth();
   const { playSuccess } = useAudio();
-  const reminders = useClientStore(getReminders, () => INITIAL_REMINDERS);
+  const wsId = profile?.organizationId;
+  const reminders = useClientStore(() => getReminders(wsId), () => INITIAL_REMINDERS);
   const [notification, setNotification] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -18,7 +21,7 @@ export default function DashboardRemindersPage() {
 
   const handleSimulateWhatsApp = (bookingId: string, replyBody: "1" | "2") => {
     playSuccess();
-    simulateWhatsAppReply(bookingId, replyBody);
+    simulateWhatsAppReply(bookingId, replyBody, wsId);
     showToast(
       replyBody === "1"
         ? "Client replied '1': Appointment automatically confirmed!"

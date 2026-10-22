@@ -1,4 +1,5 @@
 import { emitStoreChange } from "./store-events";
+import { resolveWorkspace } from "./platform-store";
 
 /**
  * Customer Reviews & Reputation Store
@@ -46,8 +47,8 @@ export const DEFAULT_REPUTATION_CONFIG: ReputationConfig = {
 
 export const INITIAL_REVIEWS: CustomerReview[] = [];
 
-const STORAGE_KEY_REVIEWS = "ovel_reviews_v1";
-const STORAGE_KEY_CONFIG = "ovel_reputation_config_v1";
+const STORAGE_KEY_REVIEWS = "ovel_reviews_v2";
+const STORAGE_KEY_CONFIG = "ovel_reputation_config_v2";
 const reviewCache = new Map<string, { raw: string | null; value: unknown }>();
 
 function readCached<T>(key: string, raw: string | null, fallback: T, parse: (raw: string) => T): T {
@@ -58,82 +59,116 @@ function readCached<T>(key: string, raw: string | null, fallback: T, parse: (raw
   return value;
 }
 
-export function getReviews(): CustomerReview[] {
+export function getReviews(workspaceId?: string): CustomerReview[] {
+  const ws = resolveWorkspace(workspaceId);
+  const scopedKey = `${STORAGE_KEY_REVIEWS}_${ws}`;
   if (typeof window === "undefined") return INITIAL_REVIEWS;
+
   let raw: string | null = null;
+  let effectiveKey = scopedKey;
   try {
-    raw = localStorage.getItem(STORAGE_KEY_REVIEWS);
+    raw = localStorage.getItem(scopedKey);
+    if (raw === null && (ws === "demo" || ws === "root" || ws === "org_root")) {
+      raw = localStorage.getItem(STORAGE_KEY_REVIEWS) || localStorage.getItem("ovel_reviews_v1");
+      if (raw !== null) effectiveKey = STORAGE_KEY_REVIEWS;
+    }
   } catch {
     return INITIAL_REVIEWS;
   }
+
   try {
-  return readCached(STORAGE_KEY_REVIEWS, raw, INITIAL_REVIEWS, (stored) => {
-    const parsed = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return INITIAL_REVIEWS;
-    const cleaned = parsed.filter((review: CustomerReview) => !String(review.id).startsWith("rev_10"));
-    if (cleaned.length !== parsed.length) {
-      const cleanedRaw = JSON.stringify(cleaned);
-      localStorage.setItem(STORAGE_KEY_REVIEWS, cleanedRaw);
-      raw = cleanedRaw;
-    }
-    return cleaned;
-  });
+    return readCached(effectiveKey, raw, INITIAL_REVIEWS, (stored) => {
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return INITIAL_REVIEWS;
+      const cleaned = parsed.filter((review: CustomerReview) => !String(review.id).startsWith("rev_10"));
+      if (cleaned.length !== parsed.length) {
+        const cleanedRaw = JSON.stringify(cleaned);
+        localStorage.setItem(effectiveKey, cleanedRaw);
+        raw = cleanedRaw;
+      }
+      return cleaned;
+    });
   } catch {
     return INITIAL_REVIEWS;
   }
 }
 
-export function saveReviews(reviews: CustomerReview[]): void {
+export function saveReviews(reviews: CustomerReview[], workspaceId?: string): void {
   if (typeof window === "undefined") return;
+  const ws = resolveWorkspace(workspaceId);
+  const scopedKey = `${STORAGE_KEY_REVIEWS}_${ws}`;
   try {
     const raw = JSON.stringify(reviews);
-    localStorage.setItem(STORAGE_KEY_REVIEWS, raw);
-    reviewCache.set(STORAGE_KEY_REVIEWS, { raw, value: reviews });
+    localStorage.setItem(scopedKey, raw);
+    reviewCache.set(scopedKey, { raw, value: reviews });
+    if (ws === "demo" || ws === "root" || ws === "org_root") {
+      localStorage.setItem(STORAGE_KEY_REVIEWS, raw);
+      reviewCache.set(STORAGE_KEY_REVIEWS, { raw, value: reviews });
+    }
     emitStoreChange();
   } catch (err) {
     console.error("Failed to save reviews", err);
   }
 }
 
-export function getReputationConfig(): ReputationConfig {
+export function getReputationConfig(workspaceId?: string): ReputationConfig {
+  const ws = resolveWorkspace(workspaceId);
+  const scopedKey = `${STORAGE_KEY_CONFIG}_${ws}`;
   if (typeof window === "undefined") return DEFAULT_REPUTATION_CONFIG;
+
   let raw: string | null = null;
+  let effectiveKey = scopedKey;
   try {
-    raw = localStorage.getItem(STORAGE_KEY_CONFIG);
+    raw = localStorage.getItem(scopedKey);
+    if (raw === null && (ws === "demo" || ws === "root" || ws === "org_root")) {
+      raw = localStorage.getItem(STORAGE_KEY_CONFIG) || localStorage.getItem("ovel_reputation_config_v1");
+      if (raw !== null) effectiveKey = STORAGE_KEY_CONFIG;
+    }
   } catch {
     return DEFAULT_REPUTATION_CONFIG;
   }
+
   try {
-  return readCached(STORAGE_KEY_CONFIG, raw, DEFAULT_REPUTATION_CONFIG, (stored) => {
-    const parsed = JSON.parse(stored) as ReputationConfig;
-    const config = { ...DEFAULT_REPUTATION_CONFIG, ...parsed };
-    if (parsed.googleMapsReviewUrl?.includes("leclat-aesthetic-sf")) {
-      config.googleMapsReviewUrl = "https://maps.google.com";
-      const nextRaw = JSON.stringify(config);
-      localStorage.setItem(STORAGE_KEY_CONFIG, nextRaw);
-      raw = nextRaw;
-    }
-    return config;
-  });
+    return readCached(effectiveKey, raw, DEFAULT_REPUTATION_CONFIG, (stored) => {
+      const parsed = JSON.parse(stored) as ReputationConfig;
+      const config = { ...DEFAULT_REPUTATION_CONFIG, ...parsed };
+      if (parsed.googleMapsReviewUrl?.includes("leclat-aesthetic-sf")) {
+        config.googleMapsReviewUrl = "https://maps.google.com";
+        const nextRaw = JSON.stringify(config);
+        localStorage.setItem(effectiveKey, nextRaw);
+        raw = nextRaw;
+      }
+      return config;
+    });
   } catch {
     return DEFAULT_REPUTATION_CONFIG;
   }
 }
 
-export function saveReputationConfig(config: ReputationConfig): void {
+export function saveReputationConfig(config: ReputationConfig, workspaceId?: string): void {
   if (typeof window === "undefined") return;
+  const ws = resolveWorkspace(workspaceId);
+  const scopedKey = `${STORAGE_KEY_CONFIG}_${ws}`;
   try {
     const raw = JSON.stringify(config);
-    localStorage.setItem(STORAGE_KEY_CONFIG, raw);
-    reviewCache.set(STORAGE_KEY_CONFIG, { raw, value: config });
+    localStorage.setItem(scopedKey, raw);
+    reviewCache.set(scopedKey, { raw, value: config });
+    if (ws === "demo" || ws === "root" || ws === "org_root") {
+      localStorage.setItem(STORAGE_KEY_CONFIG, raw);
+      reviewCache.set(STORAGE_KEY_CONFIG, { raw, value: config });
+    }
     emitStoreChange();
   } catch (err) {
     console.error("Failed to save reputation config", err);
   }
 }
 
-export function submitCustomerReview(data: Omit<CustomerReview, "id" | "createdAt" | "verifiedBooking">): CustomerReview {
-  const current = getReviews();
+export function submitCustomerReview(
+  data: Omit<CustomerReview, "id" | "createdAt" | "verifiedBooking">,
+  workspaceId?: string
+): CustomerReview {
+  const ws = resolveWorkspace(workspaceId);
+  const current = getReviews(ws);
   const newReview: CustomerReview = {
     ...data,
     id: `rev_${Date.now()}`,
@@ -142,12 +177,17 @@ export function submitCustomerReview(data: Omit<CustomerReview, "id" | "createdA
   };
 
   const updated = [newReview, ...current];
-  saveReviews(updated);
+  saveReviews(updated, ws);
   return newReview;
 }
 
-export function replyToCustomerReview(reviewId: string, replyText: string): CustomerReview[] {
-  const current = getReviews();
+export function replyToCustomerReview(
+  reviewId: string,
+  replyText: string,
+  workspaceId?: string
+): CustomerReview[] {
+  const ws = resolveWorkspace(workspaceId);
+  const current = getReviews(ws);
   const updated = current.map((r) => {
     if (r.id === reviewId) {
       return {
@@ -158,6 +198,6 @@ export function replyToCustomerReview(reviewId: string, replyText: string): Cust
     }
     return r;
   });
-  saveReviews(updated);
+  saveReviews(updated, ws);
   return updated;
 }

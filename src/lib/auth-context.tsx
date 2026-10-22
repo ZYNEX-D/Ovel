@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { User, Session } from "@supabase/supabase-js";
 import { useClerk, useUser, useSession } from "@clerk/nextjs";
 import { clerkSessionView } from "./auth-session";
+import { setActiveWorkspaceId } from "./platform-store";
 
 export type UserRole = "super_admin" | "business_owner" | "staff" | "client";
 
@@ -50,6 +51,7 @@ interface AuthContextType {
   impersonateUser: (userId: string) => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
   updateOrganizationDetails: (name: string, slug: string) => void;
+  deleteAccount: () => Promise<{ error: string | null }>;
 }
 
 export const INITIAL_SYSTEM_USERS: UserProfile[] = [
@@ -70,7 +72,6 @@ export const INITIAL_SYSTEM_USERS: UserProfile[] = [
 ];
 
 const AUTH_STORAGE_KEY = "ovel_active_auth_profile_v2";
-const USERS_STORAGE_KEY = "ovel_system_users_v2";
 const EMPTY_TEAM: UserProfile[] = [];
 
 const AuthContext = createContext<AuthContextType>({
@@ -94,6 +95,7 @@ const AuthContext = createContext<AuthContextType>({
   impersonateUser: () => {},
   updateProfile: () => {},
   updateOrganizationDetails: () => {},
+  deleteAccount: async () => ({ error: null }),
 });
 
 function clerkConfigured() {
@@ -127,6 +129,7 @@ function FallbackAuthProvider({ children }: { children: React.ReactNode }) {
     impersonateUser: () => {},
     updateProfile: () => {},
     updateOrganizationDetails: () => {},
+    deleteAccount: async () => ({ error: null }),
   }), []);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -153,6 +156,7 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
     let ignore = false;
     const userId = activeUserId;
     localStorage.removeItem(AUTH_STORAGE_KEY);
+
     async function loadProfile() {
       try {
         const token = await sessionRef.current?.getToken();
@@ -164,12 +168,23 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
         if (!response.ok) throw new Error("Unable to verify session");
         const data = await response.json();
         if (ignore || controller.signal.aborted) return;
-        setProfile(data.profile ?? null);
+        const loadedProfile: UserProfile | null = data.profile ?? null;
+        if (loadedProfile?.organizationId && typeof window !== "undefined") {
+          const customSlug = localStorage.getItem(`ovel_custom_slug_${loadedProfile.organizationId}`);
+          const customName = localStorage.getItem(`ovel_custom_name_${loadedProfile.organizationId}`);
+          if (customSlug) loadedProfile.organizationSlug = customSlug;
+          if (customName) loadedProfile.organizationName = customName;
+        }
+        setProfile(loadedProfile);
         setLoadedFor(userId);
+        if (loadedProfile?.organizationId) {
+          setActiveWorkspaceId(loadedProfile.organizationId);
+        }
       } catch {
         if (ignore || controller.signal.aborted) return;
         setProfile(null);
         setLoadedFor(userId);
+        setActiveWorkspaceId("");
       }
     }
     void loadProfile();
@@ -184,7 +199,68 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(null);
     setLoadedFor(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    setActiveWorkspaceId("");
   }, [clerk]);
+
+  const deleteAccount = useCallback(async (): Promise<{ error: string | null }> => {
+    try {
+      const token = await sessionRef.current?.getToken();
+      // Call server deletion route
+      await fetch("/api/user/delete", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+
+      // Also attempt client SDK delete if user exists
+      if (clerkUser) {
+        try {
+          await clerkUser.delete();
+        } catch {
+          // Ignore if already deleted by server route
+        }
+      }
+
+      // Purge workspace storage keys for this organization
+      if (typeof window !== "undefined" && profile) {
+        const identifiers = [
+          profile.organizationId,
+          profile.organizationSlug,
+          `org_${profile.id}`,
+          profile.id,
+        ].filter(Boolean) as string[];
+
+        identifiers.forEach((id) => {
+          localStorage.removeItem(`ovel_bookings_${id}`);
+          localStorage.removeItem(`ovel_services_${id}`);
+          localStorage.removeItem(`ovel_staff_${id}`);
+          localStorage.removeItem(`ovel_roster_${id}`);
+          localStorage.removeItem(`ovel_invoices_${id}`);
+          localStorage.removeItem(`ovel_quotes_${id}`);
+          localStorage.removeItem(`ovel_clients_${id}`);
+          localStorage.removeItem(`ovel_reminders_${id}`);
+          localStorage.removeItem(`ovel_reviews_${id}`);
+          localStorage.removeItem(`ovelink_customization_${id}`);
+        });
+
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+      }
+
+      try {
+        await clerk.signOut();
+      } catch {
+        // ignore
+      }
+
+      setProfile(null);
+      setLoadedFor(null);
+      setActiveWorkspaceId("");
+
+      return { error: null };
+    } catch (err: unknown) {
+      return { error: (err as Error)?.message || "Failed to delete account" };
+    }
+  }, [clerk, clerkUser, profile]);
+
   const useLogin = useCallback(async () => ({ error: "Use the Clerk sign-in form at /login." }), []);
   const unavailable = useCallback(async () => ({ error: "Manage account invitations and recovery through Clerk." }), []);
   const noIdentityChange = useCallback(() => {}, []);
@@ -193,14 +269,48 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
     setProfile((current) => (current ? { ...current, ...updates } : current));
   }, []);
 
-  const updateOrganizationDetails = useCallback((name: string, slug: string) => {
-    setProfile((current) => current ? {
-      ...current,
-      organizationName: name,
-      organizationSlug: slug,
-      organizationId: "org_" + slug,
-    } : current);
-  }, []);
+  const updateOrganizationDetails = useCallback(async (name: string, slug: string) => {
+    if (!profile) return;
+    const cleanSlug = slug.toLowerCase().trim().replace(/[^a-z0-9-]/g, "") || "my-brand";
+    const cleanName = name.trim() || profile.organizationName || "My Business";
+
+    const updatedProfile: UserProfile = {
+      ...profile,
+      organizationName: cleanName,
+      organizationSlug: cleanSlug,
+      organizationId: profile.organizationId || ("org_" + cleanSlug),
+    };
+
+    setProfile(updatedProfile);
+
+    // Save to local storage for instant retrieval across browser sessions
+    try {
+      if (profile.organizationId) {
+        localStorage.setItem(`ovel_custom_slug_${profile.organizationId}`, cleanSlug);
+        localStorage.setItem(`ovel_custom_name_${profile.organizationId}`, cleanName);
+      }
+    } catch {
+      // ignore
+    }
+
+    // Persist to Clerk user unsafeMetadata via PATCH /api/user/me
+    try {
+      const token = await sessionRef.current?.getToken();
+      await fetch("/api/user/me", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          businessName: cleanName,
+          businessSlug: cleanSlug,
+        }),
+      });
+    } catch {
+      // safe fallback
+    }
+  }, [profile]);
 
   const value = useMemo<AuthContextType>(() => ({
     user: null,
@@ -223,6 +333,7 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
     impersonateUser: noIdentityChange,
     updateProfile,
     updateOrganizationDetails,
+    deleteAccount,
   }), [
     view.profile,
     view.isLoading,
@@ -233,6 +344,7 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
     noIdentityChange,
     updateProfile,
     updateOrganizationDetails,
+    deleteAccount,
   ]);
 
   return (

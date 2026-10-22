@@ -17,7 +17,9 @@ import {
   Upload,
   Tag,
   Mail,
-  MessageSquare
+  MessageSquare,
+  Calendar,
+  Info
 } from "lucide-react";
 import {
   OvelinkCustomization,
@@ -50,8 +52,10 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1); // 1: offering details, 2: schedule/order specifics, 3: client intake, 4: confirmed
 
   const hydrated = useHydrated();
-  const bookings = useClientStore(getBookings, () => INITIAL_BOOKINGS);
-  const tomorrowStr = hydrated ? addDaysLocal(new Date(), 1) : "";
+  const targetWs = config.organizationId || config.slug;
+  const bookings = useClientStore(() => getBookings(targetWs), () => INITIAL_BOOKINGS);
+  const minNotice = typeof config.minNoticeDays === "number" ? config.minNoticeDays : 1;
+  const tomorrowStr = hydrated ? addDaysLocal(new Date(), minNotice) : "";
   const [selectedDate, setSelectedDate] = useState("");
   const dateValue = selectedDate || tomorrowStr;
   const [selectedTimeSlot, setSelectedTimeSlot] = useState("");
@@ -99,9 +103,14 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
   const activeSlot = openSlots.some((slot) => slot.time === selectedTimeSlot)
     ? selectedTimeSlot
     : (openSlots[0]?.time ?? "");
-
   const retailOfferings = useMemo(() => {
-    return config.offerings.filter((o) => o.type === "order" && o.id !== selectedOffering?.id && o.isActive);
+    const list = (config.offerings || []).filter((o) => o.type === "order" && o.id !== selectedOffering?.id && o.isActive);
+    const seen = new Set<string>();
+    return list.filter((o) => {
+      if (!o?.id || seen.has(o.id)) return false;
+      seen.add(o.id);
+      return true;
+    });
   }, [config.offerings, selectedOffering]);
 
   const selectedRetailTotal = useMemo(() => {
@@ -115,9 +124,21 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
     setSelectedRetailAddons((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const availableOfferingTypes = useMemo(() => {
+    const types = new Set((config.offerings || []).filter((o) => o.isActive).map((o) => o.type));
+    return Array.from(types);
+  }, [config.offerings]);
+
   const filteredOfferings = useMemo(() => {
-    if (activeFilter === "all") return config.offerings.filter(o => o.isActive);
-    return config.offerings.filter(o => o.isActive && o.type === activeFilter);
+    const all = (config.offerings || []).filter((o) => o.isActive);
+    const seen = new Set<string>();
+    const unique = all.filter((o) => {
+      if (!o?.id || seen.has(o.id)) return false;
+      seen.add(o.id);
+      return true;
+    });
+    if (activeFilter === "all") return unique;
+    return unique.filter((o) => o.type === activeFilter);
   }, [config.offerings, activeFilter]);
 
   const handleSelectOffering = (off: OvelinkOffering) => {
@@ -236,20 +257,19 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
         </div>
       </div>
 
-      {/* Main Content Container - with generous mobile padding and max-w-xl */}
-      <div className={`max-w-xl mx-auto px-4 sm:px-6 relative ${isEmbedPreview ? "-mt-10 pb-8" : "-mt-16 sm:-mt-20 pb-24"}`}>
+      {/* Main Content Container - with balanced mobile padding and max-w-xl */}
+      <div className={`max-w-xl mx-auto px-4 sm:px-6 relative ${isEmbedPreview ? "-mt-12 pb-8" : "-mt-16 sm:-mt-20 pb-24"}`}>
 
         {/* Business Profile Header Card */}
         <div
-          className={`p-5 sm:p-7 shadow-[0_12px_40px_rgba(16,95,104,0.08)] border border-black/[0.05] relative transition-all bg-white ${getCardRadius()}`}
+          className={`p-5 sm:p-6 shadow-sm border border-black/[0.06] relative transition-all bg-white ${getCardRadius()}`}
           style={{ backgroundColor: config.surfaceColor }}
         >
-          {/* Top Profile Row: Avatar + Title & Live Status */}
-          <div className="flex items-start gap-4 sm:gap-5">
-            {/* Avatar Squircle with Verified Badge */}
-            <div className="relative flex-shrink-0">
+          {/* Centered Avatar + Verified Shield */}
+          <div className="flex flex-col items-center text-center">
+            <div className="relative -mt-12 sm:-mt-14 mb-3">
               <div
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl flex items-center justify-center text-white text-xl sm:text-2xl font-bold shadow-md border-2 border-white transition-transform overflow-hidden"
+                className="w-20 h-20 sm:w-22 sm:h-22 rounded-2xl sm:rounded-3xl flex items-center justify-center text-white text-2xl sm:text-3xl font-bold shadow-md border-4 border-white transition-transform overflow-hidden"
                 style={{ backgroundColor: config.primaryColor }}
               >
                 {config.logoUrl ? (
@@ -263,210 +283,228 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                 )}
               </div>
               <div
-                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#105F68] border-2 border-white flex items-center justify-center shadow-sm"
+                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#105F68] border-2 border-white flex items-center justify-center shadow-xs"
                 title="Verified Merchant"
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-[#63C1BB]" />
               </div>
             </div>
 
-            {/* Title, Category & Status */}
-            <div className="min-w-0 flex-1 pt-0.5">
-              <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-                <span
-                  className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
-                  style={{ backgroundColor: `${config.accentColor}25`, color: config.primaryColor }}
-                >
-                  {config.businessCategory}
-                </span>
-                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-full font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Instant Confirmation
-                </span>
-              </div>
-
-              <h1
-                className="text-xl sm:text-2xl font-bold tracking-tight text-[#103438] leading-tight"
-                style={{ fontFamily: config.fontFamily }}
+            {/* Badges */}
+            <div className="flex flex-wrap items-center justify-center gap-1.5 mb-2">
+              <span
+                className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
+                style={{ backgroundColor: `${config.accentColor}20`, color: config.primaryColor }}
               >
-                {config.businessName}
-              </h1>
+                {config.businessCategory}
+              </span>
+              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 rounded-full font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Instant Confirmation
+              </span>
+            </div>
 
-              {config.businessTagline && (
-                <p className="text-xs sm:text-sm text-[#3A9295] font-medium mt-0.5 leading-snug">
-                  {config.businessTagline}
-                </p>
+            {/* Business Title & Tagline */}
+            <h1
+              className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 leading-tight"
+              style={{ fontFamily: config.fontFamily }}
+            >
+              {config.businessName}
+            </h1>
+
+            {config.businessTagline && (
+              <p className="text-xs sm:text-sm text-[#105F68] font-medium mt-1 max-w-sm mx-auto leading-snug">
+                {config.businessTagline}
+              </p>
+            )}
+
+            {/* Bio */}
+            {config.businessBio && (
+              <p className="text-xs text-slate-600 leading-relaxed mt-2.5 max-w-md mx-auto font-normal">
+                {config.businessBio}
+              </p>
+            )}
+
+            {/* Social & Contact Bar */}
+            <div className="mt-4 pt-3.5 border-t border-slate-100 w-full flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 text-xs">
+              {config.location && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200/80 text-[11px] text-slate-700 font-medium">
+                  <MapPin className="w-3.5 h-3.5 text-[#105F68] shrink-0" />
+                  <span className="truncate max-w-[180px]">{config.location}</span>
+                </span>
               )}
+
+              {config.whatsappNumber && (
+                <a
+                  href={`https://wa.me/${config.whatsappNumber.replace(/[^0-9]/g, "")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-2xs"
+                >
+                  <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>WhatsApp</span>
+                </a>
+              )}
+
+              {config.email && (
+                <a
+                  href={`mailto:${config.email}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium text-slate-700 bg-slate-50 border border-slate-200 hover:bg-white transition-colors"
+                >
+                  <Mail className="w-3.5 h-3.5 text-[#105F68]" />
+                  <span>Email</span>
+                </a>
+              )}
+
+              {config.instagramHandle && (
+                <a
+                  href={`https://instagram.com/${config.instagramHandle.replace("@", "")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition-colors"
+                >
+                  <span>{config.instagramHandle}</span>
+                </a>
+              )}
+
+              <button
+                onClick={handleCopyLink}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200/70 border border-slate-200/80 text-[11px] font-medium text-slate-700 transition-colors shadow-2xs"
+              >
+                <Copy className="w-3.5 h-3.5 text-[#105F68]" />
+                <span>{copiedLink ? "Link Copied!" : `ovel.app/l/${config.slug}`}</span>
+              </button>
             </div>
           </div>
+        </div>
 
-          {/* Business Bio */}
-          {config.businessBio && (
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mt-4 pt-3.5 border-t border-slate-100 font-normal">
-              {config.businessBio}
-            </p>
-          )}
-
-          {/* Micro-Action Quick Connect Bar */}
-          <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-wrap items-center gap-2 text-xs">
-            {config.location && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200/80 text-[11px] text-slate-700 font-medium">
-                <MapPin className="w-3.5 h-3.5 text-[#105F68] flex-shrink-0" />
-                <span className="truncate max-w-[190px]">{config.location}</span>
-              </span>
-            )}
-
-            {config.whatsappNumber && (
-              <a
-                href={`https://wa.me/${config.whatsappNumber.replace(/[^0-9]/g, "")}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm"
-              >
-                <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                <span>WhatsApp Us</span>
-              </a>
-            )}
-
-            {config.email && (
-              <a
-                href={`mailto:${config.email}`}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium text-[#105F68] bg-[#F6FAF9] border border-[#105F68]/20 hover:bg-white transition-colors"
-              >
-                <Mail className="w-3.5 h-3.5 text-[#3A9295]" />
-                <span>Email</span>
-              </a>
-            )}
-
-            {config.instagramHandle && (
-              <a
-                href={`https://instagram.com/${config.instagramHandle.replace("@", "")}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200/80 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition-colors"
-              >
-                <span>{config.instagramHandle}</span>
-              </a>
-            )}
-
-            <button
-              onClick={handleCopyLink}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#105F68]/10 hover:bg-[#105F68]/15 border border-[#105F68]/20 text-[11px] font-medium text-[#105F68] transition-colors ml-auto shadow-sm"
-            >
-              <Copy className="w-3.5 h-3.5" />
-              <span>{copiedLink ? "Copied!" : `ovel.app/l/${config.slug}`}</span>
-            </button>
+        {/* Offering Category Filter Tabs (Zero Scrollbars) */}
+        {availableOfferingTypes.length > 1 && (
+          <div
+            className="mt-5 flex items-center gap-2 overflow-x-auto pb-1 hide-scrollbar scrollbar-none no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          >
+            {[
+              { id: "all" as const, label: "All Offerings" },
+              { id: "appointment" as const, label: "Appointments" },
+              { id: "booking" as const, label: "Bookings & Slots" },
+              { id: "order" as const, label: "Orders & Packages" },
+            ]
+              .filter((tab) => tab.id === "all" || availableOfferingTypes.includes(tab.id))
+              .map((tab) => {
+                const isActive = activeFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => { playClick(); setActiveFilter(tab.id); }}
+                    className={`px-3.5 py-1.5 text-xs font-medium whitespace-nowrap transition-all rounded-full ${
+                      isActive
+                        ? "text-white shadow-xs"
+                        : "bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 shadow-2xs"
+                    }`}
+                    style={{
+                      backgroundColor: isActive ? config.primaryColor : undefined,
+                      borderColor: isActive ? config.primaryColor : undefined,
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
           </div>
-        </div>
-
-        {/* Offering Category Filter Tabs */}
-        <div className="mt-6 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-          {[
-            { id: "all" as const, label: "All Offerings" },
-            { id: "appointment" as const, label: "Appointments" },
-            { id: "booking" as const, label: "Bookings & Slots" },
-            { id: "order" as const, label: "Orders & Packages" },
-          ].map((tab) => {
-            const isActive = activeFilter === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => { playClick(); setActiveFilter(tab.id); }}
-                className={`px-4 py-2 text-xs font-semibold whitespace-nowrap transition-all rounded-full ${
-                  isActive
-                    ? "text-white shadow-md shadow-[#105F68]/20"
-                    : "bg-white/80 hover:bg-white text-slate-600 border border-slate-200/80 shadow-sm"
-                }`}
-                style={{
-                  backgroundColor: isActive ? config.primaryColor : undefined,
-                  borderColor: isActive ? config.primaryColor : undefined,
-                }}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        )}
 
         {/* Offerings Grid */}
         <div className="mt-4 space-y-3.5">
-          {filteredOfferings.map((off) => {
-            const isSelected = selectedOffering?.id === off.id;
-            return (
-              <div
-                key={off.id}
-                onClick={() => handleSelectOffering(off)}
-                className={`p-5 sm:p-6 bg-white border transition-all duration-200 cursor-pointer relative group hover:shadow-[0_12px_30px_rgba(16,95,104,0.08)] hover:-translate-y-0.5 ${getCardRadius()} ${
-                  isSelected ? "ring-2 ring-[#105F68] border-transparent" : "border-slate-200/70 shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
-                }`}
-                style={{ backgroundColor: config.surfaceColor }}
-              >
-                {/* Header Row: Badges + Price */}
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {off.badge && (
-                      <span
-                        className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
-                        style={{ backgroundColor: `${config.accentColor}25`, color: config.primaryColor }}
-                      >
-                        {off.badge}
-                      </span>
-                    )}
-                    <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">
-                      {off.type}
-                    </span>
-                  </div>
-
-                  <div className="text-right flex-shrink-0">
-                    <span className="text-lg sm:text-xl font-bold tracking-tight text-[#103438]">
-                      ${(off.priceCents / 100).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Service Name & Description */}
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-[#103438] group-hover:text-[#105F68] transition-colors leading-snug">
-                    {off.name}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 font-normal mt-1.5 leading-relaxed">
-                    {off.description}
-                  </p>
-                </div>
-
-                {/* Footer: Metadata Chips + CTA Button */}
-                <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {off.durationMinutes && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-full">
-                        <Clock className="w-3 h-3 text-[#105F68]" />
-                        <span>{off.durationMinutes} mins</span>
-                      </span>
-                    )}
-
-                    {off.depositCents > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">
-                        <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                        <span>${(off.depositCents / 100).toFixed(2)} deposit</span>
-                      </span>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSelectOffering(off);
-                    }}
-                    className="px-5 py-2.5 rounded-full text-xs font-semibold text-white shadow-md shadow-[#105F68]/20 flex items-center gap-1.5 active:scale-95 hover:opacity-95 transition-all flex-shrink-0"
-                    style={{ backgroundColor: config.primaryColor }}
-                  >
-                    <span>{off.type === "order" ? "Order Now" : "Book Slot"}</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+          {filteredOfferings.length === 0 ? (
+            <div className="py-12 px-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/70 text-center space-y-2.5 shadow-xs">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto text-slate-500">
+                <Calendar className="w-5 h-5 text-[#105F68]" />
               </div>
-            );
-          })}
+              <h3 className="text-sm font-semibold text-slate-800">No Services Available Yet</h3>
+              <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                Services and bookings published by {config.businessName} will appear here for online reservation.
+              </p>
+            </div>
+          ) : (
+            filteredOfferings.map((off, idx) => {
+              const isSelected = selectedOffering?.id === off.id;
+              return (
+                <div
+                  key={`${off.id}_${idx}`}
+                  onClick={() => handleSelectOffering(off)}
+                  className={`p-5 sm:p-6 bg-white border transition-all duration-200 cursor-pointer relative group hover:shadow-[0_12px_30px_rgba(16,95,104,0.08)] hover:-translate-y-0.5 ${getCardRadius()} ${
+                    isSelected ? "ring-2 ring-[#105F68] border-transparent" : "border-slate-200/70 shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
+                  }`}
+                  style={{ backgroundColor: config.surfaceColor }}
+                >
+                  {/* Header Row: Badges + Price */}
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {off.badge && (
+                        <span
+                          className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
+                          style={{ backgroundColor: `${config.accentColor}25`, color: config.primaryColor }}
+                        >
+                          {off.badge}
+                        </span>
+                      )}
+                      <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">
+                        {off.type}
+                      </span>
+                    </div>
+
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-lg sm:text-xl font-bold tracking-tight text-[#103438]">
+                        ${(off.priceCents / 100).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Service Name & Description */}
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-[#103438] group-hover:text-[#105F68] transition-colors leading-snug">
+                      {off.name}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-600 font-normal mt-1.5 leading-relaxed">
+                      {off.description}
+                    </p>
+                  </div>
+
+                  {/* Footer: Metadata Chips + CTA Button */}
+                  <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {off.durationMinutes && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-full">
+                          <Clock className="w-3 h-3 text-[#105F68]" />
+                          <span>{off.durationMinutes} mins</span>
+                        </span>
+                      )}
+
+                      {off.depositCents > 0 && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">
+                          <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                          <span>${(off.depositCents / 100).toFixed(2)} deposit</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelectOffering(off);
+                      }}
+                      className="px-5 py-2.5 rounded-full text-xs font-semibold text-white shadow-md shadow-[#105F68]/20 flex items-center gap-1.5 active:scale-95 hover:opacity-95 transition-all flex-shrink-0"
+                      style={{ backgroundColor: config.primaryColor }}
+                    >
+                      <span>{off.type === "order" ? "Order Now" : "Book Slot"}</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Verified Customer Reviews & Social Proof Module */}
@@ -557,7 +595,9 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
             <div className="flex items-center justify-between pb-3 border-b border-black/10">
               <div>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                  {selectedOffering.type === "order" ? "Custom Order Intake" : "Reserve Time Slot"}
+                  {selectedOffering.type === "order"
+                    ? (config.orderModalTitle || "Custom Order Intake")
+                    : (config.bookingModalTitle || "Reserve Time Slot")}
                 </span>
                 <h3 className="text-lg font-bold" style={{ color: config.primaryColor }}>
                   {selectedOffering.name}
@@ -579,6 +619,13 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
             {/* STEP 1: TIME SLOT OR ORDER QUANTITY */}
             {step === 1 && selectedOffering.requiresTimeSlot && (
               <div className="space-y-4">
+                {config.bookingInstructions && (
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600 flex items-start gap-2.5">
+                    <Info className="w-4 h-4 text-[#105F68] shrink-0 mt-0.5" />
+                    <p className="leading-relaxed">{config.bookingInstructions}</p>
+                  </div>
+                )}
+
                 <div>
                   <label className="text-xs font-semibold block mb-1.5 text-slate-700">
                     Select Date
@@ -593,9 +640,14 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold block mb-1.5 text-slate-700">
-                    Available Time Slot
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold block text-slate-700">
+                      {config.timeSlotLabel || "Available Time Slot"}
+                    </label>
+                    {config.slotDurationNotice && (
+                      <span className="text-[10px] text-slate-400 font-medium">{config.slotDurationNotice}</span>
+                    )}
+                  </div>
                   {openSlots.length === 0 ? (
                     <p className="text-xs text-slate-500">No open times on this date. Try another day.</p>
                   ) : (
@@ -624,6 +676,12 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                     </div>
                   )}
                 </div>
+
+                {config.cancellationPolicy && (
+                  <p className="text-[11px] text-slate-400 italic">
+                    ℹ️ {config.cancellationPolicy}
+                  </p>
+                )}
 
                 <div className="pt-2 flex justify-end">
                   <button
@@ -789,11 +847,11 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                     </div>
 
                     <div className="space-y-1.5">
-                      {retailOfferings.map((item) => {
+                      {retailOfferings.map((item, idx) => {
                         const isChecked = !!selectedRetailAddons[item.id];
                         return (
                           <div
-                            key={item.id}
+                            key={`${item.id}_${idx}`}
                             onClick={() => toggleRetailAddon(item.id)}
                             className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between text-xs ${
                               isChecked

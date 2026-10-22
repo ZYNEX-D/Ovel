@@ -6,6 +6,8 @@ import { emitStoreChange } from "./store-events";
  * for ALL businesses taking Appointments, Bookings, or Orders.
  */
 
+import { getServices, saveServices, ServiceItem } from "@/lib/platform-store";
+
 export type OfferingType = "appointment" | "booking" | "order";
 
 export interface OvelinkOffering {
@@ -45,6 +47,7 @@ export interface OvelinkThemePreset {
 
 export interface OvelinkCustomization {
   slug: string;
+  organizationId?: string;
   businessName: string;
   businessTagline: string;
   businessBio: string;
@@ -74,6 +77,16 @@ export interface OvelinkCustomization {
   
   // Offerings Catalog
   offerings: OvelinkOffering[];
+
+  // Time Slot & Booking Customization
+  bookingModalTitle?: string;
+  orderModalTitle?: string;
+  timeSlotLabel?: string;
+  timeSlots?: string[];
+  bookingInstructions?: string;
+  cancellationPolicy?: string;
+  minNoticeDays?: number;
+  slotDurationNotice?: string;
 }
 
 export const THEME_PRESETS: OvelinkThemePreset[] = [
@@ -403,15 +416,96 @@ export const PRESET_OVELINKS: Record<string, OvelinkCustomization> = {
   },
 };
 
-const STORAGE_KEY = "ovel_customized_ovelinks_v1";
+const STORAGE_KEY = "ovel_customized_ovelinks_v2";
+const STORAGE_KEY_V1 = "ovel_customized_ovelinks_v1";
 let cachedOvelinkRaw: string | null | undefined;
 let cachedOvelinks: Record<string, OvelinkCustomization> | null = null;
+
+export function createDefaultOvelink(
+  slug: string,
+  businessName?: string,
+  organizationId?: string
+): OvelinkCustomization {
+  const cleanName =
+    businessName && businessName !== "My Business" && businessName !== "Ovel Global Platform"
+      ? businessName
+      : slug
+          .split("-")
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ");
+
+  const initials =
+    cleanName
+      .split(" ")
+      .map((w) => w[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "OV";
+
+  return {
+    slug,
+    organizationId,
+    businessName: cleanName,
+    businessTagline: "Online Bookings & Instant Confirmation",
+    businessBio: `Welcome to ${cleanName}. Reserve your appointment or order directly with instant confirmation.`,
+    businessCategory: "General Services",
+    avatarInitials: initials,
+    coverGradient: "from-[#105F68] to-[#0D4F57]",
+    fontFamily: "Kaleko 105",
+    primaryColor: "#105F68",
+    accentColor: "#63C1BB",
+    bgColor: "#F6FAF9",
+    textColor: "#103438",
+    surfaceColor: "#FFFFFF",
+    cardRadius: "rounded-3xl",
+    buttonStyle: "pill",
+    whatsappNumber: "",
+    currency: "USD",
+    bookingModalTitle: "Reserve Time Slot",
+    orderModalTitle: "Custom Order Intake",
+    timeSlotLabel: "Available Time Slot",
+    timeSlots: ["09:00 AM", "10:30 AM", "01:00 PM", "02:30 PM", "04:00 PM", "05:30 PM"],
+    bookingInstructions: "Select your preferred date & time. Your appointment will be confirmed instantly.",
+    cancellationPolicy: "Free cancellation or rescheduling up to 24 hours prior.",
+    minNoticeDays: 1,
+    slotDurationNotice: "Includes setup and consultation",
+    offerings: [
+      {
+        id: "off_def_1",
+        type: "appointment",
+        name: "Discovery Consultation & Assessment",
+        description: "1-on-1 private session to evaluate your needs, define goals, and review recommendations.",
+        priceCents: 9500,
+        depositCents: 2500,
+        durationMinutes: 45,
+        requiresTimeSlot: true,
+        badge: "Recommended",
+        category: "Consultations",
+        isActive: true,
+      },
+      {
+        id: "off_def_2",
+        type: "booking",
+        name: "Standard Service Appointment",
+        description: "Complete service appointment with full provider allocation and instant confirmation.",
+        priceCents: 15000,
+        depositCents: 5000,
+        durationMinutes: 60,
+        requiresTimeSlot: true,
+        badge: "Popular",
+        category: "Appointments",
+        isActive: true,
+      },
+    ],
+  };
+}
 
 export function getAllOvelinks(): Record<string, OvelinkCustomization> {
   if (typeof window === "undefined") return PRESET_OVELINKS;
   let raw: string | null = null;
   try {
-    raw = localStorage.getItem(STORAGE_KEY);
+    raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY_V1);
   } catch {
     return PRESET_OVELINKS;
   }
@@ -430,33 +524,327 @@ export function getAllOvelinks(): Record<string, OvelinkCustomization> {
   return merged;
 }
 
-export function getOvelink(slug: string): OvelinkCustomization {
+export function sanitizeSlug(input: string): string {
+  return (input || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export function validateSlug(
+  slug: string,
+  currentOrgId?: string
+): { valid: boolean; error?: string; cleanSlug: string } {
+  const cleanSlug = sanitizeSlug(slug);
+  if (!cleanSlug || cleanSlug.length < 2) {
+    return { valid: false, error: "URL handle must be at least 2 characters.", cleanSlug };
+  }
+  if (cleanSlug.length > 45) {
+    return { valid: false, error: "URL handle cannot exceed 45 characters.", cleanSlug };
+  }
+  const RESERVED = [
+    "api", "login", "signup", "dashboard", "admin", "settings", "portal",
+    "quotes", "invoices", "services", "team", "staff", "roster", "reviews",
+    "reminders", "auth", "root", "public", "l", "quote"
+  ];
+  if (RESERVED.includes(cleanSlug)) {
+    return { valid: false, error: `"${cleanSlug}" is a reserved system URL handle.`, cleanSlug };
+  }
+
+  if (typeof window !== "undefined") {
+    const all = getAllOvelinks();
+    const existing = all[cleanSlug];
+    if (existing && currentOrgId && existing.organizationId && existing.organizationId !== currentOrgId) {
+      return {
+        valid: false,
+        error: `Handle "ovel.app/l/${cleanSlug}" is already taken by another business.`,
+        cleanSlug,
+      };
+    }
+  }
+
+  return { valid: true, cleanSlug };
+}
+
+const REDIRECTS_KEY = "ovel_slug_redirects_v1";
+
+export function getSlugRedirect(slug: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(REDIRECTS_KEY);
+    if (raw) {
+      const map = JSON.parse(raw);
+      return map[slug.toLowerCase()] || null;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+export function setSlugRedirect(oldSlug: string, newSlug: string): void {
+  if (typeof window === "undefined" || !oldSlug || !newSlug || oldSlug === newSlug) return;
+  try {
+    const raw = localStorage.getItem(REDIRECTS_KEY);
+    const map = raw ? JSON.parse(raw) : {};
+    map[oldSlug.toLowerCase()] = newSlug.toLowerCase();
+    localStorage.setItem(REDIRECTS_KEY, JSON.stringify(map));
+  } catch {
+    // ignore
+  }
+}
+
+export function getOvelink(
+  slug: string,
+  fallbackBusinessName?: string,
+  organizationId?: string
+): OvelinkCustomization {
   const all = getAllOvelinks();
-  return all[slug] || all["leclat"] || PRESET_OVELINKS["leclat"];
+  const rawClean = sanitizeSlug(slug) || "leclat";
+  const redirected = getSlugRedirect(rawClean);
+  const targetSlug = redirected || rawClean;
+
+  let item: OvelinkCustomization | undefined;
+
+  // 1. If organizationId provided, prioritize any previously customized brand for this exact workspace
+  if (organizationId) {
+    for (const key in all) {
+      if (all[key]?.organizationId === organizationId) {
+        item = all[key];
+        break;
+      }
+    }
+  }
+
+  // 2. If not found by organizationId, find by target slug
+  if (!item) {
+    item = all[targetSlug];
+  }
+
+  // 3. Fallback to preset templates
+  if (!item && PRESET_OVELINKS[targetSlug]) {
+    item = { ...PRESET_OVELINKS[targetSlug] };
+  }
+  if (!item && PRESET_OVELINKS[rawClean]) {
+    item = { ...PRESET_OVELINKS[rawClean] };
+  }
+
+  // 4. Default initialization if still not found
+  if (!item) {
+    item = createDefaultOvelink(targetSlug, fallbackBusinessName, organizationId);
+    if (typeof window !== "undefined") {
+      all[item.slug] = item;
+      try {
+        const raw = JSON.stringify(all);
+        localStorage.setItem(STORAGE_KEY, raw);
+        cachedOvelinkRaw = raw;
+        cachedOvelinks = all;
+      } catch {
+        // ignore
+      }
+    }
+    return item;
+  }
+
+  // Ensure default booking/time-slot properties are populated if missing on legacy stored links
+  if (!item.timeSlots || item.timeSlots.length === 0) {
+    item.timeSlots = ["09:00 AM", "10:30 AM", "01:00 PM", "02:30 PM", "04:00 PM", "05:30 PM"];
+  }
+  if (!item.bookingModalTitle) item.bookingModalTitle = "Reserve Time Slot";
+  if (!item.orderModalTitle) item.orderModalTitle = "Custom Order Intake";
+  if (!item.timeSlotLabel) item.timeSlotLabel = "Available Time Slot";
+  if (!item.cancellationPolicy) item.cancellationPolicy = "Free cancellation or rescheduling up to 24 hours prior.";
+  if (typeof item.minNoticeDays !== "number") item.minNoticeDays = 1;
+
+  let modified = false;
+
+  // Persist organizationId on item if provided
+  if (organizationId && item.organizationId !== organizationId) {
+    item.organizationId = organizationId;
+    modified = true;
+  }
+
+  // Auto-correct stale bio with mismatched business name
+  if (
+    item.businessBio &&
+    item.businessBio.includes("Welcome to My Business") &&
+    item.businessName &&
+    item.businessName !== "My Business"
+  ) {
+    item.businessBio = item.businessBio.replace(
+      "Welcome to My Business",
+      `Welcome to ${item.businessName}`
+    );
+    modified = true;
+  }
+
+  // Auto-correct generic tagline if it has the raw platform commission phrase
+  if (item.businessTagline === "Direct Appointments & Bookings • 0% Commission") {
+    item.businessTagline = "Online Bookings & Instant Confirmation";
+    modified = true;
+  }
+
+  // Update business name if a valid custom name is provided
+  if (
+    fallbackBusinessName &&
+    fallbackBusinessName !== "My Business" &&
+    fallbackBusinessName !== "Ovel Global Platform" &&
+    fallbackBusinessName !== item.businessName &&
+    !PRESET_OVELINKS[item.slug]
+  ) {
+    item.businessName = fallbackBusinessName;
+    item.avatarInitials = fallbackBusinessName
+      .split(" ")
+      .map((w) => w[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || item.avatarInitials;
+    modified = true;
+  }
+
+  // Sync workspace services from platform store if available (only non-defaults)
+  const wsId = organizationId || item.organizationId;
+  if (wsId) {
+    try {
+      const wsServices = getServices(wsId);
+      const hasCustomWsServices = wsServices && wsServices.some((s) => !s.id.startsWith("off_def_"));
+      if (hasCustomWsServices) {
+        const hasOnlyDefaults =
+          !item.offerings ||
+          item.offerings.length === 0 ||
+          item.offerings.every((o) => o.id.startsWith("off_def_"));
+
+        if (hasOnlyDefaults) {
+          item.offerings = wsServices.map((srv) => ({
+            id: srv.id,
+            type: "appointment" as const,
+            name: srv.name,
+            description: srv.description || "Professional service session.",
+            priceCents: srv.priceCents,
+            depositCents: srv.depositCents,
+            durationMinutes: srv.durationMinutes,
+            requiresTimeSlot: true,
+            category: "Services",
+            isActive: srv.isActive,
+          }));
+          modified = true;
+        }
+      }
+    } catch {
+      // safe fallback
+    }
+  }
+
+  item.offerings = deduplicateOfferings(item.offerings);
+
+  if (modified && typeof window !== "undefined") {
+    all[item.slug] = item;
+    try {
+      const raw = JSON.stringify(all);
+      localStorage.setItem(STORAGE_KEY, raw);
+      cachedOvelinkRaw = raw;
+      cachedOvelinks = all;
+    } catch {
+      // ignore
+    }
+  }
+
+  return item;
+}
+
+export function deduplicateOfferings(offerings: OvelinkOffering[]): OvelinkOffering[] {
+  const seen = new Set<string>();
+  return (offerings || []).filter((o) => {
+    if (!o || !o.id || seen.has(o.id)) return false;
+    seen.add(o.id);
+    return true;
+  });
 }
 
 export function saveOvelink(config: OvelinkCustomization, previousSlug?: string): void {
   if (typeof window === "undefined") return;
   const all = getAllOvelinks();
-  if (previousSlug && previousSlug !== config.slug && all[previousSlug]) {
-    delete all[previousSlug];
+  const cleanSlug = sanitizeSlug(config.slug) || "my-brand";
+
+  // Clean up any old key that previously belonged to this organization
+  if (config.organizationId) {
+    for (const key in all) {
+      if (all[key]?.organizationId === config.organizationId && key !== cleanSlug) {
+        setSlugRedirect(key, cleanSlug);
+        delete all[key];
+      }
+    }
   }
-  all[config.slug] = config;
+  if (previousSlug) {
+    const cleanPrev = sanitizeSlug(previousSlug);
+    if (cleanPrev && cleanPrev !== cleanSlug) {
+      setSlugRedirect(cleanPrev, cleanSlug);
+      if (all[cleanPrev]) {
+        delete all[cleanPrev];
+      }
+    }
+  }
+
+  const sanitized: OvelinkCustomization = {
+    ...config,
+    slug: cleanSlug,
+    offerings: deduplicateOfferings(config.offerings),
+  };
+
+  all[sanitized.slug] = sanitized;
   const raw = JSON.stringify(all);
   localStorage.setItem(STORAGE_KEY, raw);
   cachedOvelinkRaw = raw;
   cachedOvelinks = all;
 
+  // Store fast lookup for this organization ID
+  if (config.organizationId) {
+    try {
+      localStorage.setItem(`ovel_custom_slug_${config.organizationId}`, cleanSlug);
+      localStorage.setItem(`ovel_custom_name_${config.organizationId}`, config.businessName);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Keep platform store services in sync with offerings
+  try {
+    const wsId = config.organizationId || cleanSlug;
+    const servicesFromOfferings: ServiceItem[] = (sanitized.offerings || []).map((o) => ({
+      id: o.id,
+      name: o.name,
+      description: o.description || "Custom service treatment.",
+      durationMinutes: o.durationMinutes || 45,
+      priceCents: typeof o.priceCents === "number" ? o.priceCents : 0,
+      depositCents: typeof o.depositCents === "number" ? o.depositCents : 0,
+      bufferAfterMinutes: 15,
+      isActive: o.isActive !== false,
+    }));
+    saveServices(servicesFromOfferings, wsId);
+    if (config.organizationId && cleanSlug !== config.organizationId) {
+      saveServices(servicesFromOfferings, cleanSlug);
+    }
+  } catch {
+    // safe fallback
+  }
+
   // Dispatch custom reactive event so dashboard, layouts, and active tabs update live
   try {
-    window.dispatchEvent(new CustomEvent("ovel:brand_updated", { detail: config }));
+    window.dispatchEvent(new CustomEvent("ovel:brand_updated", { detail: sanitized }));
+    window.dispatchEvent(new CustomEvent("ovel:data_updated", { detail: { type: "brand", slug: cleanSlug } }));
   } catch {
     // SSR safe
   }
   emitStoreChange();
 }
 
-export function updateBrandDetails(slug: string, updates: Partial<OvelinkCustomization>): OvelinkCustomization {
+export function updateBrandDetails(
+  slug: string,
+  updates: Partial<OvelinkCustomization>
+): OvelinkCustomization {
   const current = getOvelink(slug);
   const updated: OvelinkCustomization = {
     ...current,

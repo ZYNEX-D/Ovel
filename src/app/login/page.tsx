@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -37,6 +37,16 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isDeletedNotice, setIsDeletedNotice] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("deleted") === "1" || params.get("deleted") === "true") {
+        setIsDeletedNotice(true);
+      }
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +101,12 @@ export default function LoginPage() {
 
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md space-y-4">
+        {isDeletedNotice && (
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 text-center animate-in fade-in duration-200 shadow-sm">
+            ✓ Your account, business workspace, and all related records have been permanently deleted.
+          </div>
+        )}
         <div className="bg-white py-8 px-6 sm:px-10 rounded-[2.5rem] border border-[#105F68]/15 shadow-xl space-y-6">
           {isClerkActive ? (
             <ClerkCustomSignIn />

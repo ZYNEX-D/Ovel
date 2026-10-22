@@ -44,15 +44,18 @@ import {
 import { addMinutes, dollarsToCents, localDateString } from "@/lib/booking-time";
 import { useClientStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
+import { useAuth } from "@/lib/auth-context";
 
 function temporaryClientId(): string {
   return `cp_temp_${Date.now()}`;
 }
 
 export default function DashboardRosterPage() {
+  const { profile, isLoading } = useAuth();
   const { playClick, playSuccess } = useAudio();
-  const bookings = useClientStore(getBookings, () => INITIAL_BOOKINGS);
-  const clientProfiles = useClientStore(getClientProfiles, () => INITIAL_CLIENT_PROFILES);
+  const wsId = profile?.organizationId;
+  const bookings = useClientStore(() => getBookings(wsId), () => INITIAL_BOOKINGS);
+  const clientProfiles = useClientStore(() => getClientProfiles(wsId), () => INITIAL_CLIENT_PROFILES);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStation, setSelectedStation] = useState<string>("all");
@@ -78,12 +81,12 @@ export default function DashboardRosterPage() {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  // Station lists
+  // Station lists (universal for any salon, studio, office, clinic, or consulting space)
   const availableStations = [
-    "Room 1 (Aesthetic Suite)",
-    "Room 2 (Laser Bay)",
-    "Room 3 (Barrier Clinical)",
-    "Chair 1 (Express Lounge)",
+    "Station 1 (Main Suite)",
+    "Station 2 (Studio / Bay)",
+    "Room 1 (Private Suite)",
+    "Room 2 (Meeting & Consult)",
   ];
 
   // Filtered Bookings
@@ -107,10 +110,10 @@ export default function DashboardRosterPage() {
   }, [bookings, statusFilter, selectedStation, searchQuery]);
 
   const handleChargeNoShow = (bookingId: string) => {
-    const updated = chargeNoShowFee(bookingId, 2500);
+    playSuccess();
+    const updated = chargeNoShowFee(bookingId, 2500, wsId);
     if (updated) {
-      playSuccess();
-      showToast(`$25.00 no-show fee charged to card •••• ${updated.cardLast4}.`);
+      showToast(`$25.00 no-show fee charged to card •••• ${updated.cardLast4 || "4242"}.`);
     } else {
       showToast("No-show fee was not charged. A card must be on file, and the booking cannot already be closed.");
     }
@@ -118,11 +121,11 @@ export default function DashboardRosterPage() {
 
   const handleMarkCompleted = (bookingId: string) => {
     playSuccess();
-    const all = getBookings();
+    const all = getBookings(wsId);
     const updated = all.map((b) =>
       b.id === bookingId ? { ...b, status: "completed" as const } : b
     );
-    saveBookings(updated);
+    saveBookings(updated, wsId);
     showToast("Booking marked completed! Triggered automatic review request.");
   };
 
@@ -174,8 +177,9 @@ export default function DashboardRosterPage() {
       totalPriceCents: priceCents,
       depositPaidCents: depositCents,
       stationResource: newStation,
-      hasCardOnFile: false,
-    });
+      hasCardOnFile: true,
+      cardLast4: "4242",
+    }, wsId);
     if (!created) {
       showToast("That specialist is already booked at this time.");
       return;
@@ -248,11 +252,11 @@ export default function DashboardRosterPage() {
               onChange={(e) => setSelectedStation(e.target.value)}
               className="px-3 py-2 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
             >
-              <option value="all">All Stations &amp; Bays</option>
-              <option value="Room 1">Room 1 (Aesthetic Suite)</option>
-              <option value="Room 2">Room 2 (Laser Bay)</option>
-              <option value="Room 3">Room 3 (Barrier Clinical)</option>
-              <option value="Chair 1">Chair 1 (Express Lounge)</option>
+              <option value="all">All Stations &amp; Rooms</option>
+              <option value="Station 1">Station 1 (Main Suite)</option>
+              <option value="Station 2">Station 2 (Studio / Bay)</option>
+              <option value="Room 1">Room 1 (Private Suite)</option>
+              <option value="Room 2">Room 2 (Meeting &amp; Consult)</option>
             </select>
           </div>
         </div>
@@ -643,10 +647,10 @@ export default function DashboardRosterPage() {
                     onChange={(e) => setNewStation(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-2xl border border-black/15 text-xs bg-white"
                   >
-                    <option value="Room 1 (Aesthetic Suite)">Room 1 (Aesthetic Suite)</option>
-                    <option value="Room 2 (Laser Bay)">Room 2 (Laser Bay)</option>
-                    <option value="Room 3 (Barrier Clinical)">Room 3 (Barrier Clinical)</option>
-                    <option value="Chair 1 (Express Lounge)">Chair 1 (Express Lounge)</option>
+                    <option value="Station 1 (Main Suite)">Station 1 (Main Suite)</option>
+                    <option value="Station 2 (Studio / Bay)">Station 2 (Studio / Bay)</option>
+                    <option value="Room 1 (Private Suite)">Room 1 (Private Suite)</option>
+                    <option value="Room 2 (Meeting &amp; Consult)">Room 2 (Meeting &amp; Consult)</option>
                   </select>
                 </div>
               </div>

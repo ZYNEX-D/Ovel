@@ -37,13 +37,15 @@ import {
 } from "@/lib/platform-store";
 import { useClientStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
+import { useAuth } from "@/lib/auth-context";
 
 export default function DashboardUsersPage() {
+  const { profile, isLoading } = useAuth();
   const { playClick, playSuccess } = useAudio();
 
-  // Load clients from storage, fall back to initial demo list if empty
-  const clients = useClientStore(getClientProfiles, () => INITIAL_CLIENT_PROFILES);
-  const bookings = useClientStore(getBookings, () => INITIAL_BOOKINGS);
+  const wsId = profile?.organizationId;
+  const clients = useClientStore(() => getClientProfiles(wsId), () => INITIAL_CLIENT_PROFILES);
+  const bookings = useClientStore(() => getBookings(wsId), () => INITIAL_BOOKINGS);
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -136,7 +138,7 @@ export default function DashboardUsersPage() {
         }
         return c;
       });
-      saveClientProfiles(updated);
+      saveClientProfiles(updated, wsId);
       showToast(`Updated user profile for ${formName}`);
       setEditingClient(null);
     } else {
@@ -155,7 +157,7 @@ export default function DashboardUsersPage() {
       };
 
       const updated = [newClient, ...clients];
-      saveClientProfiles(updated);
+      saveClientProfiles(updated, wsId);
       showToast(`Registered new client ${newClient.name}`);
       setIsAddModalOpen(false);
     }
@@ -185,7 +187,7 @@ export default function DashboardUsersPage() {
     playClick();
     if (confirm(`Remove client ${name} from your CRM directory?`)) {
       const updated = clients.filter((c) => c.id !== id);
-      saveClientProfiles(updated);
+      saveClientProfiles(updated, wsId);
       if (selectedDossier?.id === id) setSelectedDossier(null);
       showToast(`Removed ${name} from clients`);
     }

@@ -1,15 +1,21 @@
 "use client";
 
-import React, { useState } from "react";
-import { Plus, Sparkles, Clock, Check } from "lucide-react";
+import React, { useState, useCallback, useEffect } from "react";
+import { Plus, Sparkles, Clock, Check, Trash2 } from "lucide-react";
 import { getServices, INITIAL_SERVICES, saveServices, ServiceItem } from "@/lib/platform-store";
 import { dollarsToCents } from "@/lib/booking-time";
-import { useClientStore } from "@/lib/use-client-store";
+import { useClientStore, useHydrated } from "@/lib/use-client-store";
+import { getOvelink, saveOvelink, OvelinkOffering } from "@/lib/ovelink-store";
 import { useAudio } from "@/components/AudioController";
+import { useAuth } from "@/lib/auth-context";
 
 export default function DashboardServicesPage() {
+  const { profile, isLoading } = useAuth();
   const { playClick, playSuccess } = useAudio();
-  const services = useClientStore(getServices, () => INITIAL_SERVICES);
+  const hydrated = useHydrated();
+  const wsId = profile?.organizationId || profile?.organizationSlug;
+  const readServices = useCallback(() => getServices(wsId), [wsId]);
+  const services = useClientStore(readServices, () => INITIAL_SERVICES);
   const [isAddServiceOpen, setIsAddServiceOpen] = useState(false);
   const [newServiceName, setNewServiceName] = useState("");
   const [newServicePrice, setNewServicePrice] = useState(120);
@@ -21,6 +27,60 @@ export default function DashboardServicesPage() {
   const showToast = (msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3000);
+  };
+
+  // Auto-sync from Ovelink if services catalog is empty for this workspace
+  useEffect(() => {
+    if (!hydrated) return;
+    const currentWs = profile?.organizationId || profile?.organizationSlug;
+    const currentSlug = profile?.organizationSlug;
+    if (!currentWs && !currentSlug) return;
+
+    if (services.length === 0 && currentSlug) {
+      try {
+        const ovelink = getOvelink(currentSlug, profile?.organizationName, currentWs);
+        if (ovelink?.offerings && ovelink.offerings.length > 0) {
+          const seeded: ServiceItem[] = ovelink.offerings.map((o) => ({
+            id: o.id,
+            name: o.name,
+            description: o.description || "Custom service treatment.",
+            durationMinutes: o.durationMinutes || 45,
+            priceCents: typeof o.priceCents === "number" ? o.priceCents : 0,
+            depositCents: typeof o.depositCents === "number" ? o.depositCents : 0,
+            bufferAfterMinutes: 15,
+            isActive: o.isActive !== false,
+          }));
+          saveServices(seeded, currentWs);
+          if (currentSlug !== currentWs) {
+            saveServices(seeded, currentSlug);
+          }
+        }
+      } catch {
+        // safe fallback
+      }
+    }
+  }, [hydrated, profile?.organizationId, profile?.organizationSlug, profile?.organizationName, services.length]);
+
+  const handleDeleteService = (serviceId: string, serviceName: string) => {
+    playClick();
+    const currentWs = profile?.organizationId || profile?.organizationSlug;
+    const updated = services.filter((s) => s.id !== serviceId);
+    saveServices(updated, currentWs);
+    if (profile?.organizationSlug && profile.organizationSlug !== currentWs) {
+      saveServices(updated, profile.organizationSlug);
+    }
+    if (profile?.organizationSlug) {
+      try {
+        const ovelink = getOvelink(profile.organizationSlug, profile.organizationName, currentWs);
+        saveOvelink({
+          ...ovelink,
+          offerings: (ovelink.offerings || []).filter((o) => o.id !== serviceId),
+        });
+      } catch {
+        // safe fallback
+      }
+    }
+    showToast(`Service "${serviceName}" removed`);
   };
 
   const handleCreateService = (e: React.FormEvent) => {
@@ -43,12 +103,56 @@ export default function DashboardServicesPage() {
       isActive: true,
     };
 
-    saveServices([...services, newSrv]);
+    const currentWs = profile?.organizationId || profile?.organizationSlug;
+    saveServices([...services, newSrv], currentWs);
+    if (profile?.organizationSlug && profile.organizationSlug !== currentWs) {
+      saveServices([...services, newSrv], profile.organizationSlug);
+    }
+
+    // Sync service to Ovelink booking offerings
+    if (profile?.organizationSlug) {
+      try {
+        const ovelink = getOvelink(profile.organizationSlug, profile.organizationName, currentWs);
+        const newOff: OvelinkOffering = {
+          id: newSrv.id,
+          type: "appointment",
+          name: newSrv.name,
+          description: newSrv.description,
+          priceCents: newSrv.priceCents,
+          depositCents: newSrv.depositCents,
+          durationMinutes: newSrv.durationMinutes,
+          requiresTimeSlot: true,
+          category: "Services",
+          isActive: true,
+        };
+        const nonDuplicateOfferings = (ovelink.offerings || []).filter(
+          (o) => o.id !== newOff.id
+        );
+        saveOvelink({
+          ...ovelink,
+          offerings: [...nonDuplicateOfferings, newOff],
+        });
+      } catch {
+        // safe fallback
+      }
+    }
     setIsAddServiceOpen(false);
     setNewServiceName("");
     setNewServiceDesc("");
-    showToast(`Service "${newSrv.name}" created successfully`);
+    showToast(`Service "${newSrv.name}" created and synced to Ovelink`);
   };
+
+  // Don't render content (or show empty state) until profile has loaded and
+  // hydration is complete — avoids the "No services" flash when wsId is still undefined.
+  if (!hydrated || (isLoading && !wsId)) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-200">
+        <div className="p-12 rounded-3xl border border-black/5 bg-white text-center">
+          <div className="w-8 h-8 rounded-full border-2 border-[#105F68]/30 border-t-[#105F68] animate-spin mx-auto" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -104,9 +208,22 @@ export default function DashboardServicesPage() {
               <div>
                 <div className="flex items-start justify-between gap-2">
                   <h4 className="text-sm font-medium text-[#105F68]">{srv.name}</h4>
-                  <span className="text-xs font-mono font-semibold text-[#105F68]">
-                    ${(srv.priceCents / 100).toFixed(2)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-semibold text-[#105F68]">
+                      ${(srv.priceCents / 100).toFixed(2)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteService(srv.id, srv.name);
+                      }}
+                      className="p-1 rounded-md text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                      title="Remove service"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
                 <p className="text-xs text-[#3A9295] mt-1.5 line-clamp-2">{srv.description}</p>
               </div>

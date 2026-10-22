@@ -14,7 +14,8 @@ import {
   Calendar,
   Users,
   Check,
-  Palette
+  Palette,
+  Trash2
 } from "lucide-react";
 import { useAuth, UserRole } from "@/lib/auth-context";
 import { useAudio } from "@/components/AudioController";
@@ -181,6 +182,15 @@ export default function UserAuthNav() {
                 <span>Super Admin Portal</span>
               </Link>
             )}
+
+            <Link
+              href="/dashboard/settings?tab=account"
+              onClick={() => { playClick(); setIsOpen(false); }}
+              className="flex items-center gap-2.5 px-3 py-2 text-xs text-red-600 rounded-xl hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-500" />
+              <span>Delete Account &amp; Workspace</span>
+            </Link>
           </div>
 
           {/* Footer Actions */}

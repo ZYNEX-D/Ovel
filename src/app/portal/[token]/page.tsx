@@ -26,12 +26,16 @@ import {
   INITIAL_INVOICES,
   rescheduleBooking,
   payableBalanceCents,
+  findBookingByToken,
+  BookingRecord, 
+  InvoiceRecord
 } from "@/lib/platform-store";
 import { addMinutes, durationMinutes } from "@/lib/booking-time";
 import { useClientStore, useHydrated } from "@/lib/use-client-store";
 import { submitCustomerReview, getReputationConfig } from "@/lib/reviews-store";
 import { useAudio } from "@/components/AudioController";
 import ProgressiveBlur from "@/components/ProgressiveBlur";
+import { generateInvoicePDF } from "@/lib/invoice-pdf";
 
 export default function ClientPortalPage() {
   const params = useParams();
@@ -39,12 +43,12 @@ export default function ClientPortalPage() {
   const { playClick, playSuccess } = useAudio();
 
   const hydrated = useHydrated();
-  const bookings = useClientStore(getBookings, () => INITIAL_BOOKINGS);
-  const invoices = useClientStore(getInvoices, () => INITIAL_INVOICES);
+  const { workspaceId: matchedWs } = findBookingByToken(token);
+  const bookings = useClientStore(() => getBookings(matchedWs), () => INITIAL_BOOKINGS);
+  const invoices = useClientStore(() => getInvoices(matchedWs), () => INITIAL_INVOICES);
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [newDate, setNewDate] = useState("2026-10-15T11:00");
   const [notification, setNotification] = useState<string | null>(null);
-
   // Review state
   const [reviewRating, setReviewRating] = useState<1 | 2 | 3 | 4 | 5>(5);
   const [reviewText, setReviewText] = useState("");
@@ -73,7 +77,8 @@ export default function ClientPortalPage() {
     const startTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(newDate) ? `${newDate}:00` : newDate;
     const endTime = addMinutes(startTime, duration);
     if (!endTime) return;
-    const updated = rescheduleBooking(booking.id, startTime, endTime);
+    const { workspaceId: matchedWs } = findBookingByToken(token);
+    const updated = rescheduleBooking(booking.id, startTime, endTime, matchedWs);
     if (!updated) {
       showToast("That time is not open. Pick another slot.");
       return;
@@ -85,13 +90,14 @@ export default function ClientPortalPage() {
   const handlePayBalance = () => {
     if (!invoice) return;
     playSuccess();
+    const { workspaceId: matchedWs } = findBookingByToken(token);
     const updated = invoices.map((inv) => {
       if (inv.id === invoice.id) {
         return { ...inv, status: "paid" as const, paidAt: new Date().toISOString(), balanceDueCents: 0 };
       }
       return inv;
     });
-    saveInvoices(updated);
+    saveInvoices(updated, matchedWs);
     showToast("Remaining balance paid in full! Receipt updated.");
   };
 
@@ -270,8 +276,32 @@ export default function ClientPortalPage() {
 
               <button
                 onClick={() => {
+                  if (!booking) return;
                   playSuccess();
-                  showToast("Invoice PDF downloaded successfully!");
+                  try {
+                    const targetInvoice: InvoiceRecord = invoice || {
+                      id: `inv_${booking.id}`,
+                      bookingId: booking.id,
+                      invoiceNumber: `INV-${new Date().getFullYear()}-${booking.id.slice(-4).toUpperCase()}`,
+                      clientName: booking.clientName,
+                      clientEmail: booking.clientEmail,
+                      itemsSummary: booking.serviceName,
+                      subtotalCents: booking.totalPriceCents,
+                      depositCreditedCents: booking.depositPaidCents,
+                      taxCents: 0,
+                      balanceDueCents: booking.totalPriceCents - booking.depositPaidCents,
+                      status: isInvoicePaid ? "paid" : "sent",
+                      createdAt: booking.createdAt,
+                    };
+
+                    generateInvoicePDF(targetInvoice, {
+                      name: booking.serviceName || "Service Studio",
+                      email: booking.clientEmail,
+                    });
+                    showToast(`Downloaded invoice PDF: ${targetInvoice.invoiceNumber}`);
+                  } catch (err: unknown) {
+                    showToast(`Error generating PDF: ${(err as Error)?.message || "Failed"}`);
+                  }
                 }}
                 className="px-5 py-2.5 rounded-full border border-black/10 hover:bg-black/5 text-xs text-[#105F68] font-light transition-all flex items-center gap-2"
               >

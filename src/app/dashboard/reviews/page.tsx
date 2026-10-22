@@ -29,11 +29,14 @@ import {
 } from "@/lib/reviews-store";
 import { useClientStore, useDraftStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
+import { useAuth } from "@/lib/auth-context";
 
 export default function DashboardReviewsPage() {
+  const { profile, isLoading } = useAuth();
   const { playClick, playSuccess } = useAudio();
-  const reviews = useClientStore(getReviews, () => INITIAL_REVIEWS);
-  const storedConfig = useClientStore(getReputationConfig, () => DEFAULT_REPUTATION_CONFIG);
+  const wsId = profile?.organizationId;
+  const reviews = useClientStore(() => getReviews(wsId), () => INITIAL_REVIEWS);
+  const storedConfig = useClientStore(() => getReputationConfig(wsId), () => DEFAULT_REPUTATION_CONFIG);
   const [config, setConfig] = useDraftStore(storedConfig);
   const [activeFilter, setActiveFilter] = useState<"all" | "5star" | "critical" | "photos">("all");
   
@@ -65,7 +68,7 @@ export default function DashboardReviewsPage() {
   const handleSaveConfig = (e: React.FormEvent) => {
     e.preventDefault();
     playSuccess();
-    saveReputationConfig(config);
+    saveReputationConfig(config, wsId);
     showToast("Google Maps review funnel settings saved!");
   };
 
@@ -73,7 +76,7 @@ export default function DashboardReviewsPage() {
     const text = replyTextMap[reviewId]?.trim();
     if (!text) return;
     playSuccess();
-    replyToCustomerReview(reviewId, text);
+    replyToCustomerReview(reviewId, text, wsId);
     setActiveReplyingId(null);
     setReplyTextMap((prev) => ({ ...prev, [reviewId]: "" }));
     showToast("Merchant response published and emailed to customer!");
