@@ -197,7 +197,7 @@ export default function OvelinkStudioPage() {
     setNewOffName("");
     setNewOffDesc("");
     setNewOffBadge("");
-    showToast(`Added ${newOff.type}: "${newOff.name}" to Ovelink!`);
+    showToast(`Offering added.`);
   };
 
   const handleToggleOffering = (offeringId: string) => {
@@ -218,7 +218,7 @@ export default function OvelinkStudioPage() {
     };
     setActiveOvelink(updated);
     saveOvelink(updated);
-    showToast("Offering removed from Ovelink");
+    showToast("Offering removed.");
   };
 
   return (
@@ -228,20 +228,20 @@ export default function OvelinkStudioPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-light text-[#105F68] tracking-tight">
-              Ovelink Studio (Customizer)
+              Ovelink
             </h1>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
-              Live &amp; Synced
+              Saved
             </span>
           </div>
           <p className="text-xs text-[#3A9295] mt-1">
-            Customize your brand colors, typography fonts, cover header, and catalog offerings.
+            Brand and catalog.
           </p>
         </div>
 
         {/* Niche Presets Switcher */}
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="text-[#3A9295] hidden xl:inline text-[11px]">Niche Templates:</span>
+          <span className="text-[#3A9295] hidden xl:inline text-[11px]">Templates:</span>
           <button
             onClick={() => handleSwitchOvelinkTemplate("leclat")}
             className={`text-[11px] px-2.5 py-1 rounded-full border transition-all ${
@@ -299,7 +299,7 @@ export default function OvelinkStudioPage() {
             className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#2E7D32] text-white text-xs font-semibold hover:bg-[#1B5E20] transition-all shadow-md"
           >
             <Save className="w-3.5 h-3.5" />
-            <span>Save &amp; Publish</span>
+            <span>Save</span>
           </button>
         </div>
       </div>
@@ -384,7 +384,7 @@ export default function OvelinkStudioPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-[#3A9295] font-medium block mb-1">Public Brand Contact Email</label>
+                  <label className="text-[#3A9295] font-medium block mb-1">Contact email</label>
                   <input
                     type="email"
                     placeholder="hello@yourbrand.com"
@@ -516,7 +516,7 @@ export default function OvelinkStudioPage() {
                       onChange={(e) => setActiveOvelink({ ...activeOvelink, timeSlotLabel: e.target.value })}
                       className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                     />
-                    <p className="text-[10px] text-slate-400 mt-1">Label shown above the time buttons</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Label above time buttons</p>
                   </div>
                 </div>
 
@@ -532,7 +532,7 @@ export default function OvelinkStudioPage() {
                       onChange={(e) => setActiveOvelink({ ...activeOvelink, orderModalTitle: e.target.value })}
                       className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                     />
-                    <p className="text-[10px] text-slate-400 mt-1">Used for product purchases & custom orders</p>
+                    <p className="text-[10px] text-slate-400 mt-1">For products and orders</p>
                   </div>
 
                   <div>
@@ -546,7 +546,7 @@ export default function OvelinkStudioPage() {
                       onChange={(e) => setActiveOvelink({ ...activeOvelink, slotDurationNotice: e.target.value })}
                       className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                     />
-                    <p className="text-[10px] text-slate-400 mt-1">e.g. Includes 15 min setup or buffer time</p>
+                    <p className="text-[10px] text-slate-400 mt-1">e.g. 15 min setup</p>
                   </div>
                 </div>
               </div>
@@ -683,7 +683,7 @@ export default function OvelinkStudioPage() {
                     onChange={(e) => setActiveOvelink({ ...activeOvelink, bookingInstructions: e.target.value })}
                     className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">Appears as an informational banner above the date/time picker.</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Banner above the date picker.</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -696,9 +696,9 @@ export default function OvelinkStudioPage() {
                       onChange={(e) => setActiveOvelink({ ...activeOvelink, minNoticeDays: Number(e.target.value) })}
                       className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                     >
-                      <option value={0}>Same-day bookings allowed (Today onward)</option>
-                      <option value={1}>At least 24 hours in advance (Tomorrow onward)</option>
-                      <option value={2}>At least 48 hours in advance (2 days onward)</option>
+                      <option value={0}>Same day</option>
+                      <option value={1}>24 hours ahead</option>
+                      <option value={2}>48 hours ahead</option>
                       <option value={3}>At least 3 days notice</option>
                     </select>
                   </div>
@@ -714,7 +714,7 @@ export default function OvelinkStudioPage() {
                       onChange={(e) => setActiveOvelink({ ...activeOvelink, cancellationPolicy: e.target.value })}
                       className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                     />
-                    <p className="text-[10px] text-slate-400 mt-1">Displayed below the time slots on checkout</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Shown below time slots</p>
                   </div>
                 </div>
               </div>
@@ -905,9 +905,9 @@ export default function OvelinkStudioPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="text-xs font-semibold text-[#105F68] uppercase tracking-wider">
-                    Published Offerings ({activeOvelink.offerings.length})
+                    Offerings ({activeOvelink.offerings.length})
                   </h4>
-                  <p className="text-[#3A9295]">Supports Appointments, Bookings &amp; Orders</p>
+                  <p className="text-[#3A9295]">Appointments, bookings, orders.</p>
                 </div>
 
                 <button
@@ -915,7 +915,7 @@ export default function OvelinkStudioPage() {
                   className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#105F68] text-white font-light text-xs hover:bg-[#0D4F57] transition-all"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Add Offering</span>
+                  <span>Add offering</span>
                 </button>
               </div>
 
@@ -1029,7 +1029,7 @@ export default function OvelinkStudioPage() {
         <div className="lg:col-span-5 space-y-4">
           <div className="flex items-center justify-between">
             <span className="text-xs uppercase font-semibold text-[#105F68] tracking-wider flex items-center gap-1.5">
-              <span>Live Customer Device Preview</span>
+              <span>Preview</span>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             </span>
 
@@ -1080,7 +1080,7 @@ export default function OvelinkStudioPage() {
         </div>
       </div>
 
-      {/* Add Offering Modal */}
+      {/* Add offering Modal */}
       {isAddOfferingOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl border border-[#105F68]/20 shadow-2xl max-w-lg w-full p-6 sm:p-8 space-y-5">
@@ -1090,8 +1090,7 @@ export default function OvelinkStudioPage() {
                   <ShoppingBag className="w-5 h-5 text-[#63C1BB]" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-light text-[#105F68]">Add Offering</h3>
-                  <p className="text-xs text-[#3A9295]">Configure appointment, booking or order item</p>
+                  <h3 className="text-lg font-light text-[#105F68]">Add offering</h3>
                 </div>
               </div>
               <button onClick={() => setIsAddOfferingOpen(false)} className="text-gray-400 hover:text-black">
@@ -1193,7 +1192,7 @@ export default function OvelinkStudioPage() {
                   type="submit"
                   className="px-5 py-2 rounded-full bg-[#105F68] text-white text-xs font-semibold hover:bg-[#0D4F57]"
                 >
-                  Publish Offering
+                  Add offering
                 </button>
               </div>
             </form>

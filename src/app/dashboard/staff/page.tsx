@@ -67,10 +67,10 @@ export default function DashboardStaffPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
-            Team &amp; Working Hours
+            Staff
           </h1>
           <p className="text-xs text-[#3A9295] mt-1 max-w-2xl leading-relaxed">
-            Manage your staff, consultants, or service providers. Working hours directly power booking slot availability on your public booking page.
+            Shifts and availability.
           </p>
         </div>
 
@@ -159,7 +159,7 @@ export default function DashboardStaffPage() {
               </div>
               <div>
                 <h3 className="text-base font-semibold text-slate-900">Add Team Member</h3>
-                <p className="text-xs text-slate-500">Configure role and availability for bookings</p>
+                <p className="text-xs text-slate-500">Role and availability.</p>
               </div>
             </div>
 

@@ -40,7 +40,7 @@ import { useAudio } from "@/components/AudioController";
 import { useAuth } from "@/lib/auth-context";
 
 export default function DashboardUsersPage() {
-  const { profile, isLoading } = useAuth();
+  const { profile } = useAuth();
   const { playClick, playSuccess } = useAudio();
 
   const wsId = profile?.organizationId;
@@ -139,7 +139,7 @@ export default function DashboardUsersPage() {
         return c;
       });
       saveClientProfiles(updated, wsId);
-      showToast(`Updated user profile for ${formName}`);
+      showToast(`Client updated.`);
       setEditingClient(null);
     } else {
       // Create new
@@ -158,7 +158,7 @@ export default function DashboardUsersPage() {
 
       const updated = [newClient, ...clients];
       saveClientProfiles(updated, wsId);
-      showToast(`Registered new client ${newClient.name}`);
+      showToast(`Client added.`);
       setIsAddModalOpen(false);
     }
 
@@ -185,7 +185,7 @@ export default function DashboardUsersPage() {
 
   const handleDeleteClient = (id: string, name: string) => {
     playClick();
-    if (confirm(`Remove client ${name} from your CRM directory?`)) {
+    if (confirm(`Remove ${name}?`)) {
       const updated = clients.filter((c) => c.id !== id);
       saveClientProfiles(updated, wsId);
       if (selectedDossier?.id === id) setSelectedDossier(null);
@@ -209,7 +209,7 @@ export default function DashboardUsersPage() {
     a.href = url;
     a.download = `ovel_clients_crm_${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
-    showToast("Exported clients CRM to CSV");
+    showToast("CSV exported.");
   };
 
   return (
@@ -227,14 +227,11 @@ export default function DashboardUsersPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
-              Users &amp; Client Relationship CRM
+              Clients
             </h1>
-            <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#105F68]/10 text-[#105F68] font-semibold uppercase tracking-wider">
-              Directory
-            </span>
           </div>
           <p className="text-xs text-[#3A9295] mt-1">
-            Client dossiers, contact records, visit logs, anti-no-show reliability scores, and card-on-file vault.
+            Contacts and history.
           </p>
         </div>
 
@@ -262,7 +259,7 @@ export default function DashboardUsersPage() {
             className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-medium transition-all shadow-md shadow-[#105F68]/20"
           >
             <UserPlus className="w-3.5 h-3.5 text-[#63C1BB]" />
-            <span>Add User / Client</span>
+            <span>Add client</span>
           </button>
         </div>
       </div>
@@ -277,19 +274,18 @@ export default function DashboardUsersPage() {
           <div className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
             {stats.total}
           </div>
-          <p className="text-[11px] text-[#3A9295]/80">Active bookers &amp; accounts</p>
+          <p className="text-[11px] text-[#3A9295]/80">Active clients</p>
         </div>
 
         <div className="p-4 sm:p-5 rounded-3xl border border-black/5 bg-white shadow-sm space-y-1">
           <div className="flex items-center justify-between text-xs text-[#3A9295]">
-            <span>Reliability Score</span>
+            <span>Reliability</span>
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-2xl sm:text-3xl font-light text-emerald-700 tracking-tight flex items-baseline gap-1">
             <span>{stats.avgReliability}%</span>
-            <span className="text-[10px] text-emerald-600 font-medium">Anti-No-Show</span>
           </div>
-          <p className="text-[11px] text-[#3A9295]/80">Average appointment attendance</p>
+          <p className="text-[11px] text-[#3A9295]/80">Average attendance</p>
         </div>
 
         <div className="p-4 sm:p-5 rounded-3xl border border-black/5 bg-white shadow-sm space-y-1">
@@ -300,18 +296,18 @@ export default function DashboardUsersPage() {
           <div className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
             {stats.cardsSecured}
           </div>
-          <p className="text-[11px] text-[#3A9295]/80">Stripe 1-click tokenized vault</p>
+          <p className="text-[11px] text-[#3A9295]/80">Saved cards</p>
         </div>
 
         <div className="p-4 sm:p-5 rounded-3xl border border-black/5 bg-white shadow-sm space-y-1">
           <div className="flex items-center justify-between text-xs text-[#3A9295]">
-            <span>VIP &amp; Members</span>
+            <span>VIP</span>
             <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
           </div>
           <div className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
             {stats.vips}
           </div>
-          <p className="text-[11px] text-[#3A9295]/80">Tier &amp; recurring club members</p>
+          <p className="text-[11px] text-[#3A9295]/80">Members</p>
         </div>
       </div>
 
@@ -323,7 +319,7 @@ export default function DashboardUsersPage() {
             <Search className="w-4 h-4 text-[#3A9295] absolute left-3.5 top-3" />
             <input
               type="text"
-              placeholder="Search by client name, email, phone, or formulas..."
+              placeholder="Search clients..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68] transition-all"
@@ -338,9 +334,9 @@ export default function DashboardUsersPage() {
               onChange={(e) => setSortBy(e.target.value as "visits" | "reliability" | "name")}
               className="px-3 py-2 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
             >
-              <option value="visits">Most Visits</option>
-              <option value="reliability">Reliability Score</option>
-              <option value="name">Name (A-Z)</option>
+              <option value="visits">Visits</option>
+              <option value="reliability">Reliability</option>
+              <option value="name">Name</option>
             </select>
           </div>
         </div>
@@ -348,10 +344,10 @@ export default function DashboardUsersPage() {
         {/* Segment Filter Chips */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none pt-1">
           {[
-            { id: "all", label: `All Users (${clients.length})` },
-            { id: "vip", label: `VIP Members (${stats.vips})` },
-            { id: "card_on_file", label: `Card on File (${stats.cardsSecured})` },
-            { id: "high_reliability", label: "High Reliability (≥95%)" },
+            { id: "all", label: `All (${clients.length})` },
+            { id: "vip", label: `VIP (${stats.vips})` },
+            { id: "card_on_file", label: `Card (${stats.cardsSecured})` },
+            { id: "high_reliability", label: "Reliable" },
           ].map((tab) => {
             const isActive = activeFilter === tab.id;
             return (
@@ -380,9 +376,9 @@ export default function DashboardUsersPage() {
           <div className="w-12 h-12 rounded-2xl bg-[#C8E6E2]/40 text-[#105F68] flex items-center justify-center mx-auto">
             <Users className="w-6 h-6" />
           </div>
-          <h3 className="text-base font-light text-[#105F68]">No matching users found</h3>
+          <h3 className="text-base font-light text-[#105F68]">No clients found</h3>
           <p className="text-xs text-[#3A9295] max-w-sm mx-auto">
-            Try adjusting your search query or segment filter, or add a new client directly to your CRM.
+            Adjust filters or add a client.
           </p>
           <button
             onClick={() => {
@@ -391,7 +387,7 @@ export default function DashboardUsersPage() {
             }}
             className="px-4 py-2 rounded-full bg-[#105F68] text-white text-xs font-medium shadow-sm hover:bg-[#0D4F57] transition-all"
           >
-            + Add Client
+            + Add client
           </button>
         </div>
       ) : (
@@ -431,7 +427,7 @@ export default function DashboardUsersPage() {
                     </div>
                   </div>
 
-                  {/* Anti-No-Show Reliability Badge */}
+                  {/* Reliability Badge */}
                   <div className="text-right flex-shrink-0">
                     <div
                       className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
@@ -450,7 +446,7 @@ export default function DashboardUsersPage() {
                   </div>
                 </div>
 
-                {/* Contact & Card on File Chips */}
+                {/* Contact & Card Chips */}
                 <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
                   {client.phone && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F6FAF9] text-[11px] text-slate-600 border border-black/5">
@@ -474,11 +470,11 @@ export default function DashboardUsersPage() {
                   )}
                 </div>
 
-                {/* Treatment Formula / Technical Notes Preview */}
+                {/* Treatment Formula / Notes Preview */}
                 {client.formulasOrNotes && (
                   <div className="p-3 rounded-2xl bg-[#F6FAF9] border border-black/5 text-xs text-slate-600 space-y-1">
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-[#3A9295] block">
-                      Formulas &amp; Treatment History
+                      Notes
                     </span>
                     <p className="line-clamp-2 leading-relaxed text-[11px] text-slate-700">
                       {client.formulasOrNotes}
@@ -537,7 +533,7 @@ export default function DashboardUsersPage() {
                     }}
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-medium transition-all shadow-sm"
                   >
-                    <span>Full Dossier</span>
+                    <span>Details</span>
                     <ChevronRight className="w-3.5 h-3.5 text-[#63C1BB]" />
                   </button>
                 </div>
@@ -611,35 +607,32 @@ export default function DashboardUsersPage() {
               <div className="flex items-center gap-2.5">
                 <CreditCard className="w-4 h-4 text-emerald-600" />
                 <div>
-                  <span className="font-semibold text-emerald-900 block">Stripe Card on File</span>
+                  <span className="font-semibold text-emerald-900 block">Card on file</span>
                   <span className="text-[11px] text-emerald-700">
                     {selectedDossier.cardOnFile
                       ? `${selectedDossier.cardOnFile.brand} ending in ${selectedDossier.cardOnFile.last4} (Tokenized)`
-                      : "No payment method vault attached."}
+                      : "No card."}
                   </span>
                 </div>
               </div>
-              <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
-                0% Take-Rate
-              </span>
             </div>
 
             {/* Technical Formulas & Treatment History */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-[#3A9295]">
-                  Technical Formulas &amp; Treatment History
+                  Notes
                 </h4>
               </div>
               <div className="p-4 rounded-2xl bg-[#F6FAF9] border border-black/5 text-xs text-slate-700 leading-relaxed font-mono whitespace-pre-wrap">
-                {selectedDossier.formulasOrNotes || "No treatment formulas or notes logged for this client yet."}
+                {selectedDossier.formulasOrNotes || "No notes yet."}
               </div>
             </div>
 
             {/* Past Bookings Logs from Schedule Matrix */}
             <div className="space-y-2">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-[#3A9295]">
-                Associated Appointments &amp; Logs
+                Appointments
               </h4>
               {bookings.filter(
                 (b) =>
@@ -647,7 +640,7 @@ export default function DashboardUsersPage() {
                   b.clientName.toLowerCase() === selectedDossier.name.toLowerCase()
               ).length === 0 ? (
                 <p className="text-xs text-slate-400 italic p-3 rounded-2xl bg-slate-50 border border-black/5">
-                  No appointments logged for this client in the active booking matrix yet.
+                  No appointments yet.
                 </p>
               ) : (
                 <div className="space-y-1.5 max-h-40 overflow-y-auto">
@@ -710,13 +703,13 @@ export default function DashboardUsersPage() {
             <div className="flex items-center justify-between pb-3 border-b border-black/10">
               <div>
                 <h3 className="text-lg font-bold text-[#105F68]">
-                  {editingClient ? "Edit Client Dossier" : "Register New Client"}
+                  {editingClient ? "Edit client" : "Add client"}
                 </h3>
-                <p className="text-xs text-[#3A9295]">
-                  {editingClient
-                    ? `Updating details for ${editingClient.name}`
-                    : "Add a client to your private CRM and treatment directory."}
-                </p>
+                {editingClient && (
+                  <p className="text-xs text-[#3A9295]">
+                    Updating {editingClient.name}
+                  </p>
+                )}
               </div>
 
               <button
@@ -786,7 +779,7 @@ export default function DashboardUsersPage() {
               {/* Card on file optional info */}
               <div className="p-3.5 rounded-2xl bg-[#F6FAF9] border border-black/5 space-y-2">
                 <span className="text-[11px] font-semibold text-[#105F68] block">
-                  Card on File (Vault Status)
+                  Card
                 </span>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -822,7 +815,7 @@ export default function DashboardUsersPage() {
                 </label>
                 <textarea
                   rows={3}
-                  placeholder="e.g. Formulation specs, allergies, room preferences, past treatment reactions..."
+                  placeholder="Allergies, preferences, notes..."
                   value={formNotes}
                   onChange={(e) => setFormNotes(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-2xl border border-black/15 text-xs focus:outline-none focus:border-[#105F68]"
@@ -846,7 +839,7 @@ export default function DashboardUsersPage() {
                   className="px-5 py-2.5 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-semibold shadow-md shadow-[#105F68]/20 flex items-center gap-1.5"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>{editingClient ? "Save Changes" : "Register Client"}</span>
+                  <span>Save</span>
                 </button>
               </div>
             </form>

@@ -2,13 +2,11 @@
 
 import React, { useState } from "react";
 import { 
-  ShieldCheck, 
   Fingerprint, 
   Mail, 
   KeyRound, 
   UserPlus, 
   Shield, 
-  Lock, 
   Trash2, 
   Check, 
   X, 
@@ -60,106 +58,80 @@ export default function DashboardTeamPage() {
     setInviteName("");
     setInviteEmail("");
     setSelectedPermissions(["bookings:read", "bookings:write"]);
-    showToast(`Auth invite & Supabase magic link dispatched to ${inviteEmail}`);
+    showToast(`Invite sent to ${inviteEmail}.`);
   };
 
   const handleSendMagicLink = async (email: string) => {
     playClick();
     await sendMagicLinkToUser(email);
-    showToast(`Passwordless magic login link sent to ${email}`);
+    showToast(`Login link sent to ${email}.`);
   };
 
   const handleSendPasswordReset = async (email: string) => {
     playClick();
     await resetPasswordForEmail(email);
-    showToast(`Password recovery link dispatched to ${email}`);
+    showToast(`Reset link sent to ${email}.`);
   };
 
   const handleToggleMemberStatus = (id: string, currentStatus?: string) => {
     playClick();
     const nextStatus = currentStatus === "active" ? "suspended" : "active";
     updateTeamMember(id, { status: nextStatus });
-    showToast(`User account status updated to ${nextStatus.toUpperCase()}`);
+    showToast(`Account updated.`);
   };
 
   const handleRemoveMember = (id: string, name: string) => {
     playClick();
     removeTeamMember(id);
-    showToast(`Revoked authentication credentials for ${name}`);
+    showToast(`Removed ${name}.`);
   };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
       <div>
         <h1 className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
-          Team Accounts &amp; Authentication Control
+          Team
         </h1>
         <p className="text-xs text-[#3A9295] mt-1">
-          Manage staff credentials, dispatch passwordless magic links, and enforce role-based permissions.
+          Members and roles.
         </p>
       </div>
 
-      {/* Auth Session Status Banner */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#105F68] to-[#0D4F57] text-white shadow-lg space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      {/* Session */}
+      <div className="p-6 rounded-3xl bg-gradient-to-br from-[#105F68] to-[#0D4F57] text-white shadow-lg">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white">
-              <Fingerprint className="w-6 h-6 text-[#63C1BB]" />
+            <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center">
+              <Fingerprint className="w-5 h-5 text-[#63C1BB]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-medium text-white">
-                  Authenticated as {profile?.fullName || "Owner"}
+                <h3 className="text-base font-medium text-white">
+                  {profile?.fullName || "Owner"}
                 </h3>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 uppercase tracking-wider font-semibold">
-                  {profile?.role.replace("_", " ") || "business owner"}
+                  {profile?.role?.replace("_", " ") || "owner"}
                 </span>
               </div>
-              <p className="text-xs text-[#C8E6E2] font-light">
-                Identity ID: <span className="font-mono">{profile?.id || "usr_owner_1"}</span> • Email: <span className="font-mono">{profile?.email}</span>
-              </p>
+              <p className="text-xs text-[#C8E6E2]">{profile?.email}</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => profile?.email && handleSendMagicLink(profile.email)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-xs text-white border border-white/20 transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-xs text-white border border-white/20 transition-all"
             >
               <Mail className="w-3.5 h-3.5 text-[#63C1BB]" />
-              <span>Send Me Magic Link</span>
+              <span>Send login link</span>
             </button>
             <button
               onClick={() => profile?.email && handleSendPasswordReset(profile.email)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-xs text-white border border-white/20 transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-xs text-white border border-white/20 transition-all"
             >
               <KeyRound className="w-3.5 h-3.5 text-[#63C1BB]" />
-              <span>Trigger Password Reset</span>
+              <span>Reset password</span>
             </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-white/10 text-xs">
-          <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-            <span className="text-[11px] text-[#C8E6E2] block">Identity Provider</span>
-            <span className="font-medium text-white flex items-center gap-1.5 mt-0.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              Supabase Auth (PostgreSQL RLS)
-            </span>
-          </div>
-          <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-            <span className="text-[11px] text-[#C8E6E2] block">Tenant Scope</span>
-            <span className="font-medium text-white flex items-center gap-1.5 mt-0.5">
-              <Shield className="w-3.5 h-3.5 text-[#63C1BB]" />
-              Multi-Tenant RLS Isolated
-            </span>
-          </div>
-          <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-            <span className="text-[11px] text-[#C8E6E2] block">Active Session Token</span>
-            <span className="font-medium text-white flex items-center gap-1.5 mt-0.5">
-              <Lock className="w-3.5 h-3.5 text-[#63C1BB]" />
-              JWT Valid (Auto-refreshed via Supabase)
-            </span>
           </div>
         </div>
       </div>
@@ -169,11 +141,8 @@ export default function DashboardTeamPage() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h3 className="text-xl font-light text-[#105F68] tracking-tight">
-              Team Accounts Roster
+              Members
             </h3>
-            <p className="text-xs text-[#3A9295]">
-              Members belonging to your organization
-            </p>
           </div>
 
           <button
@@ -192,12 +161,12 @@ export default function DashboardTeamPage() {
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-black/5 text-[#3A9295] uppercase tracking-wider">
-                <th className="pb-3 font-medium">User Member</th>
-                <th className="pb-3 font-medium">Auth Role</th>
+                <th className="pb-3 font-medium">Member</th>
+                <th className="pb-3 font-medium">Role</th>
                 <th className="pb-3 font-medium">Permissions</th>
                 <th className="pb-3 font-medium">Status</th>
                 <th className="pb-3 font-medium">Last Login</th>
-                <th className="pb-3 font-medium text-right">Auth Actions</th>
+                <th className="pb-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
@@ -265,7 +234,7 @@ export default function DashboardTeamPage() {
                       <div className="inline-flex items-center gap-1">
                         <button
                           onClick={() => handleSendMagicLink(member.email)}
-                          title="Send Supabase Magic Link"
+                          title="Send login link"
                           className="p-1.5 rounded-lg border border-black/10 hover:bg-[#F6FAF9] text-[#105F68] transition-all"
                         >
                           <Mail className="w-3.5 h-3.5" />
@@ -319,7 +288,6 @@ export default function DashboardTeamPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-light text-[#105F68]">Invite Team Member</h3>
-                  <p className="text-xs text-[#3A9295]">Create Supabase Auth credentials and grant role</p>
                 </div>
               </div>
               <button
@@ -362,20 +330,20 @@ export default function DashboardTeamPage() {
                   onChange={(e) => setInviteRole(e.target.value as UserRole)}
                   className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                 >
-                  <option value="staff">Specialist Staff (Manage appointments &amp; view clients)</option>
-                  <option value="business_owner">Business Owner (Full management, invoicing, staff)</option>
-                  <option value="client">Client (Self-service appointments &amp; invoice payment)</option>
+                  <option value="staff">Staff</option>
+                  <option value="business_owner">Owner</option>
+                  <option value="client">Client</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-xs text-[#3A9295] font-medium block mb-2">Granular Role Permissions</label>
+                <label className="text-xs text-[#3A9295] font-medium block mb-2">Permissions</label>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   {[
                     { key: "bookings:read", label: "View Appointments" },
                     { key: "bookings:write", label: "Create / Reschedule Bookings" },
                     { key: "invoicing:manage", label: "Issue Quotes & Invoices" },
-                    { key: "whatsapp:manage", label: "Send WhatsApp CRM Replies" },
+                    { key: "whatsapp:manage", label: "Send WhatsApp replies" },
                     { key: "staff:manage", label: "Edit Specialist Hours" },
                     { key: "reports:view", label: "Access Financial Reports" },
                   ].map((perm) => (
@@ -411,7 +379,7 @@ export default function DashboardTeamPage() {
                   className="px-5 py-2.5 rounded-full bg-[#105F68] text-white text-xs font-light hover:bg-[#0D4F57] transition-all flex items-center gap-1.5 shadow-sm"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>Send Magic Link &amp; Grant Access</span>
+                  <span>Send invite</span>
                 </button>
               </div>
             </form>

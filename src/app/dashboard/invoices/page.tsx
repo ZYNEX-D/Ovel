@@ -160,7 +160,7 @@ export default function DashboardInvoicesPage() {
     }
   };
 
-  // Create Invoice / Record Sale
+  // New invoice
   const handleCreateInvoice = (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientName.trim() || !clientEmail.trim()) {
@@ -215,13 +215,13 @@ export default function DashboardInvoicesPage() {
     setTaxPercent(0);
     setNotes("");
 
-    showToast(`Invoice ${generatedNumber} recorded successfully!`);
+    showToast(`Invoice ${generatedNumber} created.`);
   };
 
   const handleToggleStatus = (inv: InvoiceRecord, newStatus: InvoiceRecord["status"]) => {
     playClick();
     updateInvoiceStatus(inv.id, newStatus, wsId);
-    showToast(`Invoice ${inv.invoiceNumber} updated to ${newStatus.toUpperCase()}`);
+    showToast(`Invoice updated.`);
   };
 
   const handleDelete = (inv: InvoiceRecord) => {
@@ -236,10 +236,10 @@ export default function DashboardInvoicesPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
-            Sales &amp; Invoicing Ledger
+            Invoices
           </h1>
           <p className="text-xs text-[#3A9295] mt-1">
-            Record manual sales, generate custom client invoices, settle outstanding balances, and track merchant cash flow.
+            Sales and balances.
           </p>
         </div>
 
@@ -256,7 +256,7 @@ export default function DashboardInvoicesPage() {
             className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#105F68] text-white text-xs font-semibold hover:bg-[#0D4F57] transition-all shadow-sm"
           >
             <Plus className="w-4 h-4" />
-            <span>Create Invoice / Record Sale</span>
+            <span>New invoice</span>
           </button>
         </div>
       </div>
@@ -367,11 +367,11 @@ export default function DashboardInvoicesPage() {
             <CreditCard className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-base font-light text-[#105F68]">No invoices or sales found</h3>
+            <h3 className="text-base font-light text-[#105F68]">No invoices yet</h3>
             <p className="text-xs text-[#3A9295] max-w-md mx-auto mt-1">
               {searchQuery || statusFilter !== "all"
-                ? "No records match your active search and filter criteria."
-                : "Record immediate sales, itemized client bills, or manual receipts anytime."}
+                ? "No matches."
+                : "Invoices will appear here."}
             </p>
           </div>
           <button
@@ -532,11 +532,8 @@ export default function DashboardInvoicesPage() {
             <div className="flex items-center justify-between border-b border-black/5 pb-4">
               <div>
                 <h2 className="text-xl font-light text-[#105F68]">
-                  Record Sale / Generate Invoice
+                  New invoice
                 </h2>
-                <p className="text-xs text-[#3A9295] mt-0.5">
-                  Issue a direct sale or generate an itemized invoice for client balance settlement.
-                </p>
               </div>
               <button
                 onClick={() => setIsCreateOpen(false)}
@@ -843,7 +840,7 @@ export default function DashboardInvoicesPage() {
                   type="submit"
                   className="px-6 py-2 rounded-full bg-[#105F68] text-white text-xs font-semibold hover:bg-[#0D4F57] transition-all shadow-sm"
                 >
-                  {status === "paid" ? "Record Paid Sale" : "Issue Invoice"}
+                  Save
                 </button>
               </div>
             </form>

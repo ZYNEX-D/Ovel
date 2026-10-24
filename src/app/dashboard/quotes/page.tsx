@@ -192,10 +192,10 @@ export default function DashboardQuotesPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
-            Quotes &amp; Proposals Pipeline
+            Quotes
           </h1>
           <p className="text-xs text-[#3A9295] mt-1">
-            Create interactive proposals with optional client add-ons, digital signature, and automated deposit collection.
+            Proposals.
           </p>
         </div>
 
@@ -218,9 +218,9 @@ export default function DashboardQuotesPage() {
             <FileText className="w-6 h-6" />
           </div>
           <div className="space-y-1">
-            <h3 className="text-base font-medium text-[#105F68]">No quotes drafted yet</h3>
+            <h3 className="text-base font-medium text-[#105F68]">No quotes yet</h3>
             <p className="text-xs text-[#3A9295] max-w-md mx-auto">
-              Draft professional estimates and interactive proposals. Clients can review line items, toggle optional upgrades, and e-sign online.
+              Quotes will appear here.
             </p>
           </div>
           <button
@@ -301,7 +301,7 @@ export default function DashboardQuotesPage() {
                     className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#105F68] text-white hover:bg-[#0D4F57] transition-all font-medium"
                   >
                     <ExternalLink className="w-3 h-3" />
-                    <span>Open Proposal</span>
+                    <span>Open quote</span>
                   </Link>
 
                   <button
@@ -328,8 +328,7 @@ export default function DashboardQuotesPage() {
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold text-[#105F68]">Create Quote / Proposal</h3>
-                  <p className="text-xs text-[#3A9295]">Draft an interactive proposal with digital e-signing.</p>
+                  <h3 className="text-base font-semibold text-[#105F68]">New quote</h3>
                 </div>
               </div>
               <button
@@ -487,8 +486,8 @@ export default function DashboardQuotesPage() {
               <div className="space-y-3 pt-2 border-t border-black/5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-semibold text-[#105F68]">Interactive Add-Ons (Optional)</h4>
-                    <p className="text-[10px] text-slate-400">Clients can toggle these upgrades when accepting proposal.</p>
+                    <h4 className="font-semibold text-[#105F68]">Add-ons</h4>
+                    <p className="text-[10px] text-slate-400">Clients can add these when accepting.</p>
                   </div>
                   <button
                     type="button"
@@ -581,7 +580,7 @@ export default function DashboardQuotesPage() {
               {/* Summary Bar */}
               <div className="p-4 rounded-2xl bg-[#C8E6E2]/20 border border-[#105F68]/15 flex items-center justify-between text-xs">
                 <div>
-                  <span className="text-slate-500 block">Total Base Proposal:</span>
+                  <span className="text-slate-500 block">Subtotal:</span>
                   <span className="text-base font-bold text-[#105F68]">${subtotal.toFixed(2)}</span>
                 </div>
                 <div className="text-right">
@@ -603,7 +602,7 @@ export default function DashboardQuotesPage() {
                   type="submit"
                   className="px-6 py-2.5 rounded-full bg-[#105F68] text-white font-semibold hover:bg-[#0D4F57] transition-all shadow-md"
                 >
-                  Create &amp; Publish Proposal
+                  Create quote
                 </button>
               </div>
             </form>

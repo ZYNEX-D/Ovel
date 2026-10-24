@@ -80,7 +80,7 @@ export default function DashboardServicesPage() {
         // safe fallback
       }
     }
-    showToast(`Service "${serviceName}" removed`);
+    showToast(`Service removed.`);
   };
 
   const handleCreateService = (e: React.FormEvent) => {
@@ -139,7 +139,7 @@ export default function DashboardServicesPage() {
     setIsAddServiceOpen(false);
     setNewServiceName("");
     setNewServiceDesc("");
-    showToast(`Service "${newSrv.name}" created and synced to Ovelink`);
+    showToast(`Service created.`);
   };
 
   // Don't render content (or show empty state) until profile has loaded and
@@ -159,10 +159,10 @@ export default function DashboardServicesPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
-            Service Catalog &amp; Deposit Guard
+            Services
           </h1>
           <p className="text-xs text-[#3A9295] mt-1">
-            Configure treatment durations, upfront card deposits, and post-service buffer times.
+            Catalog and deposits.
           </p>
         </div>
 
@@ -183,9 +183,9 @@ export default function DashboardServicesPage() {
           <div className="w-12 h-12 rounded-2xl bg-[#C8E6E2]/40 text-[#105F68] flex items-center justify-center mx-auto">
             <Sparkles className="w-6 h-6" />
           </div>
-          <h3 className="text-base font-light text-[#105F68]">No services in your catalog yet</h3>
+          <h3 className="text-base font-light text-[#105F68]">No services yet</h3>
           <p className="text-xs text-[#3A9295] max-w-md mx-auto">
-            Configure your offerings, upfront deposit requirements, and treatment durations to make them bookable via your Ovelink.
+            Add a service to make it bookable.
           </p>
           <button
             onClick={() => {
@@ -195,7 +195,7 @@ export default function DashboardServicesPage() {
             className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#105F68] text-white text-xs font-light hover:bg-[#0D4F57] transition-all shadow-sm"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Create Your First Service</span>
+            <span>Add service</span>
           </button>
         </div>
       ) : (
@@ -251,8 +251,7 @@ export default function DashboardServicesPage() {
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-lg font-light text-[#105F68]">Add Catalog Service</h3>
-                <p className="text-xs text-[#3A9295]">Configure price and deposit requirements</p>
+                <h3 className="text-lg font-light text-[#105F68]">Add service</h3>
               </div>
             </div>
 
@@ -326,7 +325,7 @@ export default function DashboardServicesPage() {
                   type="submit"
                   className="px-5 py-2 rounded-full bg-[#105F68] text-white text-xs font-light hover:bg-[#0D4F57] transition-all"
                 >
-                  Save to Catalog
+                  Save
                 </button>
               </div>
             </form>

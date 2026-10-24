@@ -8,7 +8,7 @@ import { useAudio } from "@/components/AudioController";
 import { useAuth } from "@/lib/auth-context";
 
 export default function DashboardRemindersPage() {
-  const { profile, isLoading } = useAuth();
+  const { profile } = useAuth();
   const { playSuccess } = useAudio();
   const wsId = profile?.organizationId;
   const reminders = useClientStore(() => getReminders(wsId), () => INITIAL_REMINDERS);
@@ -24,8 +24,8 @@ export default function DashboardRemindersPage() {
     simulateWhatsAppReply(bookingId, replyBody, wsId);
     showToast(
       replyBody === "1"
-        ? "Client replied '1': Appointment automatically confirmed!"
-        : "Client replied '2': Reschedule flow initiated."
+        ? "Booking confirmed."
+        : "Reschedule started."
     );
   };
 
@@ -34,15 +34,15 @@ export default function DashboardRemindersPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
-            2-Way WhatsApp Interactive Reminders Engine
+            Reminders
           </h1>
           <p className="text-xs text-[#3A9295] mt-1">
-            Automated WhatsApp reminders dispatched at T-24h and T-2h with instant reply parsing.
+            Automated WhatsApp messages.
           </p>
         </div>
 
         <div className="text-xs px-3 py-1 rounded-full bg-[#E8F5E9] text-[#2E7D32] font-medium border border-[#A5D6A7]">
-          Webhook Active: /api/webhooks/whatsapp
+          Webhook connected
         </div>
       </div>
 
@@ -51,9 +51,9 @@ export default function DashboardRemindersPage() {
           <div className="w-12 h-12 rounded-2xl bg-[#E8F5E9] text-[#2E7D32] flex items-center justify-center mx-auto">
             <MessageSquare className="w-6 h-6" />
           </div>
-          <h3 className="text-base font-light text-[#105F68]">No WhatsApp reminders dispatched yet</h3>
+          <h3 className="text-base font-light text-[#105F68]">No reminders yet</h3>
           <p className="text-xs text-[#3A9295] max-w-md mx-auto">
-            Automated WhatsApp reminders are sent at T-24h and T-2h before upcoming bookings with 2-way reply confirmation parsing.
+            Reminders appear here after bookings.
           </p>
         </div>
       ) : (
@@ -92,7 +92,7 @@ export default function DashboardRemindersPage() {
 
               <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-black/5">
                 <span className="text-[11px] text-[#3A9295]">
-                  Simulate Incoming Client WhatsApp Reply:
+                  Simulate reply:
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -100,7 +100,7 @@ export default function DashboardRemindersPage() {
                     className="px-3.5 py-1.5 rounded-lg bg-[#2E7D32] hover:bg-[#1B5E20] text-white text-[11px] font-medium transition-all flex items-center gap-1.5"
                   >
                     <Check className="w-3 h-3" />
-                    <span>Reply &quot;1&quot; (Confirm Booking)</span>
+                    <span>Confirm</span>
                   </button>
 
                   <button
@@ -108,7 +108,7 @@ export default function DashboardRemindersPage() {
                     className="px-3.5 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-medium transition-all flex items-center gap-1.5"
                   >
                     <RotateCcw className="w-3 h-3" />
-                    <span>Reply &quot;2&quot; (Reschedule)</span>
+                    <span>Reschedule</span>
                   </button>
                 </div>
               </div>

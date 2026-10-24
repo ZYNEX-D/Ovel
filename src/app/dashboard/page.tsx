@@ -84,7 +84,7 @@ export default function DashboardOverviewPage() {
       playSuccess();
       showToast(`$25.00 no-show fee charged to card •••• ${updated.cardLast4 || "4242"}.`);
     } else {
-      showToast("No-show fee was not charged. A card must be on file, and the booking cannot already be closed.");
+      showToast("No-show fee not charged. Add a card or reopen the booking.");
     }
   };
 
@@ -93,7 +93,7 @@ export default function DashboardOverviewPage() {
     const all = getBookings(wsId);
     const updated = all.map(b => b.id === bookingId ? { ...b, status: "completed" as const } : b);
     saveBookings(updated, wsId);
-    showToast("Booking marked completed! Triggered automatic 2h review request & 4-week rebooking schedule.");
+    showToast("Booking completed.");
   };
 
   const handleDispatchWaitlist = () => {
@@ -116,7 +116,7 @@ export default function DashboardOverviewPage() {
       setIsWaitlistModalOpen(false);
       showToast(`Slot claimed by ${newBooking.clientName}! Revenue recovered.`);
     } else {
-      showToast("That waitlist spot could not be claimed. It may already be taken or the time is booked.");
+      showToast("Could not claim the slot. It may be taken.");
     }
   };
 
@@ -187,7 +187,7 @@ export default function DashboardOverviewPage() {
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Monitor daily appointments, specialist capacity, and direct revenue collection in real time.
+            Appointments, capacity, and revenue.
           </p>
         </div>
 
@@ -261,9 +261,6 @@ export default function DashboardOverviewPage() {
             <h3 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
               ${mounted ? (totalRevenue / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}
             </h3>
-            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-              <span className="text-emerald-700 font-semibold">100%</span> direct to account
-            </p>
           </div>
         </motion.div>
 
@@ -285,9 +282,6 @@ export default function DashboardOverviewPage() {
             <h3 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
               ${mounted ? (depositsCollected / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}
             </h3>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Guaranteed card authorizations
-            </p>
           </div>
         </motion.div>
 
@@ -309,9 +303,6 @@ export default function DashboardOverviewPage() {
             <h3 className="text-2xl sm:text-3xl font-light text-white tracking-tight">
               ${mounted ? feesSaved.toLocaleString() : "0"}
             </h3>
-            <p className="text-[11px] text-[#C8E6E2] mt-1">
-              Retained vs 20% marketplace cut
-            </p>
           </div>
         </motion.div>
 
@@ -333,9 +324,6 @@ export default function DashboardOverviewPage() {
             <h3 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
               ${mounted ? (avgOrderValue / 100).toFixed(2) : "0.00"}
             </h3>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Average per booking
-            </p>
           </div>
         </motion.div>
 
@@ -357,9 +345,6 @@ export default function DashboardOverviewPage() {
             <h3 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
               98.5%
             </h3>
-            <p className="text-[11px] text-slate-500 mt-1">
-              $25 no-show card coverage
-            </p>
           </div>
         </motion.div>
       </div>
@@ -608,7 +593,7 @@ export default function DashboardOverviewPage() {
             <div className="space-y-2 text-xs">
               {staff.length === 0 ? (
                 <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/60 text-center space-y-2 text-xs">
-                  <p className="text-slate-500 text-[11px]">No team members registered in this workspace yet.</p>
+                  <p className="text-slate-500 text-[11px]">No team members yet.</p>
                   <Link
                     href="/dashboard/staff"
                     className="inline-block px-3 py-1.5 rounded-xl bg-[#105F68] text-white text-[11px] font-medium hover:bg-[#0D4F57] transition-all"
@@ -751,7 +736,7 @@ export default function DashboardOverviewPage() {
                 {waitlist.length === 0 ? (
                   <div className="p-6 rounded-xl bg-slate-50 border border-slate-100 text-center text-xs text-slate-500 space-y-1">
                     <p className="font-medium text-slate-800">No clients on the waitlist right now</p>
-                    <p className="text-[11px]">Clients can join your waitlist from your booking page when fully booked.</p>
+                    <p className="text-[11px]">Clients can join when fully booked.</p>
                   </div>
                 ) : (
                   waitlist.map((entry) => (
@@ -823,7 +808,7 @@ export default function DashboardOverviewPage() {
                 <div className="flex items-center gap-2">
                   <Lock className="w-4 h-4 text-slate-700" />
                   <h3 className="text-base font-semibold text-slate-900">
-                    VIP Single-Use Booking Link
+                    VIP link
                   </h3>
                 </div>
                 <button
