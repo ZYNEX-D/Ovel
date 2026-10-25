@@ -13,10 +13,12 @@ import {
   ExternalLink,
 } from "lucide-react";
 import ProgressiveBlur from "@/components/ProgressiveBlur";
-import DeferredThreeCanvas from "@/components/home/DeferredThreeCanvas";
+import LandingBackground from "@/components/home/LandingBackground";
 import HomeHeaderActions from "@/components/home/HomeHeaderActions";
 import ClickLink from "@/components/home/ClickLink";
 import SavingsCalculator from "@/components/home/SavingsCalculator";
+import HeroShowcase from "@/components/home/HeroShowcase";
+import HomeFooter from "@/components/home/HomeFooter";
 
 const DEMO_LINKS = [
   {
@@ -53,7 +55,7 @@ const DEMO_LINKS = [
     sampleUrl: "/l/vance-studio",
   },
   {
-    slug: "leclat",
+    slug: "My BUsiness",
     name: "L'Éclat Boutique",
     category: "Wellness & Care",
     theme: "Signature Teal • Kaleko 105",
@@ -61,7 +63,7 @@ const DEMO_LINKS = [
     accent: "text-[#63C1BB]",
     pill: "bg-[#105F68] text-white",
     type: "Aesthetic Appointments",
-    sampleUrl: "/l/leclat",
+    sampleUrl: "/l/MyBUsiness",
   },
 ];
 
@@ -106,13 +108,23 @@ const LOOP_STEPS = [
 export default function HomePage() {
   return (
     <div className="relative min-h-screen bg-[#F6FAF9] text-[#103438] antialiased selection:bg-[#105F68] selection:text-white font-['Kaleko_105',sans-serif] overflow-x-hidden">
-      <DeferredThreeCanvas />
+      <LandingBackground
+        colors={["#ff5c7a", "#8a5cff", "#00ffd1"]}
+        rotation={90}
+        speed={0.2}
+        scale={1}
+        frequency={1}
+        warpStrength={1}
+        mouseInfluence={1}
+        noise={0.08}
+        parallax={0.5}
+        iterations={1}
+        intensity={1.2}
+        bandWidth={6}
+        transparent={true}
+      />
 
       <ProgressiveBlur position="top" height="h-24" />
-      <ProgressiveBlur position="bottom" height="h-20" />
-
-      <div className="absolute -top-[15%] -right-[10%] w-[700px] h-[700px] bg-[#C8E6E2]/70 rounded-full blur-[120px] -z-10 pointer-events-none animate-gradientFlow1"></div>
-      <div className="absolute top-[35%] -left-[12%] w-[600px] h-[600px] bg-[#9ED5D1]/55 rounded-full blur-[130px] -z-10 pointer-events-none animate-gradientFlow2"></div>
 
       <header className="sticky top-0 z-40 bg-[#F6FAF9]/85 backdrop-blur-md border-b border-[#105F68]/10 transition-all duration-300">
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 h-20 sm:h-24 flex items-center justify-between">
@@ -142,61 +154,81 @@ export default function HomePage() {
       </header>
 
       <main className="w-full">
-        <section className="px-4 sm:px-8 max-w-7xl mx-auto pt-16 sm:pt-28 pb-20 sm:pb-32 flex flex-col justify-center min-h-[calc(100vh-6rem)]">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#C8E6E2]/40 border border-[#9ED5D1]/60 text-xs text-[#105F68] font-light tracking-wide w-fit mb-8 opacity-0 animate-[blurFadeUp_1s_cubic-bezier(0.22,1,0.36,1)_forwards]">
-            <span className="w-2 h-2 rounded-full bg-[#63C1BB] animate-ping"></span>
-            <span>One Link for Appointments, Bookings &amp; Orders • 0% Commission</span>
+        <section className="px-4 sm:px-8 max-w-7xl mx-auto pt-16 sm:pt-24 pb-16 sm:pb-24 flex flex-col items-center justify-center text-center">
+          {/* Eyebrow Badge */}
+          <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-white/85 border border-[#105F68]/15 text-xs text-[#105F68] font-medium tracking-wide shadow-sm hover:shadow-md transition-all mb-8 opacity-0 animate-[blurFadeUp_1s_cubic-bezier(0.22,1,0.36,1)_forwards]">
+            <span className="w-2 h-2 rounded-full bg-[#63C1BB] animate-ping" />
+            <span>The Flat-Price Booking-to-Paid Platform</span>
+            <span className="text-[#3A9295]">•</span>
+            <span className="font-semibold text-[#105F68]">0% Take-Rate</span>
           </div>
 
+          {/* Headline */}
           <h1
-            className="font-light text-4xl sm:text-6xl md:text-7xl lg:text-[76px] text-[#105F68] leading-[1.08] tracking-tight mb-8 sm:mb-12 max-w-5xl opacity-0 animate-[blurFadeUp_1.2s_cubic-bezier(0.22,1,0.36,1)_forwards]"
+            className="font-light text-4xl sm:text-6xl md:text-7xl lg:text-[76px] text-[#105F68] leading-[1.08] tracking-tight max-w-5xl mx-auto mb-6 sm:mb-8 opacity-0 animate-[blurFadeUp_1.2s_cubic-bezier(0.22,1,0.36,1)_forwards]"
             style={{ animationDelay: "150ms" }}
           >
             One <span className="font-['Disolve'] font-normal text-[#105F68]">Ovelink</span> for Everything You{" "}
             <span className="text-[#3A9295] font-normal">Book, Sell, or Schedule.</span>
           </h1>
 
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-10 w-full">
-            <div
-              className="max-w-2xl opacity-0 animate-[blurFadeUp_1.2s_cubic-bezier(0.22,1,0.36,1)_forwards]"
-              style={{ animationDelay: "300ms" }}
+          {/* Subtitle with improved legibility */}
+          <p
+            className="text-base sm:text-xl text-[#245D63] font-normal leading-relaxed max-w-3xl mx-auto mb-8 sm:mb-10 opacity-0 animate-[blurFadeUp_1.2s_cubic-bezier(0.22,1,0.36,1)_forwards]"
+            style={{ animationDelay: "300ms" }}
+          >
+            Give your clients a pristine, custom-branded link (<span className="font-mono text-[#105F68] font-semibold bg-[#C8E6E2]/40 px-2 py-0.5 rounded-md">ovel.lk/l/your-name</span>) to schedule appointments, reserve time slots, or place custom orders with instant deposits. Zero marketplace commission.
+          </p>
+
+          {/* CTAs */}
+          <div
+            className="flex flex-wrap items-center justify-center gap-4 w-full mb-8 opacity-0 animate-[blurFadeUp_1.2s_cubic-bezier(0.22,1,0.36,1)_forwards]"
+            style={{ animationDelay: "450ms" }}
+          >
+            <ClickLink
+              href="/signup"
+              className="bg-[#105F68] text-white px-8 py-4 rounded-full text-base sm:text-lg flex justify-center items-center gap-2 hover:bg-[#0D4F57] hover:shadow-xl hover:shadow-[#105F68]/20 hover:-translate-y-1 transition-all duration-300 font-light tracking-tight"
             >
-              <p className="text-sm sm:text-lg text-[#3A9295] font-thin leading-relaxed tracking-tight">
-                Give your clients a clean, custom-branded link (<span className="font-mono text-[#105F68]">ovel.app/l/your-name</span>) to schedule appointments, reserve time slots, or place custom orders with instant deposits. Zero marketplace commissions. Fully customizable with your <span className="text-[#105F68] font-medium">brand colors &amp; fonts</span>.
-              </p>
-            </div>
+              <span>Create Your Ovelink Free</span>
+              <ArrowRight className="w-4 h-4" />
+            </ClickLink>
 
-            <div
-              className="flex flex-col items-start lg:items-end gap-5 opacity-0 animate-[blurFadeUp_1.2s_cubic-bezier(0.22,1,0.36,1)_forwards]"
-              style={{ animationDelay: "450ms" }}
+            <a
+              href="#engines"
+              className="border border-[#105F68]/20 text-[#105F68] bg-white/85 hover:bg-white hover:border-[#105F68]/40 px-7 py-4 rounded-full text-base sm:text-lg flex justify-center items-center gap-1.5 hover:-translate-y-1 transition-all duration-300 font-light tracking-tight shadow-sm"
             >
-              <div className="flex flex-wrap gap-3 w-full sm:w-auto">
-                <ClickLink
-                  href="/signup"
-                  className="bg-[#105F68] text-white px-7 py-4 rounded-full text-sm sm:text-base flex justify-center items-center gap-2 hover:bg-[#0D4F57] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 font-light tracking-tight"
-                >
-                  <span>Create Your Ovelink Free</span>
-                  <ArrowRight className="w-4 h-4" />
-                </ClickLink>
+              <span>Explore The 3 Engines</span>
+              <ChevronRight className="w-4 h-4 text-[#3A9295]" />
+            </a>
+          </div>
 
-                <Link
-                  href="/l/apex-studio"
-                  target="_blank"
-                  className="border border-[#105F68]/25 text-[#105F68] bg-white/70 hover:bg-white px-6 py-4 rounded-full text-sm sm:text-base flex justify-center items-center gap-1.5 hover:-translate-y-1 transition-all duration-300 font-light tracking-tight"
-                >
-                  <span>See Live Customer Demo</span>
-                  <ExternalLink className="w-4 h-4" />
-                </Link>
-              </div>
+          {/* Trust Guarantees */}
+          <div
+            className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs sm:text-sm text-[#3A9295] tracking-widest uppercase font-medium mb-4 opacity-0 animate-[blurFadeUp_1.2s_cubic-bezier(0.22,1,0.36,1)_forwards]"
+            style={{ animationDelay: "550ms" }}
+          >
+            <span className="flex items-center gap-1.5">
+              <Check className="w-4 h-4 text-[#105F68]" />
+              0% TAKE-RATE
+            </span>
+            <span>•</span>
+            <span className="flex items-center gap-1.5">
+              <Check className="w-4 h-4 text-[#105F68]" />
+              WHATSAPP 2-WAY RECEIPTS
+            </span>
+            <span>•</span>
+            <span className="flex items-center gap-1.5">
+              <Check className="w-4 h-4 text-[#105F68]" />
+              FLAT PREDICTABLE PRICING
+            </span>
+          </div>
 
-              <div className="flex items-center gap-6 text-[11px] sm:text-xs text-[#3A9295] tracking-widest uppercase font-light">
-                <span>0% TAKE-RATE</span>
-                <span>•</span>
-                <span>WHATSAPP 2-WAY RECEIPTS</span>
-                <span>•</span>
-                <span>FLAT PREDICTABLE PRICING</span>
-              </div>
-            </div>
+          {/* Interactive Hero Showcase */}
+          <div
+            className="w-full opacity-0 animate-[blurFadeUp_1.3s_cubic-bezier(0.22,1,0.36,1)_forwards]"
+            style={{ animationDelay: "650ms" }}
+          >
+            <HeroShowcase />
           </div>
         </section>
 
@@ -379,25 +411,7 @@ export default function HomePage() {
         </section>
       </main>
 
-      <footer className="bg-[#105F68] text-white py-16 px-4 sm:px-8">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6 border-b border-white/10 pb-8 text-xs">
-          <div className="flex items-center gap-3">
-            <span className="font-['Disolve'] text-3xl">Ovel</span>
-            <span className="text-white/40">•</span>
-            <span className="text-[#C8E6E2]">The Zero-Commission Operating Platform for All Businesses</span>
-          </div>
-
-          <div className="flex items-center gap-6 text-[#C8E6E2]">
-            <Link href="/login" className="hover:text-white transition-colors">Sign In</Link>
-            <Link href="/signup" className="hover:text-white transition-colors">Create Account</Link>
-            <a href="#how-it-works" className="hover:text-white transition-colors">Features</a>
-            <a href="#savings" className="hover:text-white transition-colors">Pricing</a>
-          </div>
-        </div>
-        <div className="max-w-7xl mx-auto pt-6 text-center sm:text-left text-[11px] text-[#9ED5D1]">
-          © 2026 Ovel. 0% transaction commission fees. Built for modern businesses.
-        </div>
-      </footer>
+      <HomeFooter />
     </div>
   );
 }

@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { useAuth, UserRole } from "@/lib/auth-context";
 import { useAudio } from "@/components/AudioController";
+import Toast from "@/components/arc/toast/toast";
+import { Dialog, DialogContent, DialogClose } from "@/components/arc/dialog/dialog";
 
 export default function DashboardTeamPage() {
   const { playClick, playSuccess } = useAudio();
@@ -308,28 +310,13 @@ export default function DashboardTeamPage() {
         </div>
       </div>
 
-      {/* Invite Team Member Modal */}
-      {isInviteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl border border-[#105F68]/20 shadow-xl max-w-lg w-full p-6 space-y-5 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#105F68] text-white flex items-center justify-center">
-                  <UserPlus className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-light text-[#105F68]">Invite Team Member</h3>
-                  <p className="text-xs text-[#3A9295]">Create Supabase Auth credentials and grant role</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsInviteModalOpen(false)}
-                className="text-[#3A9295] hover:text-[#105F68] p-1"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+      {/* Invite Team Member Modal with Arc Dialog */}
+      <Dialog open={isInviteModalOpen} onOpenChange={setIsInviteModalOpen}>
+        <DialogContent
+          title="Invite Team Member"
+          description="Create Supabase Auth credentials and grant role permissions."
+        >
+          <div className="pt-2">
             <form onSubmit={handleInviteTeamMember} className="space-y-4">
               <div>
                 <label className="text-xs text-[#3A9295] font-medium block mb-1">Full Name</label>
@@ -399,13 +386,14 @@ export default function DashboardTeamPage() {
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-black/5">
-                <button
-                  type="button"
-                  onClick={() => setIsInviteModalOpen(false)}
-                  className="px-4 py-2 rounded-full text-xs text-[#3A9295] hover:text-[#105F68]"
-                >
-                  Cancel
-                </button>
+                <DialogClose asChild>
+                  <button
+                    type="button"
+                    className="px-4 py-2 rounded-full text-xs text-[#3A9295] hover:text-[#105F68]"
+                  >
+                    Cancel
+                  </button>
+                </DialogClose>
                 <button
                   type="submit"
                   className="px-5 py-2.5 rounded-full bg-[#105F68] text-white text-xs font-light hover:bg-[#0D4F57] transition-all flex items-center gap-1.5 shadow-sm"
@@ -416,15 +404,18 @@ export default function DashboardTeamPage() {
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
-      {notification && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#105F68] text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 text-xs">
-          <Check className="w-4 h-4 text-[#63C1BB]" />
-          <span>{notification}</span>
-        </div>
-      )}
+      {/* Arc UI Toast Notification */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <Toast
+          open={Boolean(notification)}
+          onOpenChange={(open) => { if (!open) setNotification(null); }}
+          title={notification || ""}
+          duration={3500}
+        />
+      </div>
     </div>
   );
 }

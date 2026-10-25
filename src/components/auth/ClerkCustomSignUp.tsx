@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Link from "next/link";
 import { useSignUp } from "@clerk/nextjs/legacy";
 import { SignUp } from "@clerk/nextjs";
 import { 
@@ -11,12 +10,13 @@ import {
   User, 
   ArrowRight, 
   Sparkles, 
-  ShieldCheck, 
-  CheckCircle2, 
   AlertCircle,
-  KeyRound
+  KeyRound,
+  ShoppingBag,
+  Layers
 } from "lucide-react";
 import { useAudio } from "@/components/AudioController";
+import { BusinessType } from "@/lib/auth-context";
 
 export default function ClerkCustomSignUp() {
   const { isLoaded, signUp, setActive } = useSignUp();
@@ -24,6 +24,7 @@ export default function ClerkCustomSignUp() {
 
   const [fullName, setFullName] = useState("");
   const [businessName, setBusinessName] = useState("");
+  const [businessType, setBusinessType] = useState<BusinessType>("both");
   const [email, setEmail] = useState("");
   const clerkEmail = isLoaded && signUp?.emailAddress ? signUp.emailAddress : "";
   const visibleEmail = email || clerkEmail;
@@ -84,6 +85,9 @@ export default function ClerkCustomSignUp() {
     const lastName = nameParts.slice(1).join(" ") || firstName;
 
     try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ovel_selected_business_type", businessType);
+      }
       let result = await signUp.create({
         emailAddress: email.trim(),
         password: password,
@@ -92,6 +96,7 @@ export default function ClerkCustomSignUp() {
         unsafeMetadata: {
           businessName: businessName || "My Business",
           businessSlug,
+          businessType,
         },
       });
 
@@ -236,11 +241,16 @@ export default function ClerkCustomSignUp() {
     setErrorMsg(null);
     playClick();
     try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ovel_selected_business_type", businessType);
+      }
       await signUp.authenticateWithRedirect({
         strategy,
         redirectUrl: "/sso-callback",
         redirectUrlComplete: "/auth/redirect",
-        unsafeMetadata: businessName.trim() ? { businessName: businessName.trim(), businessSlug } : undefined,
+        unsafeMetadata: businessName.trim()
+          ? { businessName: businessName.trim(), businessSlug, businessType }
+          : { businessType },
       });
     } catch (err: unknown) {
       const error = err as { errors?: Array<{ longMessage?: string; message?: string }> };
@@ -414,8 +424,86 @@ export default function ClerkCustomSignUp() {
         </div>
         <div className="mt-1 flex items-center justify-between text-[11px] text-[#3A9295]">
           <span>Your Public Ovelink:</span>
-          <span className="font-mono text-[#105F68] font-medium">ovel.app/l/{businessSlug}</span>
+          <span className="font-mono text-[#105F68] font-medium">ovel.lk/l/{businessSlug}</span>
         </div>
+      </div>
+
+      <div>
+        <label className="text-xs text-[#3A9295] font-medium block mb-1.5">
+          What does your business offer?
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              playClick();
+              setBusinessType("services");
+            }}
+            className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+              businessType === "services"
+                ? "border-[#105F68] bg-[#C8E6E2]/40 text-[#105F68] shadow-xs"
+                : "border-black/10 bg-[#F6FAF9] text-slate-600 hover:border-black/20"
+            }`}
+          >
+            <div className="flex items-center justify-between w-full mb-1">
+              <Sparkles className={`w-4 h-4 ${businessType === "services" ? "text-[#105F68]" : "text-slate-400"}`} />
+              {businessType === "services" && <span className="w-1.5 h-1.5 rounded-full bg-[#105F68]" />}
+            </div>
+            <div>
+              <span className="block text-xs font-semibold">Services</span>
+              <span className="block text-[10px] text-slate-500 leading-tight mt-0.5">Appointments & bookings</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              playClick();
+              setBusinessType("products");
+            }}
+            className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+              businessType === "products"
+                ? "border-[#105F68] bg-[#C8E6E2]/40 text-[#105F68] shadow-xs"
+                : "border-black/10 bg-[#F6FAF9] text-slate-600 hover:border-black/20"
+            }`}
+          >
+            <div className="flex items-center justify-between w-full mb-1">
+              <ShoppingBag className={`w-4 h-4 ${businessType === "products" ? "text-[#105F68]" : "text-slate-400"}`} />
+              {businessType === "products" && <span className="w-1.5 h-1.5 rounded-full bg-[#105F68]" />}
+            </div>
+            <div>
+              <span className="block text-xs font-semibold">Products</span>
+              <span className="block text-[10px] text-slate-500 leading-tight mt-0.5">Retail & physical goods</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              playClick();
+              setBusinessType("both");
+            }}
+            className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+              businessType === "both"
+                ? "border-[#105F68] bg-[#C8E6E2]/40 text-[#105F68] shadow-xs"
+                : "border-black/10 bg-[#F6FAF9] text-slate-600 hover:border-black/20"
+            }`}
+          >
+            <div className="flex items-center justify-between w-full mb-1">
+              <Layers className={`w-4 h-4 ${businessType === "both" ? "text-[#105F68]" : "text-slate-400"}`} />
+              {businessType === "both" && <span className="w-1.5 h-1.5 rounded-full bg-[#105F68]" />}
+            </div>
+            <div>
+              <span className="block text-xs font-semibold">Both</span>
+              <span className="block text-[10px] text-slate-500 leading-tight mt-0.5">Services & retail</span>
+            </div>
+          </button>
+        </div>
+        <p className="text-[10px] text-[#3A9295] mt-1.5">
+          {businessType === "services" && "Hides inventory & products tabs to focus on appointments."}
+          {businessType === "products" && "Hides appointment calendars & rosters to focus on products & orders."}
+          {businessType === "both" && "Enables complete suite: services, products, bookings & inventory."}
+        </p>
       </div>
 
       <div>

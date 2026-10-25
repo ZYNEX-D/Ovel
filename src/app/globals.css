@@ -66,6 +66,56 @@
   --color-63: #63C1BB;
   --color-3a: #3A9295;
   --color-10: #105F68;
+
+  /* Arc UI Design System Tokens */
+  --background: #F6FAF9;
+  --surface: #ffffff;
+  --surface-raised: rgba(255, 255, 255, 0.82);
+  --surface-muted: #F6FAF9;
+  --foreground: #103438;
+  --text-secondary: #3A9295;
+  --text-muted: #82a3a5;
+  --border: rgba(16, 95, 104, 0.12);
+  --border-subtle: rgba(16, 95, 104, 0.06);
+  --border-strong: rgba(16, 95, 104, 0.25);
+  --accent: #105F68;
+  --accent-strong: #0D4F57;
+  --control-glyph: #ffffff;
+  --control-on: #105F68;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --shadow-resting: 0 1px 3px 0 rgba(16, 95, 104, 0.08), 0 1px 2px -1px rgba(16, 95, 104, 0.08);
+  --shadow-floating: 0 12px 32px 0 rgba(16, 95, 104, 0.14), 0 4px 12px 0 rgba(16, 95, 104, 0.08);
+  --radius-control: 14px;
+  --radius-pill: 9999px;
+  --radius-panel: 20px;
+  --font-body: var(--font-kaleko);
+  --font-display: var(--font-disolve);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-3xl: 1.875rem;
+  --leading-body: 1.5;
+  --leading-display: 1.2;
+  --tracking-body: 0;
+  --tracking-display: -0.02em;
+  --duration-instant: 100ms;
+  --duration-fast: 160ms;
+  --duration-standard: 240ms;
+  --duration-spring: 320ms;
+  --duration-considered: 480ms;
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 body {

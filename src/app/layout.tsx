@@ -4,6 +4,7 @@ import { AudioProvider } from "@/components/AudioController";
 import { ChannelTransitionProvider } from "@/components/ChannelTransition";
 import { AuthProvider } from "@/lib/auth-context";
 import ClerkProviderWrapper from "@/components/ClerkProviderWrapper";
+import SmoothScroll from "@/components/SmoothScroll";
 
 export const metadata: Metadata = {
   title: "Ovel — The Flat-Price Booking-to-Paid Operating Platform",
@@ -29,7 +30,9 @@ export default function RootLayout({
           <AuthProvider>
             <AudioProvider>
               <ChannelTransitionProvider>
-                {children}
+                <SmoothScroll>
+                  {children}
+                </SmoothScroll>
               </ChannelTransitionProvider>
             </AudioProvider>
           </AuthProvider>

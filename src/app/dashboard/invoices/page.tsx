@@ -16,9 +16,14 @@ import {
   AlertCircle,
   FileText,
   ShoppingBag,
+  Package,
+  Layers,
   User,
-  ArrowUpRight
+  ArrowUpRight,
+  Send
 } from "lucide-react";
+import { Combobox, ComboboxOption } from "@/components/arc/combobox/combobox";
+import { Select } from "@/components/arc/select/select";
 import { 
   getInvoices, 
   INITIAL_INVOICES,
@@ -29,25 +34,45 @@ import {
   INITIAL_CLIENT_PROFILES,
   getServices,
   INITIAL_SERVICES,
+  getProducts,
+  INITIAL_PRODUCTS,
+  deductInventoryForLineItems,
+  formatServicePrice,
   InvoiceRecord, 
+  InvoiceLineItem,
   ClientProfile, 
-  ServiceItem 
+  ServiceItem,
+  ProductItem
 } from "@/lib/platform-store";
 import { useClientStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
 import { useAuth } from "@/lib/auth-context";
-import { generateInvoicePDF } from "@/lib/invoice-pdf";
+import { formatCurrency, formatCurrencyRaw, getCurrencySymbol, DEFAULT_CURRENCY } from "@/lib/currency";
+import { getOvelink, PRESET_OVELINKS } from "@/lib/ovelink-store";
+import { Dialog, DialogContent, DialogClose } from "@/components/arc/dialog/dialog";
+import { ArcBadge } from "@/components/ui/ArcBadge";
+import { SortableDataTable, type DataColumn } from "@/components/arc/sortable-data-table/sortable-data-table";
 
 export default function DashboardInvoicesPage() {
   const { profile, isLoading } = useAuth();
   const { playSuccess, playClick } = useAudio();
   const wsId = profile?.organizationId;
   const invoices = useClientStore(() => getInvoices(wsId), () => INITIAL_INVOICES);
+
+  const defaultSlug = profile?.organizationSlug || "my-brand";
+  const activeOvelink = useClientStore(
+    () => getOvelink(defaultSlug, profile?.organizationName, wsId),
+    () => PRESET_OVELINKS[defaultSlug] || PRESET_OVELINKS.leclat
+  );
+  const currency = activeOvelink?.currency || DEFAULT_CURRENCY;
+  const symbol = getCurrencySymbol(currency);
   const clients = useClientStore(() => getClientProfiles(wsId), () => INITIAL_CLIENT_PROFILES);
   const services = useClientStore(() => getServices(wsId), () => INITIAL_SERVICES);
+  const products = useClientStore(() => getProducts(wsId), () => INITIAL_PRODUCTS);
 
   // Modals & UI state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [deletingInvoice, setDeletingInvoice] = useState<InvoiceRecord | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "sent" | "draft">("all");
   const [notification, setNotification] = useState<string | null>(null);
@@ -58,8 +83,14 @@ export default function DashboardInvoicesPage() {
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [status, setStatus] = useState<"paid" | "sent" | "draft">("paid");
   const [paymentMethod, setPaymentMethod] = useState("Credit Card / Terminal");
-  const [lineItems, setLineItems] = useState<{ description: string; price: number }[]>([
-    { description: "Standard Service Consultation & Delivery", price: 150 },
+  const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([
+    {
+      description: "Standard Consultation & Service Delivery",
+      quantity: 1,
+      unitPrice: 150,
+      priceCents: 15000,
+      type: "service",
+    },
   ]);
   const [depositCredited, setDepositCredited] = useState<number>(0);
   const [taxPercent, setTaxPercent] = useState<number>(0);
@@ -70,11 +101,9 @@ export default function DashboardInvoicesPage() {
     setTimeout(() => setNotification(null), 3500);
   };
 
-
-
   // Financial Calculations for Form
   const subtotal = useMemo(() => {
-    return lineItems.reduce((acc, curr) => acc + (Number(curr.price) || 0), 0);
+    return lineItems.reduce((acc, curr) => acc + (Number(curr.quantity || 1) * Number(curr.unitPrice || 0)), 0);
   }, [lineItems]);
 
   const taxAmount = useMemo(() => {
@@ -86,6 +115,71 @@ export default function DashboardInvoicesPage() {
     const computed = subtotal - deposit + taxAmount;
     return computed < 0 ? 0 : computed;
   }, [subtotal, depositCredited, taxAmount]);
+
+  const catalogOptions: ComboboxOption[] = useMemo(() => {
+    const prods: ComboboxOption[] = (products || []).map((p) => ({
+      value: `product:${p.id}`,
+      label: p.name,
+      group: "Physical Products",
+      badge: `Stock: ${p.stockCount}`,
+      subtext: `${p.category || "Products"}${p.sku ? ` • SKU: ${p.sku}` : ""} • ${formatCurrency(p.priceCents, currency)}`,
+      keywords: [p.name, p.category || "", p.sku || "", "product"],
+      renderItem: () => (
+        <div className="flex items-center justify-between w-full py-0.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+              PRODUCT
+            </span>
+            <div className="truncate">
+              <span className="font-medium text-xs text-slate-800 truncate block">{p.name}</span>
+              <span className="text-[10px] text-slate-400 block truncate">
+                {p.category || "Products"}{p.sku ? ` • SKU: ${p.sku}` : ""}
+              </span>
+            </div>
+          </div>
+          <div className="text-right shrink-0 pl-2">
+            <span className="text-xs font-semibold text-[#105F68] font-mono block">
+              {formatCurrency(p.priceCents, currency)}
+            </span>
+            <span className={`text-[10px] ${p.stockCount > 0 ? "text-emerald-600 font-medium" : "text-rose-500 font-semibold"}`}>
+              {p.stockCount > 0 ? `${p.stockCount} in stock` : "Out of stock"}
+            </span>
+          </div>
+        </div>
+      ),
+    }));
+
+    const srvs: ComboboxOption[] = (services || []).map((s) => ({
+      value: `service:${s.id}`,
+      label: s.name,
+      group: "Services",
+      badge: s.pricingType === "range" ? "Range" : `${s.durationMinutes}m`,
+      subtext: `${s.category || "Services"} • ${formatServicePrice(s, currency)}`,
+      keywords: [s.name, s.category || "", "service"],
+      renderItem: () => (
+        <div className="flex items-center justify-between w-full py-0.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+              SERVICE
+            </span>
+            <div className="truncate">
+              <span className="font-medium text-xs text-slate-800 truncate block">{s.name}</span>
+              <span className="text-[10px] text-slate-400 block truncate">
+                {s.category || "Services"} • {s.durationMinutes} mins
+              </span>
+            </div>
+          </div>
+          <div className="text-right shrink-0 pl-2">
+            <span className="text-xs font-semibold text-[#105F68] font-mono block">
+              {formatServicePrice(s, currency)}
+            </span>
+          </div>
+        </div>
+      ),
+    }));
+
+    return [...prods, ...srvs];
+  }, [products, services, currency]);
 
   // Overall Statistics
   const stats = useMemo(() => {
@@ -102,14 +196,14 @@ export default function DashboardInvoicesPage() {
     const draftCount = invoices.filter((i) => i.status === "draft").length;
 
     return {
-      totalCollected: (totalCollectedCents / 100).toFixed(2),
-      outstanding: (outstandingCents / 100).toFixed(2),
+      totalCollected: formatCurrency(totalCollectedCents, currency),
+      outstanding: formatCurrency(outstandingCents, currency),
       paidCount,
       sentCount,
       draftCount,
       totalCount: invoices.length,
     };
-  }, [invoices]);
+  }, [invoices, currency]);
 
   // Filtered invoices
   const filteredInvoices = useMemo(() => {
@@ -139,7 +233,16 @@ export default function DashboardInvoicesPage() {
   // Add / Remove line items
   const handleAddLineItem = () => {
     playClick();
-    setLineItems([...lineItems, { description: "", price: 50 }]);
+    setLineItems([
+      ...lineItems,
+      {
+        description: "",
+        quantity: 1,
+        unitPrice: 50,
+        priceCents: 5000,
+        type: "custom",
+      },
+    ]);
   };
 
   const handleRemoveLineItem = (index: number) => {
@@ -151,12 +254,43 @@ export default function DashboardInvoicesPage() {
     setLineItems(lineItems.filter((_, i) => i !== index));
   };
 
-  const handleQuickAddService = (serviceId: string) => {
+  const handleAddServiceItem = (serviceId: string) => {
     const srv = services.find((s) => s.id === serviceId);
     if (srv) {
       playClick();
-      setLineItems([...lineItems, { description: srv.name, price: srv.priceCents / 100 }]);
-      showToast(`Added "${srv.name}" to invoice items`);
+      const unitPrice = srv.priceCents / 100;
+      setLineItems([
+        ...lineItems,
+        {
+          itemId: srv.id,
+          type: "service",
+          description: srv.name,
+          quantity: 1,
+          unitPrice,
+          priceCents: srv.priceCents,
+        },
+      ]);
+      showToast(`Added service "${srv.name}" to line items`);
+    }
+  };
+
+  const handleAddProductItem = (productId: string) => {
+    const prod = products.find((p) => p.id === productId);
+    if (prod) {
+      playClick();
+      const unitPrice = prod.priceCents / 100;
+      setLineItems([
+        ...lineItems,
+        {
+          itemId: prod.id,
+          type: "product",
+          description: prod.name + (prod.sku ? ` (${prod.sku})` : ""),
+          quantity: 1,
+          unitPrice,
+          priceCents: prod.priceCents,
+        },
+      ]);
+      showToast(`Added product "${prod.name}" (Stock: ${prod.stockCount})`);
     }
   };
 
@@ -172,7 +306,7 @@ export default function DashboardInvoicesPage() {
 
     const itemsSummary = lineItems
       .filter((i) => i.description.trim())
-      .map((i) => i.description.trim())
+      .map((i) => `${(i.quantity ?? 1) > 1 ? `${i.quantity}x ` : ""}${i.description.trim()}`)
       .join(", ");
 
     const subtotalCents = Math.round(subtotal * 100);
@@ -184,6 +318,11 @@ export default function DashboardInvoicesPage() {
       invoiceNumber.trim() ||
       "INV-" + new Date().getFullYear() + "-" + Math.floor(1000 + Math.random() * 9000);
 
+    // If paid upon creation, deduct inventory for physical products right now!
+    if (status === "paid") {
+      deductInventoryForLineItems(lineItems, wsId);
+    }
+
     createInvoice(
       {
         bookingId: `manual_${Date.now()}`,
@@ -191,6 +330,10 @@ export default function DashboardInvoicesPage() {
         clientName: clientName.trim(),
         clientEmail: clientEmail.trim(),
         itemsSummary: itemsSummary || "Direct Service Sale",
+        lineItems: lineItems.map((item) => ({
+          ...item,
+          priceCents: Math.round((item.quantity || 1) * (item.unitPrice || 0) * 100),
+        })),
         notes: notes.trim() || undefined,
         paymentMethod: status === "paid" ? paymentMethod : undefined,
         subtotalCents,
@@ -210,7 +353,15 @@ export default function DashboardInvoicesPage() {
     setInvoiceNumber("");
     setStatus("paid");
     setPaymentMethod("Credit Card / Terminal");
-    setLineItems([{ description: "Standard Service Consultation & Delivery", price: 150 }]);
+    setLineItems([
+      {
+        description: "Standard Consultation & Service Delivery",
+        quantity: 1,
+        unitPrice: 150,
+        priceCents: 15000,
+        type: "service",
+      },
+    ]);
     setDepositCredited(0);
     setTaxPercent(0);
     setNotes("");
@@ -224,11 +375,175 @@ export default function DashboardInvoicesPage() {
     showToast(`Invoice ${inv.invoiceNumber} updated to ${newStatus.toUpperCase()}`);
   };
 
-  const handleDelete = (inv: InvoiceRecord) => {
+  const confirmDelete = () => {
+    if (!deletingInvoice) return;
     playClick();
-    deleteInvoice(inv.id, wsId);
-    showToast(`Invoice ${inv.invoiceNumber} removed.`);
+    deleteInvoice(deletingInvoice.id, wsId);
+    showToast(`Invoice ${deletingInvoice.invoiceNumber} removed.`);
+    setDeletingInvoice(null);
   };
+
+  const invoiceColumns = useMemo<DataColumn<InvoiceRecord & Record<string, unknown>>[]>(() => [
+    {
+      key: "invoiceNumber",
+      label: "Invoice #",
+      sortable: true,
+      render: (_val, inv) => (
+        <div>
+          <span className="font-mono font-semibold text-[#105F68]">{inv.invoiceNumber}</span>
+          {inv.itemsSummary && (
+            <p className="text-[11px] text-slate-500 max-w-xs truncate mt-0.5" title={inv.itemsSummary}>
+              {inv.itemsSummary}
+            </p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "clientName",
+      label: "Client",
+      sortable: true,
+      render: (_val, inv) => (
+        <div>
+          <div className="text-xs font-semibold text-slate-800">{inv.clientName}</div>
+          <div className="text-[11px] text-slate-400">{inv.clientEmail}</div>
+        </div>
+      ),
+    },
+    {
+      key: "createdAt",
+      label: "Date",
+      sortable: true,
+      render: (val) => (
+        <span className="text-xs text-slate-600">
+          {new Date(String(val)).toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })}
+        </span>
+      ),
+    },
+    {
+      key: "balanceDueCents",
+      label: "Balance / Paid",
+      sortable: true,
+      numeric: true,
+      render: (_val, inv) => (
+        <div className="text-right">
+          <div className="font-mono font-semibold text-[#105F68]">
+            {formatCurrency(inv.balanceDueCents, currency)}
+          </div>
+          {inv.depositCreditedCents > 0 && (
+            <div className="text-[10px] text-[#3A9295]">
+              Deposit: -{formatCurrency(inv.depositCreditedCents, currency)}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "paymentMethod",
+      label: "Payment Method",
+      sortable: true,
+      render: (val) => (
+        <span className="text-xs text-slate-600">
+          {val ? String(val) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      sortable: true,
+      render: (_val, inv) => (
+        <ArcBadge
+          variant={
+            inv.status === "paid"
+              ? "emerald"
+              : inv.status === "sent"
+              ? "amber"
+              : "neutral"
+          }
+          size="xs"
+        >
+          {inv.status === "paid" ? "Paid Sale" : inv.status === "sent" ? "Awaiting Payment" : "Draft"}
+        </ArcBadge>
+      ),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      sortable: false,
+      render: (_val, inv) => (
+        <div className="flex items-center gap-1.5 justify-end">
+          {inv.status !== "paid" ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleStatus(inv, "paid");
+              }}
+              className="px-2.5 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-[11px] transition-all flex items-center gap-1 shadow-xs cursor-pointer"
+              title="Mark invoice as settled / paid"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>Paid</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleStatus(inv, "sent");
+              }}
+              className="px-2.5 py-1 rounded-full border border-black/10 hover:bg-black/5 text-[#3A9295] text-[11px] transition-all cursor-pointer"
+              title="Mark as awaiting payment"
+            >
+              Unpaid
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={async (e) => {
+              e.stopPropagation();
+              playSuccess();
+              try {
+                const { generateInvoicePDF } = await import("@/lib/invoice-pdf");
+                await generateInvoicePDF(inv, {
+                  name: profile?.organizationName || "Merchant Workspace",
+                  email: profile?.email,
+                  slug: profile?.organizationSlug || "store",
+                  currency,
+                });
+                showToast(`Downloaded official PDF for ${inv.invoiceNumber}`);
+              } catch (err: unknown) {
+                showToast(`Failed to generate PDF: ${(err as Error)?.message || "Error"}`);
+              }
+            }}
+            className="px-2.5 py-1 rounded-full border border-[#105F68]/20 hover:bg-[#105F68]/5 text-[#105F68] transition-all flex items-center gap-1 text-[11px] font-medium cursor-pointer"
+            title="Download official PDF statement"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">PDF</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setDeletingInvoice(inv);
+            }}
+            className="p-1.5 rounded-full border border-red-200 text-red-500 hover:bg-red-50 transition-all cursor-pointer"
+            title="Delete Invoice"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ),
+    },
+  ], [currency, profile, playSuccess, handleToggleStatus, showToast]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -245,7 +560,7 @@ export default function DashboardInvoicesPage() {
 
         <div className="flex items-center gap-3">
           <div className="hidden sm:inline-block text-xs text-[#105F68] font-medium bg-[#C8E6E2]/40 px-3 py-1.5 rounded-full border border-[#9ED5D1]/60">
-            Stripe Direct Settlement: 0% Platform Fees
+            Direct Settlement: 0% Platform Fees
           </div>
 
           <button
@@ -269,7 +584,7 @@ export default function DashboardInvoicesPage() {
             <CheckCircle2 className="w-4 h-4 text-[#105F68]" />
           </div>
           <div className="text-2xl font-semibold text-[#105F68]">
-            ${stats.totalCollected}
+            {stats.totalCollected}
           </div>
           <p className="text-[11px] text-[#3A9295]">
             {stats.paidCount} paid transactions settled
@@ -282,7 +597,7 @@ export default function DashboardInvoicesPage() {
             <AlertCircle className="w-4 h-4 text-amber-500" />
           </div>
           <div className="text-2xl font-semibold text-amber-600">
-            ${stats.outstanding}
+            {stats.outstanding}
           </div>
           <p className="text-[11px] text-[#3A9295]">
             {stats.sentCount} outstanding open invoices
@@ -383,473 +698,398 @@ export default function DashboardInvoicesPage() {
           </button>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredInvoices.map((inv) => (
-            <div
-              key={inv.id}
-              className="p-5 rounded-2xl border border-black/5 bg-white shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs"
-            >
-              {/* Left Column: Number, Client, Date & Description */}
-              <div className="space-y-1.5 flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono font-semibold text-[#105F68]">
-                    {inv.invoiceNumber}
-                  </span>
-                  
-                  {inv.status === "paid" && (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      PAID SALE
-                    </span>
-                  )}
-                  {inv.status === "sent" && (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-amber-100 text-amber-800 border border-amber-200">
-                      AWAITING PAYMENT
-                    </span>
-                  )}
-                  {inv.status === "draft" && (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-gray-100 text-gray-700 border border-gray-200">
-                      DRAFT
-                    </span>
-                  )}
-
-                  {inv.paymentMethod && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#F6FAF9] text-[#3A9295] border border-black/5">
-                      {inv.paymentMethod}
-                    </span>
-                  )}
-                  <span className="text-[11px] text-[#3A9295]/80">
-                    {new Date(inv.createdAt).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </span>
-                </div>
-
-                <div className="text-[#105F68] font-medium">
-                  Client: <span className="font-semibold">{inv.clientName}</span>{" "}
-                  <span className="text-[#3A9295] font-normal">({inv.clientEmail})</span>
-                </div>
-
-                {inv.itemsSummary && (
-                  <p className="text-[11px] text-[#3A9295] truncate">
-                    <span className="font-medium text-[#105F68]/70">Items:</span> {inv.itemsSummary}
-                  </p>
-                )}
-
-                {inv.notes && (
-                  <p className="text-[11px] text-[#3A9295]/90 italic">
-                    Note: {inv.notes}
-                  </p>
-                )}
-              </div>
-
-              {/* Middle Column: Financial Breakdown */}
-              <div className="flex flex-col md:items-end justify-center min-w-[140px] border-t md:border-t-0 md:border-l border-black/5 pt-3 md:pt-0 md:pl-5">
-                <div className="space-y-0.5 text-right">
-                  {inv.depositCreditedCents > 0 && (
-                    <span className="text-[11px] text-[#3A9295] block">
-                      Deposit Credited: -${(inv.depositCreditedCents / 100).toFixed(2)}
-                    </span>
-                  )}
-                  {inv.taxCents > 0 && (
-                    <span className="text-[11px] text-[#3A9295] block">
-                      Tax: +${(inv.taxCents / 100).toFixed(2)}
-                    </span>
-                  )}
-                  <div className="text-sm font-semibold text-[#105F68] mt-1">
-                    {inv.status === "paid" ? "Total Paid: " : "Balance Due: "}
-                    <span className="text-base text-[#105F68]">
-                      ${(inv.balanceDueCents / 100).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column: Actions */}
-              <div className="flex items-center gap-2 border-t md:border-t-0 border-black/5 pt-3 md:pt-0">
-                {/* Status Toggle Button */}
-                {inv.status !== "paid" ? (
-                  <button
-                    onClick={() => handleToggleStatus(inv, "paid")}
-                    className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-[11px] transition-all flex items-center gap-1 shadow-sm"
-                    title="Mark invoice as settled / paid"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Mark Paid</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleToggleStatus(inv, "sent")}
-                    className="px-3 py-1.5 rounded-full border border-black/10 hover:bg-black/5 text-[#3A9295] text-[11px] transition-all"
-                    title="Mark as awaiting payment"
-                  >
-                    Set Unpaid
-                  </button>
-                )}
-
-                {/* Download Real PDF Button */}
-                <button
-                  onClick={() => {
-                    playSuccess();
-                    try {
-                      generateInvoicePDF(inv, {
-                        name: profile?.organizationName || "Merchant Workspace",
-                        email: profile?.email,
-                        slug: profile?.organizationSlug || "store",
-                      });
-                      showToast(`Downloaded official PDF for ${inv.invoiceNumber}`);
-                    } catch (err: unknown) {
-                      showToast(`Failed to generate PDF: ${(err as Error)?.message || "Error"}`);
-                    }
-                  }}
-                  className="px-2.5 py-1.5 rounded-full border border-[#105F68]/20 hover:bg-[#105F68]/5 text-[#105F68] transition-all flex items-center gap-1.5"
-                  title="Download official PDF statement"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline text-[11px] font-medium">PDF</span>
-                </button>
-
-                {/* Delete Button */}
-                <button
-                  onClick={() => handleDelete(inv)}
-                  className="p-2 rounded-full border border-red-200 text-red-500 hover:bg-red-50 transition-all"
-                  title="Delete Invoice"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-2 sm:p-4 overflow-hidden">
+          <SortableDataTable
+            rows={filteredInvoices as unknown as (InvoiceRecord & Record<string, unknown>)[]}
+            rowKey="id"
+            caption="Sales & Invoices"
+            columns={invoiceColumns}
+            defaultSort={{ key: "createdAt", direction: "desc" }}
+            selectable
+            itemName={{ one: "invoice", other: "invoices" }}
+            emptyMessage="No matching invoices found"
+          />
         </div>
       )}
 
-      {/* Manual Creation / Record Sale Modal */}
-      {isCreateOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-black/5 my-8 max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-black/5 pb-4">
-              <div>
-                <h2 className="text-xl font-light text-[#105F68]">
-                  Record Sale / Generate Invoice
-                </h2>
-                <p className="text-xs text-[#3A9295] mt-0.5">
-                  Issue a direct sale or generate an itemized invoice for client balance settlement.
-                </p>
-              </div>
-              <button
-                onClick={() => setIsCreateOpen(false)}
-                className="p-2 rounded-full hover:bg-black/5 text-[#3A9295] transition-all"
-              >
-                <X className="w-5 h-5" />
-              </button>
+      {/* Manual Creation / Record Sale Arc UI Dialog */}
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent title="Record Sale / Generate Invoice" className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          {/* Modal Header */}
+          <div className="flex items-center justify-between border-b border-black/5 pb-4">
+            <div>
+              <h2 className="text-xl font-light text-[#105F68]">
+                Record Sale / Generate Invoice
+              </h2>
+              <p className="text-xs text-[#3A9295] mt-0.5">
+                Issue a direct sale or generate an itemized invoice with connected catalog items and automated inventory tracking.
+              </p>
+            </div>
+            <DialogClose className="p-2 rounded-full hover:bg-black/5 text-[#3A9295] transition-all">
+              <X className="w-5 h-5" />
+            </DialogClose>
+          </div>
+
+          <form onSubmit={handleCreateInvoice} className="space-y-6 pt-2">
+            {/* Type / Status Selector */}
+            <div>
+              <label className="text-xs font-semibold text-[#105F68] block mb-1">
+                Transaction Type &amp; Status
+              </label>
+              <Select
+                value={status}
+                onValueChange={(val) => setStatus(val as "paid" | "sent" | "draft")}
+                options={[
+                  {
+                    value: "sent",
+                    label: "Send to Client (Awaiting Pay)",
+                    icon: <Send className="w-3.5 h-3.5 text-amber-600" />,
+                  },
+                  {
+                    value: "paid",
+                    label: "Paid Sale (Settled & Deduct Stock)",
+                    icon: <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />,
+                  },
+                  {
+                    value: "draft",
+                    label: "Internal Draft Only",
+                    icon: <FileText className="w-3.5 h-3.5 text-slate-500" />,
+                  },
+                ]}
+                className="w-full"
+                triggerClassName="min-h-[38px] bg-white border border-[#105F68]/20 shadow-2xs"
+              />
             </div>
 
-            <form onSubmit={handleCreateInvoice} className="space-y-6">
-              {/* Type / Status Selector */}
-              <div>
-                <label className="text-xs font-semibold text-[#105F68] block mb-2">
-                  Transaction Type &amp; Status
+            {/* Client Information */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-[#105F68] flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5" />
+                  <span>Client Details</span>
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setStatus("paid")}
-                    className={`py-2 px-3 rounded-xl text-xs font-medium border text-center transition-all ${
-                      status === "paid"
-                        ? "bg-emerald-50 border-emerald-500 text-emerald-800 shadow-sm"
-                        : "border-black/10 text-[#3A9295] hover:bg-black/5"
-                    }`}
-                  >
-                    ✓ Paid Sale (Settled)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStatus("sent")}
-                    className={`py-2 px-3 rounded-xl text-xs font-medium border text-center transition-all ${
-                      status === "sent"
-                        ? "bg-amber-50 border-amber-500 text-amber-800 shadow-sm"
-                        : "border-black/10 text-[#3A9295] hover:bg-black/5"
-                    }`}
-                  >
-                    ✉ Sent (Awaiting Pay)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStatus("draft")}
-                    className={`py-2 px-3 rounded-xl text-xs font-medium border text-center transition-all ${
-                      status === "draft"
-                        ? "bg-gray-100 border-gray-400 text-gray-800 shadow-sm"
-                        : "border-black/10 text-[#3A9295] hover:bg-black/5"
-                    }`}
-                  >
-                    Draft Only
-                  </button>
-                </div>
-              </div>
-
-              {/* Client Information */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-[#105F68] flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5" />
-                    <span>Client Details</span>
-                  </label>
-                  {clients.length > 0 && (
-                    <div className="text-[11px] text-[#3A9295] flex items-center gap-1">
-                      <span>Autofill:</span>
-                      <select
-                        onChange={(e) => handleSelectClient(e.target.value)}
-                        defaultValue=""
-                        className="bg-[#F6FAF9] border border-black/10 rounded-lg px-2 py-0.5 text-xs text-[#105F68] focus:outline-none"
-                      >
-                        <option value="" disabled>
-                          Select saved client...
-                        </option>
-                        {clients.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name} ({c.email})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <input
-                      type="text"
-                      placeholder="Client Full Name *"
-                      required
-                      value={clientName}
-                      onChange={(e) => setClientName(e.target.value)}
-                      className="w-full px-3.5 py-2 rounded-xl text-xs bg-[#F6FAF9] border border-black/10 focus:border-[#105F68] text-[#105F68] focus:outline-none transition-all"
-                    />
-                  </div>
-                  <div>
-                    <input
-                      type="email"
-                      placeholder="Client Email Address *"
-                      required
-                      value={clientEmail}
-                      onChange={(e) => setClientEmail(e.target.value)}
-                      className="w-full px-3.5 py-2 rounded-xl text-xs bg-[#F6FAF9] border border-black/10 focus:border-[#105F68] text-[#105F68] focus:outline-none transition-all"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Invoice & Payment Details */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-[#105F68] block mb-1">
-                    Invoice # (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Leave blank for auto INV-2026-XXXX"
-                    value={invoiceNumber}
-                    onChange={(e) => setInvoiceNumber(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl text-xs bg-[#F6FAF9] border border-black/10 focus:border-[#105F68] text-[#105F68] focus:outline-none transition-all"
-                  />
-                </div>
-
-                {status === "paid" && (
-                  <div>
-                    <label className="text-xs font-semibold text-[#105F68] block mb-1">
-                      Payment Tender / Method
-                    </label>
+                {clients.length > 0 && (
+                  <div className="text-[11px] text-[#3A9295] flex items-center gap-1">
+                    <span>Autofill:</span>
                     <select
-                      value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="w-full px-3.5 py-2 rounded-xl text-xs bg-[#F6FAF9] border border-black/10 focus:border-[#105F68] text-[#105F68] focus:outline-none transition-all"
+                      onChange={(e) => handleSelectClient(e.target.value)}
+                      defaultValue=""
+                      className="bg-[#F6FAF9] border border-black/10 rounded-lg px-2 py-0.5 text-xs text-[#105F68] focus:outline-none"
                     >
-                      <option value="Credit Card / Terminal">Credit Card / Terminal</option>
-                      <option value="Stripe Online Checkout">Stripe Online Checkout</option>
-                      <option value="Cash">Cash</option>
-                      <option value="Bank Wire / Transfer">Bank Wire / Transfer</option>
-                      <option value="Check / Cheque">Check / Cheque</option>
-                      <option value="Gift Card / Voucher">Gift Card / Voucher</option>
+                      <option value="" disabled>
+                        Select saved client...
+                      </option>
+                      {clients.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} ({c.email})
+                        </option>
+                      ))}
                     </select>
                   </div>
                 )}
               </div>
 
-              {/* Line Items & Catalog Quick-Add */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-[#105F68] flex items-center gap-1.5">
-                    <ShoppingBag className="w-3.5 h-3.5" />
-                    <span>Line Items / Services</span>
-                  </label>
-                  {services.length > 0 && (
-                    <div className="text-[11px] text-[#3A9295] flex items-center gap-1">
-                      <span>Quick Catalog:</span>
-                      <select
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            handleQuickAddService(e.target.value);
-                            e.target.value = "";
-                          }
-                        }}
-                        defaultValue=""
-                        className="bg-[#F6FAF9] border border-black/10 rounded-lg px-2 py-0.5 text-xs text-[#105F68] focus:outline-none"
-                      >
-                        <option value="" disabled>
-                          + Insert catalog item...
-                        </option>
-                        {services.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name} (${(s.priceCents / 100).toFixed(2)})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Client Full Name *"
+                    required
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl text-xs bg-[#F6FAF9] border border-black/10 focus:border-[#105F68] text-[#105F68] focus:outline-none transition-all"
+                  />
                 </div>
-
-                <div className="space-y-2">
-                  {lineItems.map((item, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        placeholder="Description of service or product"
-                        value={item.description}
-                        onChange={(e) => {
-                          const updated = [...lineItems];
-                          updated[index].description = e.target.value;
-                          setLineItems(updated);
-                        }}
-                        className="flex-1 px-3.5 py-2 rounded-xl text-xs bg-[#F6FAF9] border border-black/10 focus:border-[#105F68] text-[#105F68] focus:outline-none transition-all"
-                      />
-                      <div className="relative w-28">
-                        <span className="absolute left-3 top-2 text-xs text-[#3A9295]">$</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0.00"
-                          value={item.price || ""}
-                          onChange={(e) => {
-                            const updated = [...lineItems];
-                            updated[index].price = parseFloat(e.target.value) || 0;
-                            setLineItems(updated);
-                          }}
-                          className="w-full pl-6 pr-3 py-2 rounded-xl text-xs bg-[#F6FAF9] border border-black/10 focus:border-[#105F68] text-[#105F68] focus:outline-none transition-all text-right"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveLineItem(index)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                        title="Remove item"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleAddLineItem}
-                  className="text-xs text-[#105F68] font-medium hover:underline flex items-center gap-1 mt-1"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add another line item</span>
-                </button>
-              </div>
-
-              {/* Financial Calculation Adjustments */}
-              <div className="p-4 rounded-2xl bg-[#F6FAF9] border border-black/5 space-y-2 text-xs">
-                <div className="flex justify-between items-center text-[#3A9295]">
-                  <span>Subtotal:</span>
-                  <span className="font-semibold text-[#105F68]">${subtotal.toFixed(2)}</span>
-                </div>
-
-                <div className="flex justify-between items-center text-[#3A9295]">
-                  <span>Deposit Credited / Deduction ($):</span>
-                  <div className="relative w-28">
-                    <span className="absolute left-3 top-1.5 text-xs text-[#3A9295]">$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={depositCredited || ""}
-                      onChange={(e) => setDepositCredited(parseFloat(e.target.value) || 0)}
-                      placeholder="0.00"
-                      className="w-full pl-6 pr-2 py-1 bg-white border border-black/10 rounded-lg text-xs text-right focus:outline-none focus:border-[#105F68]"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center text-[#3A9295]">
-                  <span>Tax Rate (%):</span>
-                  <div className="relative w-28">
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                      value={taxPercent || ""}
-                      onChange={(e) => setTaxPercent(parseFloat(e.target.value) || 0)}
-                      placeholder="0%"
-                      className="w-full px-2 py-1 bg-white border border-black/10 rounded-lg text-xs text-right focus:outline-none focus:border-[#105F68]"
-                    />
-                  </div>
-                </div>
-
-                {taxAmount > 0 && (
-                  <div className="flex justify-between items-center text-[#3A9295]">
-                    <span>Calculated Tax:</span>
-                    <span className="text-[#105F68]">+${taxAmount.toFixed(2)}</span>
-                  </div>
-                )}
-
-                <div className="border-t border-black/5 pt-2 flex justify-between items-center text-sm font-semibold text-[#105F68]">
-                  <span>{status === "paid" ? "Total Settled Amount:" : "Net Balance Due:"}</span>
-                  <span className="text-base text-[#105F68] font-bold">
-                    ${balanceDue.toFixed(2)}
-                  </span>
+                <div>
+                  <input
+                    type="email"
+                    placeholder="Client Email Address *"
+                    required
+                    value={clientEmail}
+                    onChange={(e) => setClientEmail(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl text-xs bg-[#F6FAF9] border border-black/10 focus:border-[#105F68] text-[#105F68] focus:outline-none transition-all"
+                  />
                 </div>
               </div>
+            </div>
 
-              {/* Optional Memo / Notes */}
+            {/* Invoice & Payment Details */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-semibold text-[#105F68] block mb-1">
-                  Memo / Internal Notes (Optional)
+                  Invoice # (Optional)
                 </label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g., In-person POS checkout, client requested email receipt..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
+                <input
+                  type="text"
+                  placeholder="Leave blank for auto INV-2026-XXXX"
+                  value={invoiceNumber}
+                  onChange={(e) => setInvoiceNumber(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl text-xs bg-[#F6FAF9] border border-black/10 focus:border-[#105F68] text-[#105F68] focus:outline-none transition-all"
                 />
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateOpen(false)}
-                  className="px-4 py-2 rounded-full border border-black/10 text-xs font-medium text-[#3A9295] hover:bg-black/5 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 rounded-full bg-[#105F68] text-white text-xs font-semibold hover:bg-[#0D4F57] transition-all shadow-sm"
-                >
-                  {status === "paid" ? "Record Paid Sale" : "Issue Invoice"}
-                </button>
+              {status === "paid" && (
+                <div>
+                  <label className="text-xs font-semibold text-[#105F68] block mb-1">
+                    Payment Tender / Method
+                  </label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl text-xs bg-[#F6FAF9] border border-black/10 focus:border-[#105F68] text-[#105F68] focus:outline-none transition-all"
+                  >
+                    <option value="Credit Card / Terminal">Credit Card / Terminal</option>
+                    <option value="Online Checkout">Online Checkout</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Bank Wire / Transfer">Bank Wire / Transfer</option>
+                    <option value="Check / Cheque">Check / Cheque</option>
+                    <option value="Gift Card / Voucher">Gift Card / Voucher</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* Line Items & Catalog Quick-Add */}
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-xs font-semibold text-[#105F68] flex items-center gap-1.5">
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  <span>Line Items &amp; Catalog Offerings</span>
+                </label>
+                
+                <div className="w-80 max-w-full">
+                  <Combobox
+                    options={catalogOptions}
+                    value=""
+                    onValueChange={(val) => {
+                      if (!val) return;
+                      const [type, id] = val.split(":");
+                      if (type === "product") handleAddProductItem(id);
+                      else if (type === "service") handleAddServiceItem(id);
+                    }}
+                    placeholder="Type to filter &amp; insert product or service..."
+                    controlClassName="min-h-[34px] py-1 text-xs bg-white rounded-lg border-black/10 shadow-2xs"
+                  />
+                </div>
               </div>
-            </form>
+
+              {/* Line items table / rows */}
+              <div className="space-y-2">
+                {lineItems.map((item, index) => {
+                  const lineTotal = (Number(item.quantity) || 1) * (Number(item.unitPrice) || 0);
+                  return (
+                    <div key={index} className="flex items-center gap-2 p-2 rounded-xl bg-[#F6FAF9] border border-black/5">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          {item.type === "product" && (
+                            <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 flex items-center gap-1">
+                              <Package className="w-2.5 h-2.5" /> Product
+                            </span>
+                          )}
+                          {item.type === "service" && (
+                            <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                              <Layers className="w-2.5 h-2.5" /> Service
+                            </span>
+                          )}
+                          {item.type === "custom" && (
+                            <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                              Custom
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Description of product or service..."
+                          value={item.description}
+                          onChange={(e) => {
+                            const updated = [...lineItems];
+                            updated[index].description = e.target.value;
+                            setLineItems(updated);
+                          }}
+                          className="w-full px-3 py-1.5 rounded-lg text-xs bg-white border border-black/10 focus:border-[#105F68] text-[#105F68] focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Quantity */}
+                      <div className="w-16">
+                        <label className="text-[10px] text-[#3A9295] block mb-0.5">Qty</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.quantity || 1}
+                          onChange={(e) => {
+                            const updated = [...lineItems];
+                            const qty = Math.max(1, parseInt(e.target.value) || 1);
+                            updated[index].quantity = qty;
+                            updated[index].priceCents = Math.round(qty * (updated[index].unitPrice || 0) * 100);
+                            setLineItems(updated);
+                          }}
+                          className="w-full px-2 py-1.5 bg-white border border-black/10 rounded-lg text-xs text-center focus:outline-none focus:border-[#105F68]"
+                        />
+                      </div>
+
+                      {/* Unit Price */}
+                      <div className="w-24">
+                        <label className="text-[10px] text-[#3A9295] block mb-0.5">Unit ({symbol})</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={item.unitPrice ?? ""}
+                          onChange={(e) => {
+                            const updated = [...lineItems];
+                            const up = parseFloat(e.target.value) || 0;
+                            updated[index].unitPrice = up;
+                            updated[index].priceCents = Math.round((updated[index].quantity || 1) * up * 100);
+                            setLineItems(updated);
+                          }}
+                          className="w-full px-2 py-1.5 bg-white border border-black/10 rounded-lg text-xs text-right focus:outline-none focus:border-[#105F68]"
+                        />
+                      </div>
+
+                      {/* Line Total */}
+                      <div className="w-24 text-right pt-4 pr-1">
+                        <span className="text-xs font-semibold text-[#105F68]">
+                          {formatCurrencyRaw(lineTotal, currency)}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLineItem(index)}
+                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-all mt-4"
+                        title="Remove line item"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddLineItem}
+                className="text-xs text-[#105F68] font-medium hover:underline flex items-center gap-1 mt-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add custom line item</span>
+              </button>
+            </div>
+
+            {/* Financial Calculation Adjustments */}
+            <div className="p-4 rounded-2xl bg-[#F6FAF9] border border-black/5 space-y-2 text-xs">
+              <div className="flex justify-between items-center text-[#3A9295]">
+                <span>Subtotal:</span>
+                <span className="font-semibold text-[#105F68]">{formatCurrencyRaw(subtotal, currency)}</span>
+              </div>
+
+              <div className="flex justify-between items-center text-[#3A9295]">
+                <span>Deposit Credited / Deduction ({symbol}):</span>
+                <div className="relative w-28">
+                  <span className="absolute left-3 top-1.5 text-xs text-[#3A9295]">{symbol}</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={depositCredited || ""}
+                    onChange={(e) => setDepositCredited(parseFloat(e.target.value) || 0)}
+                    placeholder="0.00"
+                    className="w-full pl-6 pr-2 py-1 bg-white border border-black/10 rounded-lg text-xs text-right focus:outline-none focus:border-[#105F68]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center text-[#3A9295]">
+                <span>Tax Rate (%):</span>
+                <div className="relative w-28">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={taxPercent || ""}
+                    onChange={(e) => setTaxPercent(parseFloat(e.target.value) || 0)}
+                    placeholder="0%"
+                    className="w-full px-2 py-1 bg-white border border-black/10 rounded-lg text-xs text-right focus:outline-none focus:border-[#105F68]"
+                  />
+                </div>
+              </div>
+
+              {taxAmount > 0 && (
+                <div className="flex justify-between items-center text-[#3A9295]">
+                  <span>Calculated Tax:</span>
+                  <span className="text-[#105F68]">+{formatCurrencyRaw(taxAmount, currency)}</span>
+                </div>
+              )}
+
+              <div className="border-t border-black/5 pt-2 flex justify-between items-center text-sm font-semibold text-[#105F68]">
+                <span>{status === "paid" ? "Total Settled Amount:" : "Net Balance Due:"}</span>
+                <span className="text-base text-[#105F68] font-bold">
+                  {formatCurrencyRaw(balanceDue, currency)}
+                </span>
+              </div>
+            </div>
+
+            {/* Optional Memo / Notes */}
+            <div>
+              <label className="text-xs font-semibold text-[#105F68] block mb-1">
+                Memo / Internal Notes (Optional)
+              </label>
+              <textarea
+                rows={2}
+                placeholder="e.g., In-person checkout, client requested email receipt, tracking notes..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full px-3.5 py-2 rounded-xl text-xs bg-[#F6FAF9] border border-black/10 focus:border-[#105F68] text-[#105F68] focus:outline-none transition-all"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <DialogClose className="px-4 py-2 rounded-full border border-black/10 text-xs font-medium text-[#3A9295] hover:bg-black/5 transition-all">
+                Cancel
+              </DialogClose>
+              <button
+                type="submit"
+                className="px-6 py-2 rounded-full bg-[#105F68] text-white text-xs font-semibold hover:bg-[#0D4F57] transition-all shadow-sm"
+              >
+                {status === "paid" ? "Record Paid Sale & Settle" : "Issue Invoice"}
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Arc UI Dialog */}
+      <Dialog open={!!deletingInvoice} onOpenChange={(open) => !open && setDeletingInvoice(null)}>
+        <DialogContent title="Delete Invoice Confirmation" className="max-w-md">
+          <div className="space-y-4">
+            <div className="w-10 h-10 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-slate-800">
+                Delete Invoice {deletingInvoice?.invoiceNumber}?
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                This will permanently delete this invoice record from your ledger. This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <DialogClose className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-all">
+                Cancel
+              </DialogClose>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition-all shadow-sm"
+              >
+                Delete Invoice
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Floating Notification Toast */}
       {notification && (

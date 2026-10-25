@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   Clock,
@@ -19,14 +19,27 @@ import {
   Mail,
   MessageSquare,
   Calendar,
-  Info
+  Info,
+  ExternalLink,
+  Layers,
+  Sparkles,
+  Send,
+  CheckCircle,
+  ThumbsUp
 } from "lucide-react";
 import {
   OvelinkCustomization,
   OvelinkOffering,
   OfferingType
 } from "@/lib/ovelink-store";
-import { getReviews, INITIAL_REVIEWS } from "@/lib/reviews-store";
+import {
+  getReviews,
+  INITIAL_REVIEWS,
+  submitCustomerReview,
+  getReputationConfig,
+  DEFAULT_REPUTATION_CONFIG,
+  CustomerReview
+} from "@/lib/reviews-store";
 import { useAudio } from "@/components/AudioController";
 import ThemeFontLoader from "@/components/ThemeFontLoader";
 import { addDaysLocal, addMinutes, displayTimeToIsoLocal, localDateString } from "@/lib/booking-time";
@@ -35,18 +48,39 @@ import {
   DEFAULT_WORKING_HOURS,
   getBookings,
   INITIAL_BOOKINGS,
+  getCategories,
+  UniversalCategory
 } from "@/lib/platform-store";
 import { computeAvailableSlots } from "@/lib/slot-engine";
 import { useClientStore, useHydrated } from "@/lib/use-client-store";
+import { formatCurrency } from "@/lib/currency";
+import { getActiveClientSession, clearActiveClientSession, registerOrLoginClient, ClientAccount } from "@/lib/client-auth";
+import ClientAuthModal from "@/components/ClientAuthModal";
+import { getMerchantSubscription } from "@/lib/subscription-store";
+import { getOvelinkUrl, getOvelinkDisplay, PRIMARY_DOMAIN } from "@/lib/domain";
+import { BottomSheet } from "@/components/arc/bottom-sheet/bottom-sheet";
 
 interface OvelinkViewProps {
   config: OvelinkCustomization;
   isEmbedPreview?: boolean; // When rendered inside the live studio frame
   onOfferingClick?: (offering: OvelinkOffering) => void;
+  onBookingCreated?: (bookingId: string) => void;
 }
 
-export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkViewProps) {
+export default function OvelinkView({
+  config,
+  isEmbedPreview = false,
+  onBookingCreated,
+}: OvelinkViewProps) {
+  const viewContainerRef = useRef<HTMLDivElement>(null);
   const { playClick, playSuccess } = useAudio();
+  const [clientSession, setClientSession] = useState<ClientAccount | null>(() => getActiveClientSession());
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  const subscription = useMemo(() => {
+    return getMerchantSubscription(config.organizationId || config.slug);
+  }, [config.organizationId, config.slug]);
+  const hasVerificationBadge = subscription.hasVerificationBadge;
   const [activeFilter, setActiveFilter] = useState<"all" | OfferingType>("all");
   const [selectedOffering, setSelectedOffering] = useState<OvelinkOffering | null>(null);
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1); // 1: offering details, 2: schedule/order specifics, 3: client intake, 4: confirmed
@@ -66,9 +100,9 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
   const [orderNotes, setOrderNotes] = useState<string>("");
 
   // Client Details
-  const [clientName, setClientName] = useState("");
+  const [clientName, setClientName] = useState(() => clientSession?.fullName || "");
   const [clientEmail, setClientEmail] = useState("");
-  const [clientPhone, setClientPhone] = useState("");
+  const [clientPhone, setClientPhone] = useState(() => clientSession?.phone || "");
   const [confirmationToken, setConfirmationToken] = useState("");
 
   // Retail Upsell state
@@ -79,8 +113,47 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
   const [sensitivityDetails, setSensitivityDetails] = useState("");
   const [referencePhotoAttached, setReferencePhotoAttached] = useState(false);
 
+  // Categories & Subcategories
+  const categories = useClientStore(() => getCategories(targetWs), () => []);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedSubCategory, setSelectedSubCategory] = useState<any | null>(null);
+  const [copiedOfferingId, setCopiedOfferingId] = useState<string | null>(null);
+
   // Social Proof Reviews
-  const reviews = useClientStore(getReviews, () => INITIAL_REVIEWS);
+  const reviews = useClientStore(() => getReviews(targetWs), () => INITIAL_REVIEWS);
+  const reputationConfig = useClientStore(() => getReputationConfig(targetWs), () => DEFAULT_REPUTATION_CONFIG);
+  const [isWriteReviewOpen, setIsWriteReviewOpen] = useState(false);
+  const [reviewRating, setReviewRating] = useState<1 | 2 | 3 | 4 | 5>(5);
+  const [reviewAuthor, setReviewAuthor] = useState(() => clientSession?.fullName || "");
+  const [reviewContact, setReviewContact] = useState(() => clientSession?.phone || "");
+  const [reviewService, setReviewService] = useState("");
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+
+  // Deep Link Auto-Focus & Open from URL (?product=[id] or ?service=[id])
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const search = new URLSearchParams(window.location.search);
+      const prodParam = search.get("product");
+      const servParam = search.get("service");
+      const targetId = prodParam || servParam;
+      if (targetId && config.offerings && config.offerings.length > 0) {
+        const found = config.offerings.find((o) => o.id === targetId || o.slug === targetId);
+        if (found) {
+          setSelectedOffering(found);
+          setSelectedSubCategory(found.subCategories && found.subCategories.length > 0 ? found.subCategories[0] : null);
+          setStep(found.requiresTimeSlot ? 1 : 2);
+          setTimeout(() => {
+            const el = document.getElementById(`offering-card-${found.id}`);
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+          }, 350);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [config.offerings]);
 
   // Share / QR Modal
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -89,9 +162,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
   const staffId = `st_${config.slug}`;
   const openSlots = useMemo(() => {
     if (!hydrated || !selectedOffering?.requiresTimeSlot || !dateValue) return [];
-    const duration = selectedOffering.durationMinutes && selectedOffering.durationMinutes > 0
-      ? selectedOffering.durationMinutes
-      : 60;
+    const duration = selectedSubCategory?.durationMinutes || selectedOffering.durationMinutes || 60;
     return computeAvailableSlots({
       date: dateValue,
       serviceDurationMinutes: duration,
@@ -99,12 +170,12 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
       workingHours: DEFAULT_WORKING_HOURS,
       existingBookings: bookings.filter((booking) => booking.staffId === staffId),
     }).filter((slot) => slot.available);
-  }, [hydrated, selectedOffering, dateValue, bookings, staffId]);
+  }, [hydrated, selectedOffering, selectedSubCategory, dateValue, bookings, staffId]);
   const activeSlot = openSlots.some((slot) => slot.time === selectedTimeSlot)
     ? selectedTimeSlot
     : (openSlots[0]?.time ?? "");
   const retailOfferings = useMemo(() => {
-    const list = (config.offerings || []).filter((o) => o.type === "order" && o.id !== selectedOffering?.id && o.isActive);
+    const list = (config.offerings || []).filter((o) => o.type === "order" && o.id !== selectedOffering?.id && o.isActive !== false);
     const seen = new Set<string>();
     return list.filter((o) => {
       if (!o?.id || seen.has(o.id)) return false;
@@ -125,41 +196,98 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
   };
 
   const availableOfferingTypes = useMemo(() => {
-    const types = new Set((config.offerings || []).filter((o) => o.isActive).map((o) => o.type));
+    const types = new Set((config.offerings || []).filter((o) => o.isActive !== false).map((o) => o.type));
     return Array.from(types);
   }, [config.offerings]);
 
+  const uniqueCategories = useMemo(() => {
+    const set = new Set<string>();
+    (config.offerings || []).forEach((o) => {
+      if (o.category) set.add(o.category);
+    });
+    (categories || []).forEach((c) => {
+      if (c && c.name) set.add(c.name);
+    });
+    return Array.from(set);
+  }, [config.offerings, categories]);
+
   const filteredOfferings = useMemo(() => {
-    const all = (config.offerings || []).filter((o) => o.isActive);
+    const all = (config.offerings || []).filter((o) => o.isActive !== false);
     const seen = new Set<string>();
     const unique = all.filter((o) => {
       if (!o?.id || seen.has(o.id)) return false;
       seen.add(o.id);
       return true;
     });
-    if (activeFilter === "all") return unique;
-    return unique.filter((o) => o.type === activeFilter);
-  }, [config.offerings, activeFilter]);
+
+    return unique.filter((o) => {
+      const matchesType = activeFilter === "all" || o.type === activeFilter;
+      const matchesCategory =
+        selectedCategory === "all" ||
+        (o.category && o.category.toLowerCase() === selectedCategory.toLowerCase()) ||
+        (o.categoryId && categories.find((c) => c.id === o.categoryId)?.name.toLowerCase() === selectedCategory.toLowerCase());
+      return matchesType && matchesCategory;
+    });
+  }, [config.offerings, activeFilter, selectedCategory, categories]);
 
   const handleSelectOffering = (off: OvelinkOffering) => {
     playClick();
     setSelectedOffering(off);
+    setSelectedSubCategory(off.subCategories && off.subCategories.length > 0 ? off.subCategories[0] : null);
     setStep(off.requiresTimeSlot ? 1 : 2);
   };
 
   const handleCopyLink = () => {
     playClick();
-    const url = typeof window !== "undefined" ? `${window.location.origin}/l/${config.slug}` : `https://ovel.app/l/${config.slug}`;
+    const url = getOvelinkUrl(config.slug);
     navigator.clipboard?.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
+  const handleCopyOfferingLink = (e: React.MouseEvent, off: OvelinkOffering) => {
+    e.stopPropagation();
+    playClick();
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://ovel.lk";
+    const paramKey = off.type === "order" ? "product" : "service";
+    const url = `${origin}/l/${config.slug}?${paramKey}=${off.id}`;
+    navigator.clipboard?.writeText(url);
+    setCopiedOfferingId(off.id);
+    setTimeout(() => setCopiedOfferingId(null), 2500);
+  };
+
+  const handleSubmitReview = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewAuthor.trim() || !reviewComment.trim()) return;
+    playSuccess();
+    const serviceName = reviewService || (config.offerings?.[0]?.name ?? "Client Experience");
+    submitCustomerReview(
+      {
+        bookingId: `bkg_direct_${Date.now()}`,
+        clientName: reviewAuthor.trim(),
+        clientAvatar: reviewAuthor.trim().substring(0, 2).toUpperCase(),
+        rating: reviewRating,
+        serviceName,
+        comment: reviewComment.trim(),
+        status: "published",
+      },
+      targetWs
+    );
+    setReviewSubmitted(true);
+  };
+
   const handleConfirmAction = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedOffering || !clientName || !clientEmail || !clientPhone) return;
+    if (!selectedOffering || !clientName || !clientPhone) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+    const derivedEmail = clientEmail || `${clientPhone.replace(/[^0-9]/g, "")}@client.ovel.lk`;
     const quantity = selectedOffering.type === "order" ? orderQuantity : 1;
-    const totalCents = selectedOffering.priceCents * quantity + selectedRetailTotal;
+    const basePriceCents = (selectedSubCategory && typeof selectedSubCategory.priceCents === "number")
+      ? selectedSubCategory.priceCents
+      : selectedOffering.priceCents;
+    const totalCents = basePriceCents * quantity + selectedRetailTotal;
     const depositCents = selectedOffering.depositCents * quantity;
     let startTime: string;
     let endTime: string | null;
@@ -169,9 +297,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
         return;
       }
       const start = displayTimeToIsoLocal(dateValue, activeSlot);
-      const duration = selectedOffering.durationMinutes && selectedOffering.durationMinutes > 0
-        ? selectedOffering.durationMinutes
-        : 60;
+      const duration = selectedSubCategory?.durationMinutes || selectedOffering.durationMinutes || 60;
       endTime = start ? addMinutes(start, duration) : null;
       if (!start || !endTime) {
         setBookingError("Choose an open time.");
@@ -185,20 +311,30 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
       if (!endTime) return;
     }
 
+    const account = registerOrLoginClient(clientName, clientPhone);
+    setClientSession(account);
+
+    const displayName = selectedSubCategory
+      ? `${selectedOffering.name} — ${selectedSubCategory.name}`
+      : selectedOffering.name;
+
     const booking = createBooking({
       serviceId: selectedOffering.id,
-      serviceName: selectedOffering.name,
+      serviceName: displayName,
       staffId,
       staffName: config.businessName,
       clientName,
-      clientEmail,
+      clientEmail: derivedEmail,
       clientPhone,
       startTime,
       endTime,
       status: depositCents > 0 && depositCents < totalCents ? "pending_deposit" : "confirmed",
       totalPriceCents: totalCents,
       depositPaidCents: Math.min(depositCents, totalCents),
-      notes: orderNotes || undefined,
+      notes: [
+        orderNotes,
+        selectedSubCategory ? `Option/Variant: ${selectedSubCategory.name}` : null,
+      ].filter(Boolean).join(" | ") || undefined,
     }, { checkConflicts: Boolean(selectedOffering.requiresTimeSlot) });
 
     if (!booking) {
@@ -208,6 +344,9 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
     playSuccess();
     setBookingError(null);
     setConfirmationToken(booking.rescheduleToken);
+    if (onBookingCreated) {
+      onBookingCreated(booking.id);
+    }
     setStep(4);
   };
 
@@ -217,6 +356,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
 
   return (
     <div
+      ref={viewContainerRef}
       className={`min-h-full w-full font-sans antialiased transition-colors duration-300 relative selection:bg-[#105F68] selection:text-white ${!isEmbedPreview ? "min-h-screen" : ""}`}
       style={{
         backgroundColor: config.bgColor,
@@ -272,9 +412,9 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                 className="w-20 h-20 sm:w-22 sm:h-22 rounded-2xl sm:rounded-3xl flex items-center justify-center text-white text-2xl sm:text-3xl font-bold shadow-md border-4 border-white transition-transform overflow-hidden"
                 style={{ backgroundColor: config.primaryColor }}
               >
-                {config.logoUrl ? (
+                {config.avatarUrl || config.logoUrl ? (
                   <img
-                    src={config.logoUrl}
+                    src={config.avatarUrl || config.logoUrl}
                     alt={config.businessName}
                     className="w-full h-full object-cover"
                   />
@@ -305,12 +445,22 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
             </div>
 
             {/* Business Title & Tagline */}
-            <h1
-              className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 leading-tight"
-              style={{ fontFamily: config.fontFamily }}
-            >
-              {config.businessName}
-            </h1>
+            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+              <h1
+                className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 leading-tight"
+                style={{ fontFamily: config.fontFamily }}
+              >
+                {config.businessName}
+              </h1>
+              {hasVerificationBadge && (
+                <span
+                  title="Verified Ovel Merchant"
+                  className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#105F68] text-[#63C1BB] shadow-xs"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                </span>
+              )}
+            </div>
 
             {config.businessTagline && (
               <p className="text-xs sm:text-sm text-[#105F68] font-medium mt-1 max-w-sm mx-auto leading-snug">
@@ -372,13 +522,13 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200/70 border border-slate-200/80 text-[11px] font-medium text-slate-700 transition-colors shadow-2xs"
               >
                 <Copy className="w-3.5 h-3.5 text-[#105F68]" />
-                <span>{copiedLink ? "Link Copied!" : `ovel.app/l/${config.slug}`}</span>
+                <span>{copiedLink ? "Link Copied!" : getOvelinkDisplay(config.slug)}</span>
               </button>
             </div>
           </div>
         </div>
 
-        {/* Offering Category Filter Tabs (Zero Scrollbars) */}
+        {/* Offering Type Filter Tabs (Zero Scrollbars) */}
         {availableOfferingTypes.length > 1 && (
           <div
             className="mt-5 flex items-center gap-2 overflow-x-auto pb-1 hide-scrollbar scrollbar-none no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
@@ -386,9 +536,9 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
           >
             {[
               { id: "all" as const, label: "All Offerings" },
-              { id: "appointment" as const, label: "Appointments" },
+              { id: "appointment" as const, label: "Services & Appointments" },
               { id: "booking" as const, label: "Bookings & Slots" },
-              { id: "order" as const, label: "Orders & Packages" },
+              { id: "order" as const, label: "Products & Orders" },
             ]
               .filter((tab) => tab.id === "all" || availableOfferingTypes.includes(tab.id))
               .map((tab) => {
@@ -414,6 +564,45 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
           </div>
         )}
 
+        {/* Categories Filter Pills */}
+        {uniqueCategories.length > 0 && (
+          <div
+            className="mt-2.5 flex items-center gap-1.5 overflow-x-auto pb-1 hide-scrollbar scrollbar-none no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          >
+            <button
+              onClick={() => { playClick(); setSelectedCategory("all"); }}
+              className={`px-3 py-1 text-[11px] font-medium whitespace-nowrap rounded-full transition-all ${
+                selectedCategory === "all"
+                  ? "bg-slate-900 text-white shadow-2xs"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+              }`}
+            >
+              All Categories
+            </button>
+            {uniqueCategories.map((catName) => {
+              const isCatActive = selectedCategory.toLowerCase() === catName.toLowerCase();
+              return (
+                <button
+                  key={catName}
+                  onClick={() => { playClick(); setSelectedCategory(catName); }}
+                  className={`px-3 py-1 text-[11px] font-medium whitespace-nowrap rounded-full transition-all flex items-center gap-1.5 ${
+                    isCatActive
+                      ? "text-white shadow-2xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                  }`}
+                  style={{
+                    backgroundColor: isCatActive ? config.primaryColor : undefined,
+                  }}
+                >
+                  <Tag className="w-2.5 h-2.5 opacity-70" />
+                  <span>{catName}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Offerings Grid */}
         <div className="mt-4 space-y-3.5">
           {filteredOfferings.length === 0 ? (
@@ -421,85 +610,166 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
               <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto text-slate-500">
                 <Calendar className="w-5 h-5 text-[#105F68]" />
               </div>
-              <h3 className="text-sm font-semibold text-slate-800">No Services Available Yet</h3>
+              <h3 className="text-sm font-semibold text-slate-800">No Items Found</h3>
               <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                Services and bookings published by {config.businessName} will appear here for online reservation.
+                No offerings match the current filter. Try selecting &ldquo;All Offerings&rdquo; or a different category.
               </p>
             </div>
           ) : (
             filteredOfferings.map((off, idx) => {
               const isSelected = selectedOffering?.id === off.id;
+              const cardImage = off.imageUrl || (off.imageUrls && off.imageUrls[0]);
+              const isCopied = copiedOfferingId === off.id;
+              const isOutOfStock = off.type === "order" && typeof off.stockCount === "number" && off.stockCount === 0;
+              const isLowStock = off.type === "order" && typeof off.stockCount === "number" && off.stockCount > 0 && off.stockCount <= 5;
+              const isGoodStock = off.type === "order" && typeof off.stockCount === "number" && off.stockCount > 5;
+
               return (
                 <div
                   key={`${off.id}_${idx}`}
+                  id={`offering-card-${off.id}`}
                   onClick={() => handleSelectOffering(off)}
-                  className={`p-5 sm:p-6 bg-white border transition-all duration-200 cursor-pointer relative group hover:shadow-[0_12px_30px_rgba(16,95,104,0.08)] hover:-translate-y-0.5 ${getCardRadius()} ${
+                  className={`p-4 sm:p-5 bg-white border transition-all duration-200 cursor-pointer relative group hover:shadow-[0_12px_30px_rgba(16,95,104,0.08)] hover:-translate-y-0.5 ${getCardRadius()} ${
                     isSelected ? "ring-2 ring-[#105F68] border-transparent" : "border-slate-200/70 shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
                   }`}
                   style={{ backgroundColor: config.surfaceColor }}
                 >
-                  {/* Header Row: Badges + Price */}
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {off.badge && (
-                        <span
-                          className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
-                          style={{ backgroundColor: `${config.accentColor}25`, color: config.primaryColor }}
+                  <div className="flex items-start gap-4">
+                    {/* Offering Thumbnail or Branded Monogram */}
+                    {cardImage ? (
+                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden shrink-0 border border-black/[0.06] shadow-2xs relative bg-slate-100">
+                        <img
+                          src={cardImage}
+                          alt={off.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        {off.type === "order" && (
+                          <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-[9px] font-bold text-white uppercase tracking-wider">
+                            Product
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div
+                        className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex flex-col items-center justify-center shrink-0 border border-black/[0.04] text-white p-2 text-center"
+                        style={{
+                          background: `linear-gradient(135deg, ${config.primaryColor}, ${config.accentColor || "#63C1BB"})`
+                        }}
+                      >
+                        <span className="font-bold text-base sm:text-lg uppercase tracking-tight">
+                          {off.name.substring(0, 2)}
+                        </span>
+                        <span className="text-[9px] uppercase tracking-wider font-semibold opacity-85 mt-0.5">
+                          {off.type === "order" ? "Item" : "Service"}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Offering Details */}
+                    <div className="flex-1 min-w-0">
+                      {/* Header Row: Badges, Category, Direct Link Share, and Price */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {off.badge && (
+                            <span
+                              className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
+                              style={{ backgroundColor: `${config.accentColor}25`, color: config.primaryColor }}
+                            >
+                              {off.badge}
+                            </span>
+                          )}
+                          {off.category && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-full">
+                              <Tag className="w-2.5 h-2.5 text-[#105F68]" />
+                              <span>{off.category}</span>
+                            </span>
+                          )}
+                          {isOutOfStock && (
+                            <span className="text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                              Out of Stock
+                            </span>
+                          )}
+                          {isLowStock && (
+                            <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                              Only {off.stockCount} left
+                            </span>
+                          )}
+                          {isGoodStock && (
+                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                              In Stock
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Direct Product Link Share Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleCopyOfferingLink(e, off)}
+                          title={isCopied ? "Link Copied!" : "Copy Direct Link"}
+                          className={`p-1.5 rounded-full border transition-all shrink-0 ${
+                            isCopied
+                              ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-2xs"
+                              : "bg-slate-50 hover:bg-slate-100 border-slate-200/80 text-slate-500 hover:text-slate-800"
+                          }`}
                         >
-                          {off.badge}
-                        </span>
-                      )}
-                      <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">
-                        {off.type}
-                      </span>
+                          {isCopied ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Share2 className="w-3.5 h-3.5 text-[#105F68]" />
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Name & Description */}
+                      <div className="mt-1">
+                        <h3 className="text-sm sm:text-base font-bold text-[#103438] group-hover:text-[#105F68] transition-colors leading-snug">
+                          {off.name}
+                        </h3>
+                        <p className="text-xs text-slate-600 font-normal mt-1 line-clamp-2 leading-relaxed">
+                          {off.description}
+                        </p>
+                      </div>
+
+                      {/* Pricing & CTA */}
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm sm:text-base font-bold tracking-tight text-[#103438]">
+                            {off.pricingType === "range" && off.priceMaxCents && off.priceMaxCents > off.priceCents
+                              ? `${formatCurrency(off.priceCents, config.currency)} – ${formatCurrency(off.priceMaxCents, config.currency)}`
+                              : formatCurrency(off.priceCents, config.currency)}
+                          </span>
+
+                          {off.durationMinutes && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-full">
+                              <Clock className="w-3 h-3 text-[#105F68]" />
+                              <span>{off.durationMode === "around" ? "~" : ""}{off.durationMinutes}m</span>
+                            </span>
+                          )}
+
+                          {off.depositCents > 0 && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                              <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                              <span>{formatCurrency(off.depositCents, config.currency)} dep</span>
+                            </span>
+                          )}
+                        </div>
+
+                        <button
+                          disabled={isOutOfStock}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSelectOffering(off);
+                          }}
+                          className={`px-4 py-1.5 rounded-full text-xs font-semibold text-white shadow-sm flex items-center gap-1 active:scale-95 transition-all shrink-0 ${
+                            isOutOfStock ? "bg-slate-300 cursor-not-allowed text-slate-500" : "hover:opacity-95"
+                          }`}
+                          style={{ backgroundColor: !isOutOfStock ? config.primaryColor : undefined }}
+                        >
+                          <span>{isOutOfStock ? "Unavailable" : off.type === "order" ? "Order Now" : "Book Slot"}</span>
+                          {!isOutOfStock && <ArrowRight className="w-3 h-3" />}
+                        </button>
+                      </div>
                     </div>
-
-                    <div className="text-right flex-shrink-0">
-                      <span className="text-lg sm:text-xl font-bold tracking-tight text-[#103438]">
-                        ${(off.priceCents / 100).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Service Name & Description */}
-                  <div>
-                    <h3 className="text-base sm:text-lg font-bold text-[#103438] group-hover:text-[#105F68] transition-colors leading-snug">
-                      {off.name}
-                    </h3>
-                    <p className="text-xs sm:text-sm text-slate-600 font-normal mt-1.5 leading-relaxed">
-                      {off.description}
-                    </p>
-                  </div>
-
-                  {/* Footer: Metadata Chips + CTA Button */}
-                  <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {off.durationMinutes && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-full">
-                          <Clock className="w-3 h-3 text-[#105F68]" />
-                          <span>{off.durationMinutes} mins</span>
-                        </span>
-                      )}
-
-                      {off.depositCents > 0 && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">
-                          <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                          <span>${(off.depositCents / 100).toFixed(2)} deposit</span>
-                        </span>
-                      )}
-                    </div>
-
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSelectOffering(off);
-                      }}
-                      className="px-5 py-2.5 rounded-full text-xs font-semibold text-white shadow-md shadow-[#105F68]/20 flex items-center gap-1.5 active:scale-95 hover:opacity-95 transition-all flex-shrink-0"
-                      style={{ backgroundColor: config.primaryColor }}
-                    >
-                      <span>{off.type === "order" ? "Order Now" : "Book Slot"}</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
                   </div>
                 </div>
               );
@@ -508,30 +778,77 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
         </div>
 
         {/* Verified Customer Reviews & Social Proof Module */}
-        {reviews.length > 0 && (
-          <div className="mt-10 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                  Verified Social Proof
-                </span>
-                <h2 className="text-base sm:text-lg font-bold text-[#103438]">
-                  Client Experiences &amp; Ratings
-                </h2>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs bg-amber-50 border border-amber-200/80 px-3 py-1 rounded-full">
-                <span className="font-bold text-amber-700 flex items-center gap-1">
-                  <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                  {(reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)}
-                </span>
-                <span className="text-[11px] text-amber-800/80 font-medium">
-                  ({reviews.length} verified)
-                </span>
-              </div>
+        <div className="mt-10 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                Verified Social Proof
+              </span>
+              <h2 className="text-base sm:text-lg font-bold text-[#103438]">
+                Client Experiences &amp; Ratings
+              </h2>
             </div>
+            <div className="flex items-center gap-2">
+              {reviews.length > 0 && (
+                <div className="flex items-center gap-1.5 text-xs bg-amber-50 border border-amber-200/80 px-3 py-1 rounded-full">
+                  <span className="font-bold text-amber-700 flex items-center gap-1">
+                    <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                    {(reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)}
+                  </span>
+                  <span className="text-[11px] text-amber-800/80 font-medium">
+                    ({reviews.length} verified)
+                  </span>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  playClick();
+                  setReviewSubmitted(false);
+                  setIsWriteReviewOpen(true);
+                }}
+                className="px-3 py-1 rounded-full text-xs font-semibold text-white shadow-2xs hover:opacity-95 transition-all flex items-center gap-1"
+                style={{ backgroundColor: config.primaryColor }}
+              >
+                <Star className="w-3 h-3 fill-current" />
+                <span>Write a Review</span>
+              </button>
+            </div>
+          </div>
 
+          {reviews.length === 0 ? (
+            <div
+              className={`p-6 bg-white border border-slate-200/70 text-center space-y-2.5 shadow-2xs ${getCardRadius()}`}
+              style={{ backgroundColor: config.surfaceColor }}
+            >
+              <div className="flex items-center justify-center gap-1 text-amber-400">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-4 h-4 fill-amber-400" />
+                ))}
+              </div>
+              <h3 className="text-xs sm:text-sm font-semibold text-[#103438]">
+                Be the first to leave a review for {config.businessName}!
+              </h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                Share your client experience to help others discover this business.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  playClick();
+                  setReviewSubmitted(false);
+                  setIsWriteReviewOpen(true);
+                }}
+                className="mt-1 px-4 py-2 rounded-full text-xs font-semibold text-white inline-flex items-center gap-1.5 shadow-xs"
+                style={{ backgroundColor: config.primaryColor }}
+              >
+                <Star className="w-3.5 h-3.5 fill-current" />
+                <span>Submit Experience Review</span>
+              </button>
+            </div>
+          ) : (
             <div className="grid grid-cols-1 gap-3">
-              {reviews.slice(0, 3).map((rev) => (
+              {reviews.slice(0, 4).map((rev) => (
                 <div
                   key={rev.id}
                   className={`p-4 sm:p-5 bg-white border border-slate-200/70 shadow-sm transition-all ${getCardRadius()}`}
@@ -566,11 +883,18 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                   <p className="text-xs sm:text-sm text-slate-600 leading-relaxed italic">
                     &ldquo;{rev.comment}&rdquo;
                   </p>
+
+                  {rev.merchantReply && (
+                    <div className="mt-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-700">
+                      <span className="font-semibold text-[#105F68] block mb-0.5">Response from {config.businessName}:</span>
+                      {rev.merchantReply}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Footer info */}
         <div className="mt-12 text-center text-xs text-slate-400 space-y-1.5">
@@ -584,37 +908,113 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
         </div>
       </div>
 
-      {/* Booking / Ordering Checkout Modal */}
-      {selectedOffering && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div
-            className={`w-full max-w-lg shadow-2xl p-6 sm:p-8 space-y-5 relative max-h-[90vh] overflow-y-auto ${getCardRadius()}`}
-            style={{ backgroundColor: config.surfaceColor, color: config.textColor }}
-          >
-            {/* Modal Header */}
+      {/* Booking / Ordering Checkout Bottom Sheet */}
+      <BottomSheet
+        open={Boolean(selectedOffering)}
+        onOpenChange={(open) => {
+          if (!open) {
+            playClick();
+            setSelectedOffering(null);
+            setSelectedSubCategory(null);
+            setStep(1);
+          }
+        }}
+        title={
+          selectedOffering
+            ? selectedOffering.type === "order"
+              ? (config.orderModalTitle || "Custom Order Intake")
+              : (config.bookingModalTitle || "Reserve Time Slot")
+            : ""
+        }
+        description={
+          selectedOffering
+            ? `${selectedOffering.name} • Total: ${formatCurrency(
+                ((selectedSubCategory && typeof selectedSubCategory.priceCents === "number")
+                  ? selectedSubCategory.priceCents
+                  : selectedOffering.priceCents) * (selectedOffering.type === "order" ? orderQuantity : 1),
+                config.currency
+              )}${selectedOffering.depositCents > 0 ? ` • Deposit: ${formatCurrency(selectedOffering.depositCents * (selectedOffering.type === "order" ? orderQuantity : 1), config.currency)}` : ""}`
+            : undefined
+        }
+        detents={[0.92]}
+        initialDetent={0}
+        container={isEmbedPreview ? viewContainerRef.current : undefined}
+      >
+        {selectedOffering && (
+          <div className="space-y-5 pt-1 pb-4" style={{ color: config.textColor }}>
+            {/* Offering Subheading Info */}
             <div className="flex items-center justify-between pb-3 border-b border-black/10">
-              <div>
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                  {selectedOffering.type === "order"
-                    ? (config.orderModalTitle || "Custom Order Intake")
-                    : (config.bookingModalTitle || "Reserve Time Slot")}
+                  {selectedOffering.type === "order" ? "Product Deliverable" : "Scheduled Slot"}
                 </span>
-                <h3 className="text-lg font-bold" style={{ color: config.primaryColor }}>
-                  {selectedOffering.name}
-                </h3>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  Total: ${(selectedOffering.priceCents / 100).toFixed(2)}
-                  {selectedOffering.depositCents > 0 && ` • Deposit: $${(selectedOffering.depositCents / 100).toFixed(2)}`}
-                </p>
+                {selectedOffering.category && (
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    • {selectedOffering.category}
+                  </span>
+                )}
               </div>
-
-              <button
-                onClick={() => { playClick(); setSelectedOffering(null); setStep(1); }}
-                className="p-2 rounded-full hover:bg-black/5 transition-colors text-slate-400 hover:text-black"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <span className="text-xs font-bold text-[#105F68] font-mono">
+                {formatCurrency(
+                  ((selectedSubCategory && typeof selectedSubCategory.priceCents === "number")
+                    ? selectedSubCategory.priceCents
+                    : selectedOffering.priceCents) * (selectedOffering.type === "order" ? orderQuantity : 1),
+                  config.currency
+                )}
+              </span>
             </div>
+
+            {/* Subcategories / Variant Selector */}
+            {selectedOffering.subCategories && selectedOffering.subCategories.length > 0 && (
+              <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/80">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-[#105F68]" />
+                    <span>Choose Option / Category Variant</span>
+                  </label>
+                  {selectedSubCategory && (
+                    <span className="text-[11px] font-bold text-[#105F68]">
+                      {formatCurrency(selectedSubCategory.priceCents || selectedOffering.priceCents, config.currency)}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {selectedOffering.subCategories.map((sub: any) => {
+                    const isSubSelected = selectedSubCategory?.id === sub.id;
+                    return (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => {
+                          playClick();
+                          setSelectedSubCategory(sub);
+                        }}
+                        className={`p-3 rounded-xl text-left border transition-all ${
+                          isSubSelected
+                            ? "border-[#105F68] bg-[#105F68]/10 ring-1 ring-[#105F68]"
+                            : "border-slate-200 bg-white hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-800">{sub.name}</span>
+                          <span className="text-xs font-semibold text-[#105F68]">
+                            {formatCurrency(sub.priceCents || selectedOffering.priceCents, config.currency)}
+                          </span>
+                        </div>
+                        {sub.description && (
+                          <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{sub.description}</p>
+                        )}
+                        {sub.durationMinutes && (
+                          <span className="text-[10px] text-slate-400 font-medium block mt-1">
+                            ⏱ {sub.durationMinutes} mins
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* STEP 1: TIME SLOT OR ORDER QUANTITY */}
             {step === 1 && selectedOffering.requiresTimeSlot && (
@@ -739,9 +1139,63 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                 )}
 
                 <div className="space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Your Contact &amp; Booking Details
-                  </h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Your Contact &amp; Booking Details
+                    </h4>
+                    {!clientSession && (
+                      <button
+                        type="button"
+                        onClick={() => { playClick(); setIsAuthModalOpen(true); }}
+                        className="text-[11px] font-bold text-[#105F68] hover:underline"
+                      >
+                        Sign In with Phone
+                      </button>
+                    )}
+                  </div>
+
+                  {clientSession ? (
+                    <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/70 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-[#105F68] text-white flex items-center justify-center text-xs font-bold shadow-xs">
+                          {clientSession.fullName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-slate-800">{clientSession.fullName}</span>
+                            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.2 rounded-full">
+                              Signed In
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 font-mono">{clientSession.phone}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playClick();
+                          clearActiveClientSession();
+                          setClientSession(null);
+                        }}
+                        className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 underline"
+                      >
+                        Switch
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-2xl bg-[#105F68]/5 border border-[#105F68]/15 flex items-center justify-between gap-2">
+                      <div className="text-[11px] text-slate-600">
+                        <span className="font-semibold text-[#105F68]">1-Tap Portal Access:</span> Sign in to track order status &amp; leave reviews.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { playClick(); setIsAuthModalOpen(true); }}
+                        className="shrink-0 px-2.5 py-1 rounded-xl bg-[#105F68] text-white text-[11px] font-semibold hover:bg-[#0D4F57] transition-all"
+                      >
+                        Sign Up / In
+                      </button>
+                    </div>
+                  )}
 
                   <div>
                     <label className="text-[11px] font-medium block mb-1 text-slate-600">Full Name</label>
@@ -785,7 +1239,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                 <div className="space-y-3 pt-2 border-t border-slate-100">
                   <div className="flex items-center justify-between">
                     <label htmlFor="sensitivityToggle" className="text-xs font-medium cursor-pointer text-slate-700">
-                      Special requests or skin/treatment sensitivities?
+                      Special requests or specific preferences?
                     </label>
                     <input
                       type="checkbox"
@@ -867,7 +1321,7 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                               </div>
                               <span>{item.name}</span>
                             </div>
-                            <span className="font-bold">+${(item.priceCents / 100).toFixed(2)}</span>
+                            <span className="font-bold">+{formatCurrency(item.priceCents, config.currency)}</span>
                           </div>
                         );
                       })}
@@ -878,36 +1332,38 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
                 {/* Pricing Summary */}
                 <div className="p-4 rounded-3xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-slate-500 font-medium">Base Service / Item Total</span>
+                    <span className="text-slate-500 font-medium">
+                      {selectedSubCategory ? `${selectedOffering.name} (${selectedSubCategory.name})` : "Base Item / Service Total"}
+                    </span>
                     <span className="font-semibold text-slate-800">
-                      ${((selectedOffering.priceCents * orderQuantity) / 100).toFixed(2)}
+                      {formatCurrency(((selectedSubCategory && typeof selectedSubCategory.priceCents === "number") ? selectedSubCategory.priceCents : selectedOffering.priceCents) * orderQuantity, config.currency)}
                     </span>
                   </div>
 
                   {selectedRetailTotal > 0 && (
                     <div className="flex justify-between text-[#105F68] font-semibold">
                       <span>Retail Add-Ons Total</span>
-                      <span>+${(selectedRetailTotal / 100).toFixed(2)}</span>
+                      <span>+{formatCurrency(selectedRetailTotal, config.currency)}</span>
                     </div>
                   )}
 
                   <div className="flex justify-between font-bold pt-2 border-t border-slate-200 text-sm text-[#103438]">
                     <span>Grand Total</span>
                     <span>
-                      ${(((selectedOffering.priceCents * orderQuantity) + selectedRetailTotal) / 100).toFixed(2)}
+                      {formatCurrency((((selectedSubCategory && typeof selectedSubCategory.priceCents === "number") ? selectedSubCategory.priceCents : selectedOffering.priceCents) * orderQuantity) + selectedRetailTotal, config.currency)}
                     </span>
                   </div>
 
                   {selectedOffering.depositCents > 0 && (
                     <div className="flex justify-between text-emerald-700 font-semibold">
                       <span>Deposit Due Now (Card on File)</span>
-                      <span>${((selectedOffering.depositCents * orderQuantity) / 100).toFixed(2)}</span>
+                      <span>{formatCurrency(selectedOffering.depositCents * orderQuantity, config.currency)}</span>
                     </div>
                   )}
 
                   <div className="flex justify-between text-[11px] text-slate-400 pt-1.5 border-t border-slate-200/60 font-medium">
                     <span>Ovel Commission Fee</span>
-                    <span>$0.00 (0% Flat Rate)</span>
+                    <span>0% Take-Rate • Instant Settlement</span>
                   </div>
                 </div>
 
@@ -1002,60 +1458,247 @@ export default function OvelinkView({ config, isEmbedPreview = false }: OvelinkV
               </div>
             )}
           </div>
-        </div>
-      )}
+        )}
+      </BottomSheet>
 
-      {/* Share Ovelink Modal */}
-      {isShareModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white text-zinc-900 rounded-3xl p-6 sm:p-8 max-w-sm w-full space-y-5 shadow-2xl border border-black/10 text-center font-sans">
-            <div className="flex justify-end">
-              <button onClick={() => setIsShareModalOpen(false)} className="text-gray-400 hover:text-black">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* Share Ovelink Bottom Sheet */}
+      <BottomSheet
+        open={isShareModalOpen}
+        onOpenChange={setIsShareModalOpen}
+        title={`Share ${config.businessName}`}
+        description="Send your link to customers or embed on Instagram bio & WhatsApp."
+        detents={[0.62, 0.88]}
+        initialDetent={0}
+        container={isEmbedPreview ? viewContainerRef.current : undefined}
+      >
+        <div className="bg-white text-zinc-900 p-2 sm:p-4 space-y-5 text-center font-sans">
+          <div className="w-16 h-16 rounded-2xl bg-[#105F68]/10 text-[#105F68] flex items-center justify-center mx-auto shadow-xs">
+            <QrCode className="w-8 h-8" />
+          </div>
 
-            <div className="w-16 h-16 rounded-2xl bg-[#105F68]/10 text-[#105F68] flex items-center justify-center mx-auto">
-              <QrCode className="w-8 h-8" />
-            </div>
+          <div>
+            <h4 className="text-base font-bold text-[#105F68]">{config.businessName} Ovelink</h4>
+            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+              Scan with mobile camera or share the direct link below.
+            </p>
+          </div>
 
-            <div>
-              <h3 className="text-lg font-bold text-[#105F68]">Share {config.businessName} Ovelink</h3>
-              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                Send your link to customers or embed on Instagram bio &amp; WhatsApp.
-              </p>
-            </div>
+          <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-mono break-all text-[#105F68] select-all font-medium">
+            {getOvelinkUrl(config.slug)}
+          </div>
 
-            <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-mono break-all text-[#105F68] select-all font-medium">
-              https://ovel.app/l/{config.slug}
-            </div>
+          <div className="flex flex-col gap-2.5">
+            <button
+              onClick={handleCopyLink}
+              className="w-full py-3 rounded-full bg-[#105F68] text-white text-xs font-semibold hover:bg-[#0D4F57] transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span>{copiedLink ? "Link Copied to Clipboard!" : "Copy Ovelink"}</span>
+            </button>
 
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={handleCopyLink}
-                className="w-full py-3 rounded-full bg-[#105F68] text-white text-xs font-semibold hover:bg-[#0D4F57] transition-all flex items-center justify-center gap-2 shadow-sm"
+            {config.whatsappNumber && (
+              <a
+                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                  `Book appointments, slots or orders directly with ${config.businessName} here: ${getOvelinkUrl(config.slug)}`
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full py-3 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold hover:bg-emerald-100 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Copy className="w-3.5 h-3.5" />
-                <span>{copiedLink ? "Link Copied to Clipboard!" : "Copy Ovelink"}</span>
-              </button>
-
-              {config.whatsappNumber && (
-                <a
-                  href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                    `Book appointments, slots or orders directly with ${config.businessName} here: https://ovel.app/l/${config.slug}`
-                  )}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full py-3 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold hover:bg-emerald-100 transition-all flex items-center justify-center gap-2"
-                >
-                  <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Share on WhatsApp</span>
-                </a>
-              )}
-            </div>
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Share on WhatsApp</span>
+              </a>
+            )}
           </div>
         </div>
-      )}
+      </BottomSheet>
+
+      {/* Write a Review Bottom Sheet */}
+      <BottomSheet
+        open={isWriteReviewOpen}
+        onOpenChange={setIsWriteReviewOpen}
+        title={`Rate & Review ${config.businessName}`}
+        description="Customer Review & Verified Social Proof"
+        detents={[0.85, 0.95]}
+        initialDetent={0}
+        container={isEmbedPreview ? viewContainerRef.current : undefined}
+      >
+        <div className="bg-white text-zinc-900 p-2 sm:p-4 space-y-4">
+          {reviewSubmitted ? (
+            <div className="text-center py-6 space-y-4 animate-in zoom-in-95 duration-200">
+              <div
+                className="w-14 h-14 rounded-full mx-auto flex items-center justify-center text-white shadow-md"
+                style={{ backgroundColor: config.primaryColor }}
+              >
+                <CheckCircle className="w-8 h-8" />
+              </div>
+              <div>
+                <h4 className="text-lg font-bold text-[#103438]">Thank You For Your Review!</h4>
+                <p className="text-xs text-slate-600 mt-1 max-w-xs mx-auto leading-relaxed">
+                  Your verified feedback has been published and added to {config.businessName}&apos;s profile.
+                </p>
+              </div>
+
+              {reviewRating >= 4 && (config.googleMapsReviewUrl || reputationConfig.googleMapsReviewUrl) && (
+                <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 space-y-2 text-left">
+                  <div className="flex items-center gap-1.5 text-amber-800 font-bold text-xs">
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    <span>Boost On Google Maps</span>
+                  </div>
+                  <p className="text-[11px] text-amber-900/80 leading-relaxed">
+                    Since you gave a <b>{reviewRating}-star rating</b>, would you like to also post this on Google Maps to help others discover this business?
+                  </p>
+                  <a
+                    href={config.googleMapsReviewUrl || reputationConfig.googleMapsReviewUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-xs shadow-xs transition-colors"
+                  >
+                    <ThumbsUp className="w-3.5 h-3.5" />
+                    <span>Post on Google Maps</span>
+                    <ExternalLink className="w-3 h-3 ml-0.5" />
+                  </a>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsWriteReviewOpen(false)}
+                className="w-full py-2.5 rounded-full border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmitReview} className="space-y-3.5">
+              {/* Rating Stars Selector */}
+              <div>
+                <label className="text-xs font-semibold block mb-1.5 text-slate-700">
+                  Your Rating
+                </label>
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => { playClick(); setReviewRating(star as 1 | 2 | 3 | 4 | 5); }}
+                      className="p-1 rounded-lg hover:scale-110 active:scale-95 transition-all text-amber-400 cursor-pointer"
+                    >
+                      <Star
+                        className={`w-7 h-7 ${
+                          star <= reviewRating ? "fill-amber-400 text-amber-400" : "text-slate-200"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                  <span className="text-xs font-bold text-amber-700 ml-1">
+                    {reviewRating === 5
+                      ? "5.0 - Exceptional"
+                      : reviewRating === 4
+                      ? "4.0 - Very Good"
+                      : reviewRating === 3
+                      ? "3.0 - Good"
+                      : reviewRating === 2
+                      ? "2.0 - Fair"
+                      : "1.0 - Needs Improvement"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Offering Dropdown */}
+              {config.offerings && config.offerings.length > 0 && (
+                <div>
+                  <label className="text-xs font-semibold block mb-1 text-slate-700">
+                    Service or Product Experienced
+                  </label>
+                  <select
+                    value={reviewService}
+                    onChange={(e) => setReviewService(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:border-[#105F68] transition-all font-medium"
+                  >
+                    <option value="">General Client Experience</option>
+                    {config.offerings.map((off) => (
+                      <option key={off.id} value={off.name}>
+                        {off.name} ({off.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Author Name */}
+              <div>
+                <label className="text-xs font-semibold block mb-1 text-slate-700">Your Full Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Jordan Mitchell"
+                  value={reviewAuthor}
+                  onChange={(e) => setReviewAuthor(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:border-[#105F68] transition-all font-medium"
+                />
+              </div>
+
+              {/* Phone / Email for verification */}
+              <div>
+                <label className="text-xs font-semibold block mb-1 text-slate-700">
+                  Phone or Email (for Verification)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. +1 555-0192 or jordan@example.com"
+                  value={reviewContact}
+                  onChange={(e) => setReviewContact(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:border-[#105F68] transition-all font-medium"
+                />
+              </div>
+
+              {/* Review Text */}
+              <div>
+                <label className="text-xs font-semibold block mb-1 text-slate-700">Your Review &amp; Experience</label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Describe the quality, punctuality, or product results..."
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:border-[#105F68] transition-all font-medium leading-relaxed"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsWriteReviewOpen(false)}
+                  className="px-4 py-2 rounded-full text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-full text-xs font-semibold text-white shadow-md flex items-center gap-1.5 hover:opacity-95 transition-all cursor-pointer"
+                  style={{ backgroundColor: config.primaryColor }}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Submit Verified Review</span>
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </BottomSheet>
+      <ClientAuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        businessName={config.businessName}
+        onSuccess={(account) => {
+          setClientSession(account);
+          setClientName(account.fullName);
+          setClientPhone(account.phone);
+          setIsAuthModalOpen(false);
+        }}
+      />
     </div>
   );
 }

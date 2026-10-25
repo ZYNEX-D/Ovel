@@ -38,6 +38,7 @@ import {
 import { useClientStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
 import { useAuth } from "@/lib/auth-context";
+import Toast from "@/components/arc/toast/toast";
 
 export default function DashboardUsersPage() {
   const { profile, isLoading } = useAuth();
@@ -214,13 +215,15 @@ export default function DashboardUsersPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Toast Notification */}
-      {notification && (
-        <div className="fixed top-6 right-6 z-50 p-4 rounded-2xl bg-[#105F68] text-white text-xs shadow-xl flex items-center gap-2 border border-white/20 animate-in slide-in-from-top-2">
-          <Check className="w-4 h-4 text-[#63C1BB]" />
-          <span>{notification}</span>
-        </div>
-      )}
+      {/* Arc UI Toast Notification */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <Toast
+          open={Boolean(notification)}
+          onOpenChange={(open) => { if (!open) setNotification(null); }}
+          title={notification || ""}
+          duration={3500}
+        />
+      </div>
 
       {/* Page Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -474,11 +477,11 @@ export default function DashboardUsersPage() {
                   )}
                 </div>
 
-                {/* Treatment Formula / Technical Notes Preview */}
+                {/* Service History / Client Notes Preview */}
                 {client.formulasOrNotes && (
                   <div className="p-3 rounded-2xl bg-[#F6FAF9] border border-black/5 text-xs text-slate-600 space-y-1">
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-[#3A9295] block">
-                      Formulas &amp; Treatment History
+                      Service History &amp; Client Notes
                     </span>
                     <p className="line-clamp-2 leading-relaxed text-[11px] text-slate-700">
                       {client.formulasOrNotes}
@@ -624,15 +627,15 @@ export default function DashboardUsersPage() {
               </span>
             </div>
 
-            {/* Technical Formulas & Treatment History */}
+            {/* Technical Formulas & Service History */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-[#3A9295]">
-                  Technical Formulas &amp; Treatment History
+                  Technical Specs &amp; Service History
                 </h4>
               </div>
               <div className="p-4 rounded-2xl bg-[#F6FAF9] border border-black/5 text-xs text-slate-700 leading-relaxed font-mono whitespace-pre-wrap">
-                {selectedDossier.formulasOrNotes || "No treatment formulas or notes logged for this client yet."}
+                {selectedDossier.formulasOrNotes || "No service specs or notes logged for this client yet."}
               </div>
             </div>
 
@@ -715,7 +718,7 @@ export default function DashboardUsersPage() {
                 <p className="text-xs text-[#3A9295]">
                   {editingClient
                     ? `Updating details for ${editingClient.name}`
-                    : "Add a client to your private CRM and treatment directory."}
+                    : "Add a client to your private CRM and client directory."}
                 </p>
               </div>
 
@@ -815,14 +818,14 @@ export default function DashboardUsersPage() {
                 </div>
               </div>
 
-              {/* Formulas & Treatment History */}
+              {/* Service Specs & Client History */}
               <div>
                 <label className="text-xs font-medium text-slate-700 block mb-1">
-                  Treatment Formulas / Client Notes
+                  Service Notes / Client Preferences
                 </label>
                 <textarea
                   rows={3}
-                  placeholder="e.g. Formulation specs, allergies, room preferences, past treatment reactions..."
+                  placeholder="e.g. Preferences, service requirements, special instructions, order notes..."
                   value={formNotes}
                   onChange={(e) => setFormNotes(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-2xl border border-black/15 text-xs focus:outline-none focus:border-[#105F68]"

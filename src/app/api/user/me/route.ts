@@ -41,7 +41,17 @@ export async function PATCH(req: Request) {
 
   try {
     const body = await req.json();
-    const { businessName, businessSlug } = body;
+    const {
+      businessName,
+      businessSlug,
+      avatarUrl,
+      businessType,
+      businessBio,
+      businessTagline,
+      logoUrl,
+      greetings,
+      onboardingCompleted,
+    } = body;
 
     const client = await clerkClient();
     const user = await client.users.getUser(authResult.userId);
@@ -52,6 +62,15 @@ export async function PATCH(req: Request) {
       ...(typeof businessSlug === "string"
         ? { businessSlug: businessSlug.toLowerCase().trim().replace(/[^a-z0-9-]/g, "") }
         : {}),
+      ...(typeof avatarUrl === "string" || avatarUrl === null ? { avatarUrl } : {}),
+      ...(typeof logoUrl === "string" || logoUrl === null ? { logoUrl } : {}),
+      ...(typeof businessType === "string" && ["services", "products", "both"].includes(businessType)
+        ? { businessType }
+        : {}),
+      ...(typeof businessBio === "string" ? { businessBio: businessBio.trim() } : {}),
+      ...(typeof businessTagline === "string" ? { businessTagline: businessTagline.trim() } : {}),
+      ...(typeof greetings === "string" ? { greetings: greetings.trim() } : {}),
+      ...(typeof onboardingCompleted === "boolean" ? { onboardingCompleted } : {}),
     };
 
     await client.users.updateUser(authResult.userId, {

@@ -35,7 +35,7 @@ import { useClientStore, useHydrated } from "@/lib/use-client-store";
 import { submitCustomerReview, getReputationConfig } from "@/lib/reviews-store";
 import { useAudio } from "@/components/AudioController";
 import ProgressiveBlur from "@/components/ProgressiveBlur";
-import { generateInvoicePDF } from "@/lib/invoice-pdf";
+import Toast from "@/components/arc/toast/toast";
 
 export default function ClientPortalPage() {
   const params = useParams();
@@ -275,7 +275,7 @@ export default function ClientPortalPage() {
               )}
 
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (!booking) return;
                   playSuccess();
                   try {
@@ -294,7 +294,8 @@ export default function ClientPortalPage() {
                       createdAt: booking.createdAt,
                     };
 
-                    generateInvoicePDF(targetInvoice, {
+                    const { generateInvoicePDF } = await import("@/lib/invoice-pdf");
+                    await generateInvoicePDF(targetInvoice, {
                       name: booking.serviceName || "Service Studio",
                       email: booking.clientEmail,
                     });
@@ -460,13 +461,15 @@ export default function ClientPortalPage() {
         </div>
       </main>
 
-      {/* Toast */}
-      {notification && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#105F68] text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 text-xs border border-[#63C1BB]/30 animate-fadeUp">
-          <CheckCircle2 className="w-4 h-4 text-[#63C1BB]" />
-          <span>{notification}</span>
-        </div>
-      )}
+      {/* Arc UI Toast Notification */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <Toast
+          open={Boolean(notification)}
+          onOpenChange={(open) => { if (!open) setNotification(null); }}
+          title={notification || ""}
+          duration={3500}
+        />
+      </div>
     </div>
   );
 }

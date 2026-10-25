@@ -21,7 +21,12 @@ import {
   Share2,
   Calendar,
   Clock,
-  Info
+  Info,
+  Lock,
+  ShieldAlert,
+  RefreshCw,
+  Star,
+  Tag
 } from "lucide-react";
 import { 
   getOvelink, 
@@ -33,13 +38,18 @@ import {
   OfferingType,
   OvelinkThemePreset,
   sanitizeSlug,
-  validateSlug
+  validateSlug,
+  syncCatalogOfferingsToOvelink
 } from "@/lib/ovelink-store";
+import { getReviews, INITIAL_REVIEWS, getReputationConfig, saveReputationConfig } from "@/lib/reviews-store";
 import { useAuth } from "@/lib/auth-context";
 import { useAudio } from "@/components/AudioController";
 import OvelinkView from "@/components/OvelinkView";
 import { dollarsToCents } from "@/lib/booking-time";
 import { useClientStore, useDraftStore } from "@/lib/use-client-store";
+import { formatCurrency, getCurrencySymbol, SUPPORTED_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currency";
+import { PRIMARY_DOMAIN, DEV_DOMAIN, getOvelinkUrl, getOvelinkDisplay } from "@/lib/domain";
+import { getMerchantSubscription, SUBSCRIPTION_PLANS } from "@/lib/subscription-store";
 
 export default function OvelinkStudioPage() {
   const { profile, updateOrganizationDetails } = useAuth();
@@ -55,7 +65,7 @@ export default function OvelinkStudioPage() {
   const slugValidation = useMemo(() => {
     return validateSlug(activeOvelink.slug, profile?.organizationId);
   }, [activeOvelink.slug, profile?.organizationId]);
-  const [studioSubTab, setStudioSubTab] = useState<"branding" | "booking" | "themes" | "style" | "offerings" | "socials">("branding");
+  const [studioSubTab, setStudioSubTab] = useState<"branding" | "booking" | "offerings" | "reviews" | "themes" | "style" | "socials">("branding");
   const [previewDevice, setPreviewDevice] = useState<"mobile" | "desktop">("mobile");
   const [isAddOfferingOpen, setIsAddOfferingOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -72,20 +82,40 @@ export default function OvelinkStudioPage() {
   const [newOffBadge, setNewOffBadge] = useState("");
   const [newOffCategory, setNewOffCategory] = useState("General");
 
+  const merchantTarget = profile?.organizationId || defaultSlug;
+  const subscription = getMerchantSubscription(merchantTarget);
+
   const showToast = (msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3000);
   };
 
+  const reviews = useClientStore(() => getReviews(merchantTarget), () => INITIAL_REVIEWS);
+
   const handleCopyOvelink = () => {
     playClick();
-    const url = typeof window !== "undefined" 
-      ? `${window.location.origin}/l/${activeOvelink.slug}` 
-      : `https://ovel.app/l/${activeOvelink.slug}`;
+    const url = getOvelinkUrl(activeOvelink.slug);
     navigator.clipboard?.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
-    showToast(`Ovelink copied: ovel.app/l/${activeOvelink.slug}`);
+    showToast(`Ovelink copied: ${getOvelinkDisplay(activeOvelink.slug)}`);
+  };
+
+  const handleSyncFromCatalog = () => {
+    playSuccess();
+    const synced = syncCatalogOfferingsToOvelink(activeOvelink, profile?.organizationId);
+    setActiveOvelink(synced);
+    saveOvelink(synced);
+    showToast(`Synced ${synced.offerings.length} offerings from your Services, Products & Categories catalog!`);
+  };
+
+  const handleCopyOfferingLink = (offId: string, type: OfferingType) => {
+    playClick();
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://ovel.lk";
+    const param = type === "order" ? "product" : "service";
+    const url = `${origin}/l/${activeOvelink.slug}?${param}=${offId}`;
+    navigator.clipboard?.writeText(url);
+    showToast("Direct product link copied to clipboard!");
   };
 
   const handleSaveOvelinkSettings = () => {
@@ -106,6 +136,10 @@ export default function OvelinkStudioPage() {
   };
 
   const handleApplyThemePreset = (preset: OvelinkThemePreset) => {
+    if (!subscription.hasThemeCustomization) {
+      showToast("Theme customization is locked on Free plan. Upgrade to Growth (LKR 500/mo) in Settings > Plans.");
+      return;
+    }
     playClick();
     setActiveOvelink({
       ...activeOvelink,
@@ -313,7 +347,8 @@ export default function OvelinkStudioPage() {
             {[
               { id: "branding" as const, label: "Branding & Bio", icon: Building2 },
               { id: "booking" as const, label: "Time Slots & Details", icon: Calendar },
-              { id: "offerings" as const, label: "Services & Pricing", icon: ShoppingBag },
+              { id: "offerings" as const, label: "Services & Products", icon: ShoppingBag },
+              { id: "reviews" as const, label: "Reviews & Reputation", icon: Star },
               { id: "themes" as const, label: "Colors & Palettes", icon: Palette },
               { id: "style" as const, label: "Typography & Shapes", icon: Type },
               { id: "socials" as const, label: "Socials & WhatsApp", icon: Phone },
@@ -372,7 +407,7 @@ export default function OvelinkStudioPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="text-[#3A9295] font-medium block mb-1">Brand Logo Image URL</label>
                   <input
@@ -384,7 +419,7 @@ export default function OvelinkStudioPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-[#3A9295] font-medium block mb-1">Public Brand Contact Email</label>
+                  <label className="text-[#3A9295] font-medium block mb-1">Public Contact Email</label>
                   <input
                     type="email"
                     placeholder="hello@yourbrand.com"
@@ -392,6 +427,20 @@ export default function OvelinkStudioPage() {
                     onChange={(e) => setActiveOvelink({ ...activeOvelink, email: e.target.value })}
                     className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                   />
+                </div>
+                <div>
+                  <label className="text-[#3A9295] font-medium block mb-1">Operating Currency</label>
+                  <select
+                    value={activeOvelink.currency || DEFAULT_CURRENCY}
+                    onChange={(e) => setActiveOvelink({ ...activeOvelink, currency: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  >
+                    {SUPPORTED_CURRENCIES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.code} ({c.symbol})
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -418,7 +467,7 @@ export default function OvelinkStudioPage() {
                       const gen = sanitizeSlug(activeOvelink.businessName);
                       if (gen) {
                         setActiveOvelink({ ...activeOvelink, slug: gen });
-                        showToast(`Generated: ovel.app/l/${gen}`);
+                        showToast(`Generated: ${PRIMARY_DOMAIN}/l/${gen}`);
                       }
                     }}
                     className="text-[11px] text-[#105F68] hover:underline flex items-center gap-1 font-medium"
@@ -430,7 +479,7 @@ export default function OvelinkStudioPage() {
 
                 <div className="flex items-center rounded-xl bg-white border border-black/10 overflow-hidden focus-within:border-[#105F68] transition-all">
                   <span className="px-3 py-2 text-[#3A9295] text-xs bg-[#F6FAF9] border-r border-black/5 font-mono select-none">
-                    ovel.app/l/
+                    {PRIMARY_DOMAIN}/l/
                   </span>
                   <input
                     type="text"
@@ -462,7 +511,7 @@ export default function OvelinkStudioPage() {
                     {!slugValidation.valid ? (
                       <span className="text-red-600 font-medium">{slugValidation.error}</span>
                     ) : (
-                      <span>Live link: <b className="font-mono text-[#105F68]">ovel.app/l/{activeOvelink.slug}</b></span>
+                      <span>Live link: <b className="font-mono text-[#105F68]">{PRIMARY_DOMAIN}/l/{activeOvelink.slug}</b></span>
                     )}
                   </span>
                   <Link
@@ -724,6 +773,26 @@ export default function OvelinkStudioPage() {
           {/* Subtab 2: Colors & Themes */}
           {studioSubTab === "themes" && (
             <div className="space-y-6 text-xs animate-in fade-in duration-150">
+              {!subscription.hasThemeCustomization && (
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                    <div>
+                      <span className="font-bold text-amber-900 block">Theme Customization Locked</span>
+                      <span className="text-[11px] text-amber-800">
+                        Starter Free plan includes standard styling. Upgrade to Growth (LKR 500/mo) to unlock bespoke brand colors &amp; presets.
+                      </span>
+                    </div>
+                  </div>
+                  <Link
+                    href="/dashboard/settings?tab=plans"
+                    className="shrink-0 px-3.5 py-1.5 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-semibold transition-all shadow-xs text-center"
+                  >
+                    Upgrade Plan
+                  </Link>
+                </div>
+              )}
+
               <div>
                 <h4 className="text-xs font-semibold text-[#105F68] uppercase tracking-wider mb-2">
                   1-Click Color Presets
@@ -899,77 +968,256 @@ export default function OvelinkStudioPage() {
             </div>
           )}
 
-          {/* Subtab 4: Offerings & Catalog */}
+          {/* Subtab 3: Offerings & Catalog */}
           {studioSubTab === "offerings" && (
             <div className="space-y-4 text-xs animate-in fade-in duration-150">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <h4 className="text-xs font-semibold text-[#105F68] uppercase tracking-wider">
                     Published Offerings ({activeOvelink.offerings.length})
                   </h4>
-                  <p className="text-[#3A9295]">Supports Appointments, Bookings &amp; Orders</p>
+                  <p className="text-[#3A9295]">Synced with Services, Products &amp; Categories catalog</p>
                 </div>
 
-                <button
-                  onClick={() => { playClick(); setIsAddOfferingOpen(true); }}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#105F68] text-white font-light text-xs hover:bg-[#0D4F57] transition-all"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Offering</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSyncFromCatalog}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#105F68]/20 bg-[#105F68]/5 text-[#105F68] font-medium text-xs hover:bg-[#105F68]/10 transition-all shadow-2xs"
+                    title="Pull latest Services, Products & Categories from your workspace catalog"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Sync from Catalog</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { playClick(); setIsAddOfferingOpen(true); }}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#105F68] text-white font-medium text-xs hover:bg-[#0D4F57] transition-all shadow-2xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Offering</span>
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-2.5">
-                {activeOvelink.offerings.map((off, idx) => (
-                  <div
-                    key={`${off.id}_${idx}`}
-                    className="p-3.5 rounded-2xl border border-black/10 bg-[#FBFDFD] flex items-center justify-between gap-3"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[9px] px-2 py-0.5 rounded-full uppercase font-semibold ${
-                          off.type === "appointment"
-                            ? "bg-blue-100 text-blue-800"
-                            : off.type === "booking"
-                            ? "bg-purple-100 text-purple-800"
-                            : "bg-amber-100 text-amber-800"
-                        }`}>
-                          {off.type}
-                        </span>
-                        <h5 className="font-semibold text-[#105F68]">{off.name}</h5>
-                      </div>
-                      <p className="text-[#3A9295] text-[11px] mt-0.5 line-clamp-1">{off.description}</p>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="font-bold text-[#105F68] block">
-                        ${(off.priceCents / 100).toFixed(2)}
-                      </span>
-                      <span className="text-[10px] text-emerald-600 block">
-                        Dep: ${(off.depositCents / 100).toFixed(2)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => handleToggleOffering(off.id)}
-                        className={`text-[10px] px-2 py-1 rounded-md border ${
-                          off.isActive ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"
-                        }`}
-                      >
-                        {off.isActive ? "Active" : "Hidden"}
-                      </button>
-
-                      <button
-                        onClick={() => handleRemoveOffering(off.id)}
-                        className="p-1 rounded-md text-red-500 hover:bg-red-50"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                {activeOvelink.offerings.length === 0 ? (
+                  <div className="p-8 text-center rounded-2xl border border-dashed border-black/15 bg-[#FBFDFD] space-y-2">
+                    <ShoppingBag className="w-8 h-8 text-[#105F68] mx-auto opacity-40" />
+                    <p className="text-[#105F68] font-medium">No offerings published yet.</p>
+                    <p className="text-slate-500 text-[11px] max-w-sm mx-auto">
+                      Click &ldquo;Sync from Catalog&rdquo; to pull in all services and products you have created, or add an offering directly.
+                    </p>
                   </div>
-                ))}
+                ) : (
+                  activeOvelink.offerings.map((off, idx) => {
+                    const cardImage = off.imageUrl || (off.imageUrls && off.imageUrls[0]);
+                    return (
+                      <div
+                        key={`${off.id}_${idx}`}
+                        className="p-3.5 rounded-2xl border border-black/10 bg-[#FBFDFD] flex items-center justify-between gap-3 group"
+                      >
+                        {/* Image Thumbnail */}
+                        {cardImage ? (
+                          <img
+                            src={cardImage}
+                            alt={off.name}
+                            className="w-12 h-12 rounded-xl object-cover shrink-0 border border-black/10"
+                          />
+                        ) : (
+                          <div
+                            className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 text-white font-bold text-xs"
+                            style={{ backgroundColor: activeOvelink.primaryColor }}
+                          >
+                            {off.name.substring(0, 2).toUpperCase()}
+                          </div>
+                        )}
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-[9px] px-2 py-0.5 rounded-full uppercase font-semibold ${
+                              off.type === "appointment"
+                                ? "bg-blue-100 text-blue-800"
+                                : off.type === "booking"
+                                ? "bg-purple-100 text-purple-800"
+                                : "bg-amber-100 text-amber-800"
+                            }`}>
+                              {off.type}
+                            </span>
+                            {off.category && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 bg-slate-100 px-2 py-0.2 rounded-full">
+                                <Tag className="w-2.5 h-2.5 text-[#105F68]" />
+                                <span>{off.category}</span>
+                              </span>
+                            )}
+                            {typeof off.stockCount === "number" && off.type === "order" && (
+                              <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.2 rounded-full font-medium">
+                                Stock: {off.stockCount}
+                              </span>
+                            )}
+                            <h5 className="font-semibold text-[#105F68] truncate">{off.name}</h5>
+                          </div>
+                          <p className="text-[#3A9295] text-[11px] mt-0.5 line-clamp-1">{off.description}</p>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className="font-bold text-[#105F68] block">
+                            {off.pricingType === "range" && off.priceMaxCents && off.priceMaxCents > off.priceCents
+                              ? `${formatCurrency(off.priceCents, activeOvelink.currency || DEFAULT_CURRENCY)} – ${formatCurrency(off.priceMaxCents, activeOvelink.currency || DEFAULT_CURRENCY)}`
+                              : formatCurrency(off.priceCents, activeOvelink.currency || DEFAULT_CURRENCY)}
+                          </span>
+                          {off.depositCents > 0 && (
+                            <span className="text-[10px] text-emerald-600 block">
+                              Dep: {formatCurrency(off.depositCents, activeOvelink.currency || DEFAULT_CURRENCY)}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {/* Share / Copy Link Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleCopyOfferingLink(off.id, off.type)}
+                            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-[#105F68] hover:bg-slate-100 transition-colors"
+                            title="Copy Direct Product Link"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleOffering(off.id)}
+                            className={`text-[10px] px-2 py-1 rounded-md border ${
+                              off.isActive ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"
+                            }`}
+                          >
+                            {off.isActive ? "Active" : "Hidden"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveOffering(off.id)}
+                            className="p-1 rounded-md text-red-500 hover:bg-red-50"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Subtab 4: Reviews & Google Reputation Funnel */}
+          {studioSubTab === "reviews" && (
+            <div className="space-y-5 text-xs animate-in fade-in duration-150">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-semibold text-[#105F68] uppercase tracking-wider">
+                    Customer Reviews &amp; Social Proof
+                  </h4>
+                  <p className="text-[#3A9295]">Manage verified reviews and Google Maps 5-Star review funnel</p>
+                </div>
+
+                <div className="flex items-center gap-1.5 text-xs bg-amber-50 border border-amber-200/80 px-3 py-1 rounded-full">
+                  <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                  <span className="font-bold text-amber-800">
+                    {reviews.length > 0
+                      ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
+                      : "5.0"}
+                  </span>
+                  <span className="text-[11px] text-amber-700">({reviews.length} reviews)</span>
+                </div>
+              </div>
+
+              {/* Google Maps Review Funnel Configuration */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50/70 to-emerald-50/70 border border-amber-200/70 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1">
+                    <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-amber-600" />
+                      <span>Google Maps 5-Star Funnel URL</span>
+                    </span>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      Clients who give a 4 or 5-star rating on your public Ovelink will be automatically prompted to post directly to your Google Business Profile!
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <input
+                    type="url"
+                    placeholder="https://g.page/r/your-google-review-link/review"
+                    value={activeOvelink.googleMapsReviewUrl || ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setActiveOvelink({ ...activeOvelink, googleMapsReviewUrl: val });
+                      saveReputationConfig({
+                        businessSlug: defaultSlug,
+                        googleMapsReviewUrl: val,
+                        autoRedirectThreshold: 4,
+                        privateFeedbackAlerts: true,
+                        automatedNudgeHoursPostService: 2,
+                        rebookingReminderWeeks: 4,
+                      }, merchantTarget);
+                    }}
+                    className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-[#105F68]"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Paste your Google Review shortcut link (from Google Business Profile &gt; &ldquo;Ask for reviews&rdquo;).
+                  </p>
+                </div>
+              </div>
+
+              {/* Recent Reviews List */}
+              <div className="space-y-3">
+                <h5 className="font-semibold text-[#105F68] uppercase text-[11px] tracking-wider">
+                  Verified Reviews Received ({reviews.length})
+                </h5>
+
+                {reviews.length === 0 ? (
+                  <div className="p-6 rounded-2xl border border-dashed border-black/15 bg-[#FBFDFD] text-center space-y-1">
+                    <Star className="w-6 h-6 text-amber-400 mx-auto opacity-50" />
+                    <p className="text-slate-700 font-medium text-xs">No reviews received yet.</p>
+                    <p className="text-slate-400 text-[11px]">
+                      Share your Ovelink with customers. Verified clients can submit reviews with 1 click.
+                    </p>
+                  </div>
+                ) : (
+                  reviews.map((rev) => (
+                    <div
+                      key={rev.id}
+                      className="p-3.5 rounded-2xl border border-black/10 bg-[#FBFDFD] space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                            style={{ backgroundColor: activeOvelink.primaryColor }}
+                          >
+                            {rev.clientAvatar || rev.clientName.substring(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="font-bold text-slate-800 block leading-tight">{rev.clientName}</span>
+                            <span className="text-[10px] text-slate-400">{rev.serviceName}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex text-amber-400">
+                          {[...Array(rev.rating)].map((_, i) => (
+                            <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                          ))}
+                        </div>
+                      </div>
+
+                      <p className="text-slate-600 text-xs italic">&ldquo;{rev.comment}&rdquo;</p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -1147,7 +1395,9 @@ export default function OvelinkStudioPage() {
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-[#3A9295] font-medium block mb-1">Price ($)</label>
+                  <label className="text-[#3A9295] font-medium block mb-1">
+                    Price ({getCurrencySymbol(activeOvelink.currency || DEFAULT_CURRENCY)})
+                  </label>
                   <input
                     type="number"
                     min="1"
@@ -1157,7 +1407,9 @@ export default function OvelinkStudioPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-[#3A9295] font-medium block mb-1">Deposit ($)</label>
+                  <label className="text-[#3A9295] font-medium block mb-1">
+                    Deposit ({getCurrencySymbol(activeOvelink.currency || DEFAULT_CURRENCY)})
+                  </label>
                   <input
                     type="number"
                     min="0"

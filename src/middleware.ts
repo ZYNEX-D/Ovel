@@ -9,10 +9,11 @@ const isPublicRoute = createRouteMatcher([
   "/forgot-password(.*)",
   "/sso-callback(.*)",
   "/auth/redirect(.*)",
+  "/onboarding(.*)",
   "/l/(.*)",
   "/book/(.*)",
   "/quote/(.*)",
-  "/portal/(.*)",
+  "/portal(.*)",
   "/api/webhooks/(.*)",
   "/api/public/(.*)",
 ]);

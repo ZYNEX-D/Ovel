@@ -1,5 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { cache } from "react";
 
 export interface AuthContextResult {
   isAuthenticated: boolean;
@@ -90,7 +91,7 @@ function clerkConfigured() {
   );
 }
 
-export async function getWorkspaceProfile() {
+export const getWorkspaceProfile = cache(async () => {
   if (!clerkConfigured()) return null;
   const user = await currentUser();
   if (!user) return null;
@@ -99,18 +100,55 @@ export async function getWorkspaceProfile() {
   const isAdmin = Boolean(adminEmail) && user.emailAddresses.some(
     (address) => address.emailAddress.toLowerCase() === adminEmail && address.verification?.status === "verified"
   );
-  const businessName = typeof user.unsafeMetadata.businessName === "string"
-    ? user.unsafeMetadata.businessName : "My Business";
-  const slug = typeof user.unsafeMetadata.businessSlug === "string"
-    ? user.unsafeMetadata.businessSlug : businessName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+  const fallbackName = user.fullName
+    ? `${user.fullName}'s Studio`
+    : email ? `${email.split("@")[0]}'s Studio` : "Studio Workspace";
+
+  const businessName = typeof user.unsafeMetadata?.businessName === "string" && user.unsafeMetadata.businessName.trim()
+    ? user.unsafeMetadata.businessName.trim()
+    : fallbackName;
+
+  const derivedHandle = (user.username || (email ? email.split("@")[0] : `biz-${user.id.slice(-6)}`))
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "") || `biz-${user.id.slice(-6)}`;
+
+  const slug = typeof user.unsafeMetadata?.businessSlug === "string" && user.unsafeMetadata.businessSlug.trim()
+    ? user.unsafeMetadata.businessSlug.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")
+    : derivedHandle;
+
+  const avatarUrl = (typeof user.unsafeMetadata?.avatarUrl === "string" && user.unsafeMetadata.avatarUrl)
+    ? user.unsafeMetadata.avatarUrl
+    : (user.imageUrl || undefined);
+
+  const businessType = typeof user.unsafeMetadata?.businessType === "string" && ["services", "products", "both"].includes(user.unsafeMetadata.businessType)
+    ? (user.unsafeMetadata.businessType as "services" | "products" | "both")
+    : "both";
+
+  const businessBio = typeof user.unsafeMetadata?.businessBio === "string" ? user.unsafeMetadata.businessBio : "";
+  const businessTagline = typeof user.unsafeMetadata?.businessTagline === "string" ? user.unsafeMetadata.businessTagline : "";
+  const logoUrl = typeof user.unsafeMetadata?.logoUrl === "string" ? user.unsafeMetadata.logoUrl : "";
+  const greetings = typeof user.unsafeMetadata?.greetings === "string" ? user.unsafeMetadata.greetings : "";
+  const onboardingCompleted = Boolean(user.unsafeMetadata?.onboardingCompleted);
+
   return {
-    id: user.id, email,
-    fullName: user.fullName || email.split("@")[0],
+    id: user.id,
+    email,
+    fullName: user.fullName || email.split("@")[0] || "Merchant",
+    avatarUrl,
+    logoUrl,
+    businessType,
+    businessBio,
+    businessTagline,
+    greetings,
+    onboardingCompleted,
     role: isAdmin ? "super_admin" as const : "business_owner" as const,
     organizationId: isAdmin ? "org_root" : `org_${user.id}`,
     organizationName: isAdmin ? "Ovel Global Platform" : businessName,
     organizationSlug: isAdmin ? "root" : slug,
     permissions: isAdmin ? ["all:super_admin"] : ["bookings:manage", "invoicing:manage", "staff:manage"],
-    status: "active" as const, lastLogin: "Just now",
+    status: "active" as const,
+    lastLogin: "Just now",
   };
-}
+});

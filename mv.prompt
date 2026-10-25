@@ -1,86 +1,69 @@
 <inputs>
-Product Name: Ovel
-Wordmark: "Ovel" in font Disolve (capital 'O', standalone text, never pair with logo icon side-by-side)
-One-Line Promise: "One Ovelink for Everything You Book, Sell, or Schedule • 0% Commission"
-Domain / Profile Handle: ovel.lk (customer links: ovel.lk/l/apex-studio, ovel.lk/l/lumina-skin)
-Color Palette:
-- Primary Brand Color: Deep Teal (#105F68)
-- Canvas Background: Warm Porcelain Off-White (#F6FAF9)
-- Secondary / Accents: Soft Sage (#3A9295), Mint Glow (#63C1BB), Light Seafoam (#C8E6E2, #9ED5D1)
-- Data / Dark UI: Obsidian (#103438, #0D2629)
-Typography:
-- Wordmark: Disolve (capital 'O')
-- Headlines / Display: Kaleko 105 or Disolve
-- UI Data, Numerics & Tables: Geist or Inter (tight letter-spacing)
-- URLs, Timestamps & Status Codes: Monospace (Geist Mono)
-Key UI Moments (Ovel Platform):
-1. The Ovelink Customer Profile (e.g. Apex Auto Lab or Lumina Skin Studio): 1-tap slot selection, service cards, automated buffer time indicator, instant deposit checkout.
-2. The 3 Business Engines: Engine 01 (Appointments & Buffers), Engine 02 (Space & Station Rentals), Engine 03 (Custom Order Packages).
-3. The Appointment & Order Roster (Merchant Dashboard): Station and specialist assignment (e.g. Dr. Genevieve Moreau • Station 02), Card-on-File status, and 1-click no-show fee enforcement.
-4. Instant 2-Way WhatsApp Receipt & Calendar Sync.
-5. The 0% Commission Metric: "LKR 0 Marketplace Cut" vs traditional 20% platform commission (LKR 3,600+/mo saved).
-Real Merchant Footage:
-- 10 to 16 vertical and landscape clips/photos across real business categories: precision vehicle detailing studio (Apex Auto Lab), medical aesthetics & skincare clinic (Lumina Skin), artisanal sourdough micro-bakery (Velvet Crumb), and creative podcast/photo loft.
-Audio & SFX:
-- Royalty-free track at 120 BPM with a clean buildup, impactful bass drop, and driving groove (e.g. Mixkit, free for commercial use).
-- Tactile SFX library: mechanical keyboard keystrokes, soft UI pops, slot selection clicks, card deposit chime, and subtle camera shutter snaps.
+Product: Ovel (ovel.lk)
+Format: 2-Part Sequence (Two 10s clips merged seamlessly into a 20s intro)
+Theme: High-End Minimal Light Mode (Bright porcelain, frosted glass, diffused studio lighting)
+Palette: Soft Canvas (#F6FAF9 / #FFFFFF), Signature Deep Teal (#105F68), Luminous Mint Accent (#63C1BB), Subtle Sage (#C8E6E2)
+Typography: Clean contemporary sans (Kaleko 105 / Inter / Geist) in Deep Teal (#105F68), tight tracking, strictly no full stops in on-screen text.
+Transitions: Clip 1 ends with a macro push on the booking screen; Clip 2 opens from that exact macro depth for an invisible match-cut merge.
 </inputs>
 
 <direction>
-High-end minimal luxury. One idea per shot, lots of empty space, deep teal accent against warm porcelain canvas, one clean sans (Geist) with tight tracking. Masked type reveals, match cuts, one smooth camera language. Real footage only, never placeholder cards. No full stops in on-screen promotional text.
-
-Strict Brand Rules:
-- The wordmark must always be "Ovel" with a capital 'O' using font Disolve.
-- Never place the logo icon and the "Ovel" text together side-by-side. If using text, do not include the icon; if using the icon, do not include text.
-- Do not mention or show third-party consumer brands. Use neutral, device-agnostic terminology (e.g., "phone mockup", "desktop browser", "hardware frame", "status pill").
-- Banned: Shockwave rings, particle bursts, RGB split, camera shake, lens flares, neon glows, grid floors, flashing backgrounds, bouncy easing.
+Aesthetic: Pristine Apple/Linear light-mode product motion.
+Clean porcelain studio background with ultra-soft ambient contact shadows, frosted glass panels, and floating silver/titanium iPhone.
+Palette is airy, luminous, and premium — high-key daylight studio feel with soft caustic reflections.
+Camera: Smooth continuous fluid motion, isometric tilts, crisp depth-of-field focus pulls, zero jarring shakes or neon gimmicks.
 </direction>
 
-<structure>
-10 bars at 120 BPM, 2 seconds each (20 seconds total). Every cut lands on a downbeat; every UI interaction hits on a beat.
+<clip_1_storyboard>
+[Clip 1: The Booking Experience & Hook | 0:00 - 0:10]
+00:00 - 00:03 [The Hook & Clean Ovelink]
+- Scene: Luminous off-white porcelain canvas (#F6FAF9) with delicate diffused sunlight and soft glass refractions. A sleek silver titanium iPhone floats center-frame with frosted glass UI.
+- Screen Content: Clean branded booking page at "ovel.lk/l/apex-studio".
+- Kinetic Type (Deep Teal): Deblurs onto canvas: "One link for everything you book, schedule, or sell"
 
-Bar 1: The hook lands word by word on the beats through a sharp baseline mask onto the warm porcelain canvas (#F6FAF9):
-"Stop" → "Paying" → "Twenty" → "Percent"
-Heavy, crisp Geist typography in deep teal (#105F68).
+00:03 - 00:07 [Frictionless Service & Slot Selection]
+- Scene: Smooth camera glide into the phone screen. Client scrolls through services with silky physics, taps "10:30 AM — Studio Session".
+- UI Action: Mint-teal badge ripples softly: "Deposit Settled • Instant Card Checkout".
+- Kinetic Type: "Instant deposits. Zero scheduling friction"
 
-Bar 2: The word "Percent" folds into an elegant pill input: "ovel.lk/l/apex-studio". A sleek dark cursor types and clicks "Create Ovelink". A deep teal circle expands rapidly from the button into a dark, sleek studio scene as the track builds to the peak.
+00:07 - 00:10 [Confirmation Handoff / Match-Cut Setup]
+- Scene: Screen transforms into an elegant white success card: "Booking Confirmed".
+- Transition Out: Camera pushes rapidly into the center of the phone screen onto a pulsing mint-teal confirmation status icon, creating the perfect match-cut bridge for Clip 2.
+</clip_1_storyboard>
 
-The drop (Bar 3): Bass hits. The circle opens out of the button into a wall of real clips (detailing bay, aesthetic clinic, bakery oven, audio booth) with a scan line and 3 winners locking in the 3 Engines:
-"01 Appointments" • "02 Space Rentals" • "03 Custom Orders"
+<clip_2_storyboard>
+[Clip 2: Automated Retention, 0% Commission & Outro | 0:00 - 0:10]
+00:00 - 00:03 [Match-Cut In: Interactive Two-Way Reminder]
+- Scene: Continuous zoom-out from the mint icon onto the same sleek device in bright studio light.
+- UI Action: A floating translucent WhatsApp card drops from top: "Appointment tomorrow at 10:30 AM. Reply 1 to confirm". A simulated micro-tap replies "1", instantly popping a verified green tag: "Confirmed • -25% No-Shows".
 
-Bar 4: The key output as big type: monumental type "0% TAKE-RATE" centered on screen, subtitle "Keep Every Cent You Earn" sliding from a mask, and a split comparison bar wiping across:
-"Marketplace Cut: -LKR 3,600/mo" (draining in red) vs "Ovel Cut: LKR 0" (anchored in deep teal).
+00:03 - 00:07 [Automated Invoice & Zero Platform Fees]
+- Scene: Camera glides laterally to a floating minimalist desktop tablet displaying an auto-generated PDF invoice ($180.00 Paid).
+- Kinetic Type (Bold Deep Teal): Metric push reveals: "0% Commission" followed by "100% Direct Payouts".
+- UI Accent: Stripe Connect badge confirms instant merchant deposit with $0 platform take-rate.
 
-Bar 5: 3D carousel of real videos with floor reflections and a motion-blurred whip onto one hero clip: Apex Auto Lab's ceramic coating bay.
+00:07 - 00:10 [Grand Light-Mode Brand Reveal & Outro]
+- Scene: Smooth whip pull-back to wide shot. The clean "Ovel" wordmark in signature deep teal (#105F68) shines on the bright porcelain surface.
+- Subtitle: "Quote • Book • Remind • Invoice • Paid"
+- Web Link: "ovel.lk"
+- End: Subtle light flare dissipation to pristine white.
+</clip_2_storyboard>
 
-Bar 6: The hero in a phone mockup on the left with live slot selection ("10:00 AM – Signature Paint Correction LKR 450"), automated buffer calculation ("+30 Min Turnover Buffer"), and instant card deposit checkout.
+<!-- READY-TO-PASTE FLOW AI PROMPTS -->
 
-Bar 7: A desktop panel flips into results on the right: the live "Appointment & Order Roster" populates with station assignment, active "Card on File" badge in soft mint (#63C1BB), and 1-click no-show protection ("Enforced ✓").
+<flow_prompt_clip_1>
+Cinematic 10-second 4K product motion design video in pristine light mode for Ovel (ovel.lk). Apple-style high-key minimalist aesthetic. Background is bright warm porcelain white (#F6FAF9) with ultra-soft ambient studio shadows and gentle sunlight refractions. 
+A floating silver titanium smartphone glides forward displaying a clean booking webpage at ovel.lk. Kinetic typography in deep teal (#105F68) deblurs with tight tracking: "One link for everything you book, schedule, or sell". 
+Smooth macro camera push into the phone interface as a user selects an appointment time slot and taps an emerald mint (#63C1BB) deposit button with a subtle haptic ripple. 
+The screen transitions to an elegant white confirmation card reading "Booking Confirmed". 
+Final second pushes forward into the center of the screen on a glowing mint icon for a seamless match cut. 
+60fps, shallow depth of field, bright airy lighting, crisp UI details, no motion blur artifacts, zero dark tones, clean and luxurious.
+</flow_prompt_clip_1>
 
-Bar 8: Big stats on push cuts:
-"+LKR 3,561 KEPT MONTHLY" → "WHATSAPP 2-WAY RECEIPTS" → "100% DIRECT DEPOSITS"
-Stacked into three clean horizontal badges.
-
-Bar 9: 3-word kinetic ticker flashes in full-frame typography on downbeats:
-"BOOK" → "SELL" → "SCHEDULE"
-The canvas clears to pristine warm porcelain (#F6FAF9).
-
-Bar 10: Ovel logo reveal: "Ovel" draws in cleanly in font Disolve (capital 'O', deep teal #105F68), tagline "One Link for Everything You Do" in Kaleko 105, domain badge "ovel.lk", and an elegant fade to black on the resolving kick.
-</structure>
-
-<build>
-1. One HTML file at 1920x1080. Every style is computed from time inside window.seek(t): no CSS animations, no timers, no state between frames.
-2. Real video: extract clips to 30fps JPEG sequences with ffmpeg (`ffmpeg -i clip.mp4 -q:v 2 frames/%04d.jpg`) and swap img sources per frame. seek awaits the image decodes.
-3. Analyze the song with numpy: tempo (120 BPM), beat grid, energy per bar, the drop. Calibrate the grid to the real kick hits. Every cut sits on a downbeat, every UI hit on a beat.
-4. Render with Playwright: 3 subframes per frame at t minus, at, and plus 1/240s, then blend with ffmpeg tmix for real motion blur at 60fps.
-5. Place each sound effect so its measured peak, not its file start, lands on the event. Keep the effects quiet under the music. Loudnorm to -14 LUFS.
-6. Probe 20 or more frames before the full render. Fix anything cluttered, overlapping or hard to read.
-</build>
-
-<gotchas>
-Never set opacity or filter on a preserve-3d element, because it flattens and both faces show. Fade its wrapper instead. Measure element positions at runtime for match cuts. Pre-load and await all web fonts (Disolve, Kaleko 105, Geist) via document.fonts.ready before the first seek call. Keep "Ovel" in font Disolve with a capital 'O'. Never render a logo icon alongside the wordmark text. Device-agnostic presentation only; no third-party consumer brand references. Only use music and sound effects whose license allows commercial use (Mixkit).
-</gotchas>
-
-<start>
-Ask me for the inputs, then show me a storyboard with every timing on the beat grid before you write any code.
-</start>
+<flow_prompt_clip_2>
+Cinematic 10-second 4K product motion design video in high-key minimal light mode, continuing directly from a booking confirmation. Luminous porcelain canvas (#F6FAF9) with clean daylight studio aesthetics and soft reflections. 
+Begins with a continuous smooth camera pull-back from a glowing mint status icon on a floating silver smartphone. An interactive floating WhatsApp notification card drops in reading "Appointment tomorrow. Reply 1 to confirm", micro-tap replies "1" and converts to a green verified badge "Confirmed: -25% No-Shows". 
+Camera slides sideways to reveal an automated PDF invoice and bold kinetic typography in deep teal (#105F68): "0% Commission • 100% Direct Payouts". 
+In the final 3 seconds, camera smoothly pulls back to reveal the centered minimalist "Ovel" logo in deep teal, accompanied by the text "Quote • Book • Remind • Invoice • Paid" and the clean URL "ovel.lk". 
+High frame rate, 60fps, soft diffused lighting, pure white and mint accents, pristine visual clarity, elegant fade to white.
+</flow_prompt_clip_2>

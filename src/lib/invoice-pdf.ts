@@ -1,5 +1,5 @@
-import { jsPDF } from "jspdf";
 import { InvoiceRecord } from "@/lib/platform-store";
+import { getCurrencySymbol, DEFAULT_CURRENCY } from "@/lib/currency";
 
 export interface BusinessPDFInfo {
   name?: string;
@@ -7,15 +7,17 @@ export interface BusinessPDFInfo {
   phone?: string;
   slug?: string;
   address?: string;
+  currency?: string;
 }
 
 /**
  * Generates and triggers download of a high-resolution, designer PDF invoice/receipt
  */
-export function generateInvoicePDF(
+export async function generateInvoicePDF(
   inv: InvoiceRecord,
   business?: BusinessPDFInfo
-): void {
+): Promise<void> {
+  const { jsPDF } = await import("jspdf");
   // Create A4 portrait PDF document (210mm x 297mm)
   const doc = new jsPDF({
     orientation: "portrait",
@@ -38,6 +40,8 @@ export function generateInvoicePDF(
 
   const businessName = business?.name || "Ovel Merchant Workspace";
   const businessSlug = business?.slug || "store";
+  const currencyCode = business?.currency || DEFAULT_CURRENCY;
+  const currencySymbol = getCurrencySymbol(currencyCode);
 
   // Top Accent Banner
   doc.setFillColor(tealPrimary[0], tealPrimary[1], tealPrimary[2]);
@@ -55,7 +59,7 @@ export function generateInvoicePDF(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(tealSecondary[0], tealSecondary[1], tealSecondary[2]);
-  doc.text(`Official Client Billing Statement • ovel.app/l/${businessSlug}`, margin, y);
+  doc.text(`Official Client Billing Statement • ovel.lk/l/${businessSlug}`, margin, y);
 
   // Header Right: "INVOICE / RECEIPT" Badge
   const badgeText = inv.status === "paid" ? "TAX INVOICE & RECEIPT" : "STATEMENT OF ACCOUNT";
@@ -193,7 +197,7 @@ export function generateInvoicePDF(
     doc.text(itemText, margin + 4, y + 3);
 
     // If multiple items, distribute price or show subtotal on last
-    const priceDisplay = items.length === 1 ? `$${subtotalDollars}` : `$${itemPrice}`;
+    const priceDisplay = items.length === 1 ? `${currencySymbol} ${subtotalDollars}` : `${currencySymbol} ${itemPrice}`;
     doc.text(priceDisplay, pageWidth - margin - 4, y + 3, { align: "right" });
 
     y += 7.5;
@@ -215,7 +219,7 @@ export function generateInvoicePDF(
   doc.text("Subtotal:", totalsX, y);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(textDark[0], textDark[1], textDark[2]);
-  doc.text(`$${subtotalDollars}`, pageWidth - margin, y, { align: "right" });
+  doc.text(`${currencySymbol} ${subtotalDollars}`, pageWidth - margin, y, { align: "right" });
   y += 6;
 
   // Upfront Deposit Credited
@@ -226,7 +230,7 @@ export function generateInvoicePDF(
     doc.text("Deposit Credited:", totalsX, y);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(16, 120, 60);
-    doc.text(`-$${depositDollars}`, pageWidth - margin, y, { align: "right" });
+    doc.text(`-${currencySymbol} ${depositDollars}`, pageWidth - margin, y, { align: "right" });
     y += 6;
   }
 
@@ -238,7 +242,7 @@ export function generateInvoicePDF(
     doc.text("Sales Tax / VAT:", totalsX, y);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(textDark[0], textDark[1], textDark[2]);
-    doc.text(`+$${taxDollars}`, pageWidth - margin, y, { align: "right" });
+    doc.text(`+${currencySymbol} ${taxDollars}`, pageWidth - margin, y, { align: "right" });
     y += 6;
   }
 
@@ -258,7 +262,7 @@ export function generateInvoicePDF(
   doc.text(totalLabel, totalsX, y + 1);
 
   doc.setFontSize(13);
-  doc.text(`$${balanceDollars}`, pageWidth - margin, y + 1, { align: "right" });
+  doc.text(`${currencySymbol} ${balanceDollars}`, pageWidth - margin, y + 1, { align: "right" });
 
   y += 14;
 

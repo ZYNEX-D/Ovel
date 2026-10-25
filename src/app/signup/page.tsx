@@ -11,9 +11,10 @@ import {
   ArrowRight, 
   ShieldCheck, 
   Sparkles,
-  CheckCircle2 
+  ShoppingBag,
+  Layers 
 } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, BusinessType } from "@/lib/auth-context";
 import { useAudio } from "@/components/AudioController";
 
 import ClerkCustomSignUp from "@/components/auth/ClerkCustomSignUp";
@@ -30,6 +31,7 @@ export default function SignUpPage() {
     publishableKey?.startsWith("pk_");
 
   const [businessName, setBusinessName] = useState("");
+  const [businessType, setBusinessType] = useState<BusinessType>("both");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,6 +47,9 @@ export default function SignUpPage() {
     setErrorMsg(null);
     playClick();
 
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ovel_selected_business_type", businessType);
+    }
     const { error } = await signUpWithPassword(email, password, fullName || "Owner", businessName);
     setLoading(false);
 
@@ -52,7 +57,7 @@ export default function SignUpPage() {
       setErrorMsg(error);
     } else {
       playSuccess();
-      router.push("/dashboard");
+      router.push("/onboarding/name");
     }
   };
 
@@ -100,12 +105,76 @@ export default function SignUpPage() {
                       type="text"
                       required
                       placeholder="e.g. Atelier Aesthetics"
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
-                />
-              </div>
-            </div>
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs uppercase tracking-wider text-[#3A9295] font-light block mb-1.5">
+                    Business Offering Type
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClick();
+                        setBusinessType("services");
+                      }}
+                      className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                        businessType === "services"
+                          ? "border-[#105F68] bg-[#C8E6E2]/40 text-[#105F68] shadow-xs"
+                          : "border-black/10 bg-[#F6FAF9] text-slate-600 hover:border-black/20"
+                      }`}
+                    >
+                      <Sparkles className={`w-4 h-4 mb-1.5 ${businessType === "services" ? "text-[#105F68]" : "text-slate-400"}`} />
+                      <div>
+                        <span className="block text-xs font-semibold">Services</span>
+                        <span className="block text-[10px] text-slate-500 leading-tight">Appointments</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClick();
+                        setBusinessType("products");
+                      }}
+                      className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                        businessType === "products"
+                          ? "border-[#105F68] bg-[#C8E6E2]/40 text-[#105F68] shadow-xs"
+                          : "border-black/10 bg-[#F6FAF9] text-slate-600 hover:border-black/20"
+                      }`}
+                    >
+                      <ShoppingBag className={`w-4 h-4 mb-1.5 ${businessType === "products" ? "text-[#105F68]" : "text-slate-400"}`} />
+                      <div>
+                        <span className="block text-xs font-semibold">Products</span>
+                        <span className="block text-[10px] text-slate-500 leading-tight">Retail goods</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClick();
+                        setBusinessType("both");
+                      }}
+                      className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                        businessType === "both"
+                          ? "border-[#105F68] bg-[#C8E6E2]/40 text-[#105F68] shadow-xs"
+                          : "border-black/10 bg-[#F6FAF9] text-slate-600 hover:border-black/20"
+                      }`}
+                    >
+                      <Layers className={`w-4 h-4 mb-1.5 ${businessType === "both" ? "text-[#105F68]" : "text-slate-400"}`} />
+                      <div>
+                        <span className="block text-xs font-semibold">Both</span>
+                        <span className="block text-[10px] text-slate-500 leading-tight">Services &amp; Products</span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>

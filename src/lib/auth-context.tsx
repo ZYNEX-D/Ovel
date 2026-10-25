@@ -7,12 +7,15 @@ import { clerkSessionView } from "./auth-session";
 import { setActiveWorkspaceId } from "./platform-store";
 
 export type UserRole = "super_admin" | "business_owner" | "staff" | "client";
+export type BusinessType = "services" | "products" | "both";
 
 export interface UserProfile {
   id: string;
   email: string;
   fullName: string;
   role: UserRole;
+  businessType?: BusinessType;
+  avatarUrl?: string;
   organizationId?: string;
   organizationName?: string;
   organizationSlug?: string;
@@ -21,6 +24,11 @@ export interface UserProfile {
   lastLogin?: string;
   phone?: string;
   createdAt?: string;
+  logoUrl?: string;
+  businessBio?: string;
+  businessTagline?: string;
+  greetings?: string;
+  onboardingCompleted?: boolean;
 }
 
 export interface InvitePayload {
@@ -50,15 +58,16 @@ interface AuthContextType {
   sendMagicLinkToUser: (email: string) => Promise<{ error: string | null }>;
   impersonateUser: (userId: string) => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
-  updateOrganizationDetails: (name: string, slug: string) => void;
+  updateOrganizationDetails: (name: string, slug: string, avatarUrl?: string, businessType?: BusinessType) => void;
+  updateBusinessType: (type: BusinessType) => void;
   deleteAccount: () => Promise<{ error: string | null }>;
 }
 
 export const INITIAL_SYSTEM_USERS: UserProfile[] = [
   {
     id: "usr_root",
-    email: "tharuux@ovel.app",
-    fullName: "Tharuux (Developer Root)",
+    email: "admin@ovel.lk",
+    fullName: "Platform Administrator",
     role: "super_admin",
     organizationId: "org_root",
     organizationName: "Ovel Global Platform",
@@ -95,6 +104,7 @@ const AuthContext = createContext<AuthContextType>({
   impersonateUser: () => {},
   updateProfile: () => {},
   updateOrganizationDetails: () => {},
+  updateBusinessType: () => {},
   deleteAccount: async () => ({ error: null }),
 });
 
@@ -129,6 +139,7 @@ function FallbackAuthProvider({ children }: { children: React.ReactNode }) {
     impersonateUser: () => {},
     updateProfile: () => {},
     updateOrganizationDetails: () => {},
+    updateBusinessType: () => {},
     deleteAccount: async () => ({ error: null }),
   }), []);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -172,8 +183,21 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
         if (loadedProfile?.organizationId && typeof window !== "undefined") {
           const customSlug = localStorage.getItem(`ovel_custom_slug_${loadedProfile.organizationId}`);
           const customName = localStorage.getItem(`ovel_custom_name_${loadedProfile.organizationId}`);
+          const customAvatar = localStorage.getItem(`ovel_custom_avatar_${loadedProfile.organizationId}`);
+          const customType = localStorage.getItem(`ovel_business_type_${loadedProfile.organizationId}`) as BusinessType | null;
+          const initialSelected = localStorage.getItem("ovel_selected_business_type") as BusinessType | null;
           if (customSlug) loadedProfile.organizationSlug = customSlug;
           if (customName) loadedProfile.organizationName = customName;
+          if (customAvatar) loadedProfile.avatarUrl = customAvatar;
+          if (customType) {
+            loadedProfile.businessType = customType;
+          } else if (loadedProfile.businessType) {
+            // keep server value
+          } else if (initialSelected) {
+            loadedProfile.businessType = initialSelected;
+          } else {
+            loadedProfile.businessType = "both";
+          }
         }
         setProfile(loadedProfile);
         setLoadedFor(userId);
@@ -232,6 +256,8 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
         identifiers.forEach((id) => {
           localStorage.removeItem(`ovel_bookings_${id}`);
           localStorage.removeItem(`ovel_services_${id}`);
+          localStorage.removeItem(`ovel_products_${id}`);
+          localStorage.removeItem(`ovel_business_type_${id}`);
           localStorage.removeItem(`ovel_staff_${id}`);
           localStorage.removeItem(`ovel_roster_${id}`);
           localStorage.removeItem(`ovel_invoices_${id}`);
@@ -266,19 +292,33 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
   const noIdentityChange = useCallback(() => {}, []);
 
   const updateProfile = useCallback((updates: Partial<UserProfile>) => {
-    setProfile((current) => (current ? { ...current, ...updates } : current));
+    setProfile((current) => {
+      if (!current) return current;
+      const next = { ...current, ...updates };
+      if (typeof window !== "undefined" && current.organizationId && updates.avatarUrl !== undefined) {
+        if (updates.avatarUrl) {
+          localStorage.setItem(`ovel_custom_avatar_${current.organizationId}`, updates.avatarUrl);
+        } else {
+          localStorage.removeItem(`ovel_custom_avatar_${current.organizationId}`);
+        }
+      }
+      return next;
+    });
   }, []);
 
-  const updateOrganizationDetails = useCallback(async (name: string, slug: string) => {
+  const updateOrganizationDetails = useCallback(async (name: string, slug: string, avatarUrl?: string, businessType?: BusinessType) => {
     if (!profile) return;
     const cleanSlug = slug.toLowerCase().trim().replace(/[^a-z0-9-]/g, "") || "my-brand";
     const cleanName = name.trim() || profile.organizationName || "My Business";
+    const nextType = businessType || profile.businessType || "both";
 
     const updatedProfile: UserProfile = {
       ...profile,
       organizationName: cleanName,
       organizationSlug: cleanSlug,
       organizationId: profile.organizationId || ("org_" + cleanSlug),
+      businessType: nextType,
+      ...(avatarUrl !== undefined ? { avatarUrl } : {}),
     };
 
     setProfile(updatedProfile);
@@ -288,6 +328,15 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
       if (profile.organizationId) {
         localStorage.setItem(`ovel_custom_slug_${profile.organizationId}`, cleanSlug);
         localStorage.setItem(`ovel_custom_name_${profile.organizationId}`, cleanName);
+        localStorage.setItem(`ovel_business_type_${profile.organizationId}`, nextType);
+        localStorage.setItem("ovel_selected_business_type", nextType);
+        if (avatarUrl !== undefined) {
+          if (avatarUrl) {
+            localStorage.setItem(`ovel_custom_avatar_${profile.organizationId}`, avatarUrl);
+          } else {
+            localStorage.removeItem(`ovel_custom_avatar_${profile.organizationId}`);
+          }
+        }
       }
     } catch {
       // ignore
@@ -305,6 +354,42 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({
           businessName: cleanName,
           businessSlug: cleanSlug,
+          businessType: nextType,
+          ...(avatarUrl !== undefined ? { avatarUrl } : {}),
+        }),
+      });
+    } catch {
+      // safe fallback
+    }
+  }, [profile]);
+
+  const updateBusinessType = useCallback(async (type: BusinessType) => {
+    if (!profile) return;
+    const updatedProfile: UserProfile = {
+      ...profile,
+      businessType: type,
+    };
+    setProfile(updatedProfile);
+
+    try {
+      if (profile.organizationId) {
+        localStorage.setItem(`ovel_business_type_${profile.organizationId}`, type);
+      }
+      localStorage.setItem("ovel_selected_business_type", type);
+    } catch {
+      // ignore
+    }
+
+    try {
+      const token = await sessionRef.current?.getToken();
+      await fetch("/api/user/me", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          businessType: type,
         }),
       });
     } catch {
@@ -333,6 +418,7 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
     impersonateUser: noIdentityChange,
     updateProfile,
     updateOrganizationDetails,
+    updateBusinessType,
     deleteAccount,
   }), [
     view.profile,
@@ -344,6 +430,7 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
     noIdentityChange,
     updateProfile,
     updateOrganizationDetails,
+    updateBusinessType,
     deleteAccount,
   ]);
 

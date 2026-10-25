@@ -64,3 +64,8 @@ export function dollarsToCents(value: number): number | null {
   if (!Number.isFinite(value) || value < 0) return null;
   return Math.round(value * 100);
 }
+
+export function centsToDollars(value?: number | null): number {
+  if (value == null || !Number.isFinite(value) || value < 0) return 0;
+  return Math.round(value / 100);
+}

@@ -1,18 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Calendar as CalendarIcon,
-  Sparkles,
   ShoppingBag,
   Users,
   CreditCard,
   MessageSquare,
   FileText,
   ShieldCheck,
-  Palette,
   Link2,
   Copy,
   ExternalLink,
@@ -21,17 +19,22 @@ import {
   X,
   Building2,
   Check,
-  ChevronRight,
   Star,
   Settings,
   UserCheck,
-  LayoutDashboard
+  LayoutDashboard,
+  Package,
+  Gauge,
+  FolderTree,
+  Landmark
 } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, BusinessType } from "@/lib/auth-context";
 import { getOvelink, PRESET_OVELINKS } from "@/lib/ovelink-store";
 import { useClientStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
 import UserAuthNav from "@/components/UserAuthNav";
+import { getOvelinkUrl } from "@/lib/domain";
+import { ArcBadge } from "@/components/ui/ArcBadge";
 
 interface NavItem {
   href: string;
@@ -45,41 +48,6 @@ interface NavSection {
   items: NavItem[];
 }
 
-const NAV_SECTIONS: NavSection[] = [
-  {
-    title: "Overview",
-    items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/dashboard/roster", label: "Appointments", icon: CalendarIcon },
-      { href: "/dashboard/users", label: "Clients", icon: UserCheck },
-    ],
-  },
-  {
-    title: "Services & Sales",
-    items: [
-      { href: "/dashboard/services", label: "Services", icon: ShoppingBag },
-      { href: "/dashboard/invoices", label: "Invoices", icon: CreditCard },
-      { href: "/dashboard/quotes", label: "Quotes", icon: FileText },
-    ],
-  },
-  {
-    title: "Online Presence",
-    items: [
-      { href: "/dashboard/ovelink", label: "Booking Page", icon: Link2 },
-      { href: "/dashboard/reminders", label: "Reminders", icon: MessageSquare },
-      { href: "/dashboard/reviews", label: "Reviews", icon: Star },
-    ],
-  },
-  {
-    title: "Management",
-    items: [
-      { href: "/dashboard/staff", label: "Staff", icon: Users },
-      { href: "/dashboard/team", label: "Team & Roles", icon: ShieldCheck },
-      { href: "/dashboard/settings", label: "Settings", icon: Settings },
-    ],
-  },
-];
-
 export default function DashboardLayout({
   children,
 }: {
@@ -92,17 +60,64 @@ export default function DashboardLayout({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const ovelinkSlug = profile?.organizationSlug || (profile?.role === "super_admin" ? "root" : "leclat");
+  const ovelinkSlug = profile?.organizationSlug || (profile?.role === "super_admin" ? "root" : "my-brand");
   const activeOvelink = useClientStore(
     () => getOvelink(ovelinkSlug, profile?.organizationName, profile?.organizationId),
-    () => PRESET_OVELINKS[ovelinkSlug] || PRESET_OVELINKS.leclat,
+    () => getOvelink(ovelinkSlug, profile?.organizationName, profile?.organizationId),
   );
+
+  const businessType: BusinessType = profile?.businessType || (
+    typeof window !== "undefined"
+      ? (localStorage.getItem(`ovel_business_type_${profile?.organizationId || ovelinkSlug}`) as BusinessType)
+        || (localStorage.getItem("ovel_selected_business_type") as BusinessType)
+        || "both"
+      : "both"
+  );
+
+  const navSections: NavSection[] = React.useMemo(() => {
+    return [
+      {
+        title: "Overview",
+        items: [
+          { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+          { href: "/dashboard/roster", label: "Appointments", icon: CalendarIcon },
+          { href: "/dashboard/users", label: "Clients", icon: UserCheck },
+        ],
+      },
+      {
+        title: "Catalog & Offerings",
+        items: [
+          { href: "/dashboard/services", label: "Services", icon: ShoppingBag },
+          { href: "/dashboard/products", label: "Products", icon: Package },
+          { href: "/dashboard/categories", label: "Categories", icon: FolderTree },
+          { href: "/dashboard/invoices", label: "Invoices", icon: CreditCard },
+          { href: "/dashboard/quotes", label: "Quotes", icon: FileText },
+          { href: "/dashboard/payments", label: "Payment Accounts", icon: Landmark },
+        ],
+      },
+      {
+        title: "Online Presence",
+        items: [
+          { href: "/dashboard/ovelink", label: "Booking & Store", icon: Link2 },
+          { href: "/dashboard/reminders", label: "Reminders", icon: MessageSquare },
+          { href: "/dashboard/reviews", label: "Reviews", icon: Star },
+        ],
+      },
+      {
+        title: "Management",
+        items: [
+          { href: "/dashboard/usage", label: "Usage & Limits", icon: Gauge },
+          { href: "/dashboard/staff", label: "Staff", icon: Users },
+          { href: "/dashboard/team", label: "Team & Roles", icon: ShieldCheck },
+          { href: "/dashboard/settings", label: "Settings", icon: Settings },
+        ],
+      },
+    ];
+  }, []);
 
   const handleCopyOvelink = () => {
     playClick();
-    const url = typeof window !== "undefined"
-      ? `${window.location.origin}/l/${activeOvelink.slug}`
-      : `https://ovel.app/l/${activeOvelink.slug}`;
+    const url = getOvelinkUrl(activeOvelink.slug);
     navigator.clipboard?.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
@@ -123,18 +138,20 @@ export default function DashboardLayout({
           <Link href="/" className="flex items-center group">
             <span className="font-['Disolve'] text-2xl text-[#105F68] tracking-tight">Ovel</span>
           </Link>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#63C1BB]/20 text-[#105F68] font-medium">
+          <ArcBadge variant="teal" pulseDot size="xs">
             0% Commission
-          </span>
+          </ArcBadge>
         </div>
 
         {/* Business Tenant Identity */}
         <div className="px-6 py-4 border-b border-[#105F68]/10 bg-[#F6FAF9]/50">
-          <div className="flex items-center gap-2 mb-1.5">
-            <Building2 className="w-3.5 h-3.5 text-[#105F68]" />
-            <h4 className="text-xs font-semibold text-[#105F68] truncate">
-              {activeOvelink.businessName}
-            </h4>
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Building2 className="w-3.5 h-3.5 text-[#105F68] shrink-0" />
+              <h4 className="text-xs font-semibold text-[#105F68] truncate">
+                {activeOvelink.businessName}
+              </h4>
+            </div>
           </div>
 
           {/* Shareable Ovelink Pill */}
@@ -167,7 +184,7 @@ export default function DashboardLayout({
 
         {/* Categorized Navigation Items */}
         <nav className="flex-1 px-3 py-3 space-y-3.5 overflow-y-auto">
-          {NAV_SECTIONS.map((section) => (
+          {navSections.map((section) => (
             <div key={section.title} className="space-y-1">
               <p className="px-3 pb-1 text-[10px] font-semibold tracking-wider text-[#3A9295]/70 uppercase">
                 {section.title}
@@ -182,6 +199,7 @@ export default function DashboardLayout({
                     <Link
                       key={item.href}
                       href={item.href}
+                      prefetch={false}
                       onClick={() => playClick()}
                       className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all ${
                         isActive
@@ -214,10 +232,14 @@ export default function DashboardLayout({
         <div className="p-4 border-t border-[#105F68]/10 bg-white space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-[#105F68] text-white flex items-center justify-center text-xs font-semibold">
-                {profile?.fullName
-                  ? profile.fullName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
-                  : "GM"}
+              <div className="w-8 h-8 rounded-full bg-[#105F68] text-white flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0">
+                {profile?.avatarUrl ? (
+                  <img src={profile.avatarUrl} alt={profile.fullName || "User"} className="w-full h-full object-cover" />
+                ) : (
+                  profile?.fullName
+                    ? profile.fullName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
+                    : "ME"
+                )}
               </div>
               <div className="text-left">
                 <p className="text-xs font-medium text-[#105F68] leading-tight truncate max-w-[120px]">
@@ -279,7 +301,7 @@ export default function DashboardLayout({
         {/* Mobile Navigation Drawer */}
         {isMobileMenuOpen && (
           <div className="lg:hidden bg-white border-b border-[#105F68]/10 px-4 py-4 space-y-3.5 shadow-xl max-h-[80vh] overflow-y-auto">
-            {NAV_SECTIONS.map((section) => (
+            {navSections.map((section) => (
               <div key={section.title} className="space-y-1">
                 <p className="px-3 pb-1 text-[10px] font-semibold tracking-wider text-[#3A9295]/70 uppercase">
                   {section.title}
@@ -294,6 +316,7 @@ export default function DashboardLayout({
                       <Link
                         key={item.href}
                         href={item.href}
+                        prefetch={false}
                         onClick={() => {
                           playClick();
                           setIsMobileMenuOpen(false);

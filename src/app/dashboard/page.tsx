@@ -22,7 +22,8 @@ import {
   ArrowRight,
   ChevronRight,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  Package
 } from "lucide-react";
 import { 
   getBookings, 
@@ -43,12 +44,21 @@ import {
   BookingRecord,
   WaitlistEntry,
   ClientProfile,
+  getProducts,
+  INITIAL_PRODUCTS,
 } from "@/lib/platform-store";
+import { formatCurrency, formatCurrencyRaw, DEFAULT_CURRENCY } from "@/lib/currency";
+import { getOvelink, PRESET_OVELINKS } from "@/lib/ovelink-store";
 import { useClientStore, useHydrated } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, BusinessType } from "@/lib/auth-context";
+import { Coins } from "lucide-react";
+import { getMerchantSubscription, checkOrderQuotaStatus } from "@/lib/subscription-store";
 import LottieAnimation from "@/components/LottieAnimation";
 import { livePulseLottie, clockLottie, waitlistRadarLottie } from "@/lib/animations/dashboard-lotties";
+import { ArcMetricCard } from "@/components/ui/ArcMetricCard";
+import { ArcBadge } from "@/components/ui/ArcBadge";
+import Toast from "@/components/arc/toast/toast";
 
 export default function DashboardOverviewPage() {
   const { profile, isLoading } = useAuth();
@@ -56,7 +66,16 @@ export default function DashboardOverviewPage() {
   const mounted = useHydrated();
   const wsId = profile?.organizationId;
 
+  const businessType: BusinessType = profile?.businessType || (
+    typeof window !== "undefined"
+      ? (localStorage.getItem(`ovel_business_type_${profile?.organizationId || profile?.organizationSlug}`) as BusinessType)
+        || (localStorage.getItem("ovel_selected_business_type") as BusinessType)
+        || "both"
+      : "both"
+  );
+
   const bookings = useClientStore(() => getBookings(wsId), () => INITIAL_BOOKINGS);
+  const products = useClientStore(() => getProducts(wsId), () => INITIAL_PRODUCTS);
   const waitlist = useClientStore(() => getWaitlist(wsId), () => INITIAL_WAITLIST);
   const clientProfiles = useClientStore(() => getClientProfiles(wsId), () => INITIAL_CLIENT_PROFILES);
   const staff = useClientStore(() => getStaff(wsId), () => INITIAL_STAFF);
@@ -78,11 +97,22 @@ export default function DashboardOverviewPage() {
   const { totalRevenue, depositsCollected, avgOrderValue, activeBookingsCount } = summarizeBookings(bookings);
   const feesSaved = Math.round((totalRevenue / 100) * 0.2);
 
+  const defaultSlug = profile?.organizationSlug || "leclat";
+  const activeOvelink = useClientStore(
+    () => getOvelink(defaultSlug, profile?.organizationName, wsId),
+    () => PRESET_OVELINKS[defaultSlug] || PRESET_OVELINKS.leclat
+  );
+  const currency = activeOvelink?.currency || DEFAULT_CURRENCY;
+
+  const merchantTarget = wsId || defaultSlug;
+  const subscription = getMerchantSubscription(merchantTarget);
+  const quota = checkOrderQuotaStatus(merchantTarget, bookings.length);
+
   const handleChargeNoShow = (bookingId: string) => {
     const updated = chargeNoShowFee(bookingId, 2500, wsId);
     if (updated) {
       playSuccess();
-      showToast(`$25.00 no-show fee charged to card •••• ${updated.cardLast4 || "4242"}.`);
+      showToast(`${formatCurrency(2500, currency)} no-show fee charged to card •••• ${updated.cardLast4 || "4242"}.`);
     } else {
       showToast("No-show fee was not charged. A card must be on file, and the booking cannot already be closed.");
     }
@@ -123,7 +153,7 @@ export default function DashboardOverviewPage() {
   const handleGenerateVipLink = () => {
     playClick();
     const token = "vip_" + Math.random().toString(36).substring(2, 10);
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://ovel.app";
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://ovel.lk";
     const slug = profile?.organizationSlug || "leclat";
     const link = `${origin}/l/${slug}?vip_single_use=${token}`;
     setSingleUseLink(link);
@@ -147,38 +177,27 @@ export default function DashboardOverviewPage() {
 
   return (
     <div className="space-y-7 animate-in fade-in duration-300">
-      {/* Toast Notification */}
-      <AnimatePresence>
-        {notification && (
-          <motion.div
-            initial={{ opacity: 0, y: -12, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -12, scale: 0.96 }}
-            transition={{ duration: 0.2 }}
-            className="fixed top-6 right-6 z-50 px-4 py-3 rounded-2xl bg-[#105F68] text-white text-xs shadow-xl flex items-center gap-2 border border-[#63C1BB]/30"
-          >
-            <CheckCircle2 className="w-4 h-4 text-[#63C1BB] shrink-0" />
-            <span className="font-medium">{notification}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Arc UI Toast Notification */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <Toast
+          open={Boolean(notification)}
+          onOpenChange={(open) => { if (!open) setNotification(null); }}
+          title={notification || ""}
+          duration={3500}
+        />
+      </div>
 
       {/* Header Section */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-1">
         <div>
           {/* Workspace Status Pill */}
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100/80 border border-slate-200/70 text-[11px] text-slate-700">
-            <div className="w-2.5 h-2.5 flex items-center justify-center">
-              <LottieAnimation animationData={livePulseLottie} className="w-3.5 h-3.5" />
-            </div>
-            <span className="font-semibold text-[#105F68]">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <ArcBadge variant="teal" pulseDot size="sm">
               {profile?.organizationName || "Lumina Atelier & Clinic"}
-            </span>
-            <span className="text-slate-300">•</span>
-            <span className="text-slate-500 font-normal">Active Workspace</span>
+            </ArcBadge>
           </div>
 
-          <div className="mt-2.5 flex flex-wrap items-baseline gap-3">
+          <div className="mt-2 flex flex-wrap items-baseline gap-3">
             <h1 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
               Overview
             </h1>
@@ -193,175 +212,123 @@ export default function DashboardOverviewPage() {
 
         {/* Minimal Action Controls */}
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          <Link
-            href="/dashboard/roster"
-            onClick={() => playClick()}
-            className="px-3.5 py-2 rounded-xl bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-medium transition-all flex items-center gap-1.5 shadow-xs"
-          >
-            <CalendarIcon className="w-3.5 h-3.5 text-[#63C1BB]" />
-            <span>Full Schedule</span>
-          </Link>
+          {businessType !== "products" && (
+            <Link
+              href="/dashboard/roster"
+              onClick={() => playClick()}
+              className="px-3.5 py-2 rounded-xl bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-medium transition-all flex items-center gap-1.5 shadow-xs"
+            >
+              <CalendarIcon className="w-3.5 h-3.5 text-[#63C1BB]" />
+              <span>Full Schedule</span>
+            </Link>
+          )}
+
+          {businessType !== "services" && (
+            <Link
+              href="/dashboard/products"
+              onClick={() => playClick()}
+              className={`px-3.5 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 shadow-xs ${
+                businessType === "products"
+                  ? "bg-[#105F68] hover:bg-[#0D4F57] text-white"
+                  : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <Package className="w-3.5 h-3.5 text-[#63C1BB]" />
+              <span>Products ({products.length})</span>
+            </Link>
+          )}
 
           <button
             onClick={handleGenerateVipLink}
             className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs text-slate-700 font-medium transition-all flex items-center gap-1.5 shadow-xs"
-            title="Generate a self-destructing VIP booking link"
+            title="Generate a self-destructing VIP link"
           >
             <Lock className="w-3.5 h-3.5 text-slate-500" />
             <span>VIP Pass</span>
           </button>
 
-          <button
-            onClick={() => {
-              playClick();
-              setIsWaitlistModalOpen(true);
-            }}
-            className="px-3 py-2 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100/70 text-amber-900 text-xs font-medium transition-all flex items-center gap-1.5 shadow-xs"
-          >
-            <Zap className="w-3.5 h-3.5 text-amber-600" />
-            <span>Waitlist ({waitlist.filter(w => w.status === "waiting").length})</span>
-          </button>
+          {businessType !== "products" && (
+            <button
+              onClick={() => {
+                playClick();
+                setIsWaitlistModalOpen(true);
+              }}
+              className="px-3 py-2 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100/70 text-amber-900 text-xs font-medium transition-all flex items-center gap-1.5 shadow-xs"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-600" />
+              <span>Waitlist ({waitlist.filter(w => w.status === "waiting").length})</span>
+            </button>
+          )}
 
-          {/* Minimalist Round-Robin Switch */}
-          <button
-            onClick={() => {
-              playClick();
-              setRoundRobinActive(!roundRobinActive);
-              showToast(roundRobinActive ? "Staff auto-distribution disabled" : "Staff auto-distribution enabled");
-            }}
-            className={`px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 border shadow-xs ${
-              roundRobinActive
-                ? "bg-slate-900 text-white border-slate-900"
-                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Auto-Assign: {roundRobinActive ? "On" : "Off"}</span>
-          </button>
+          {/* Minimalist Round-Robin Switch for appointments */}
+          {businessType !== "products" && (
+            <button
+              onClick={() => {
+                playClick();
+                setRoundRobinActive(!roundRobinActive);
+                showToast(roundRobinActive ? "Staff auto-distribution disabled" : "Staff auto-distribution enabled");
+              }}
+              className={`px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 border shadow-xs ${
+                roundRobinActive
+                  ? "bg-slate-900 text-white border-slate-900"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Auto-Assign: {roundRobinActive ? "On" : "Off"}</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* KPI Metric Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3.5 sm:gap-4">
-        {/* Metric 1: Booked Volume */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.02 }}
-          whileHover={{ y: -2 }}
-          className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-[#105F68]/30 transition-all flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Booked Volume</span>
-            <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center text-slate-500">
-              <DollarSign className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <h3 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
-              ${mounted ? (totalRevenue / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}
-            </h3>
-            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-              <span className="text-emerald-700 font-semibold">100%</span> direct to account
-            </p>
-          </div>
-        </motion.div>
+        <ArcMetricCard
+          label="Booked Volume"
+          value={mounted ? formatCurrency(totalRevenue, currency) : formatCurrency(0, currency)}
+          subValue="100% direct to account"
+          trend={{ value: "+14.2% mo/mo", isPositive: true }}
+          icon={Coins}
+          statusDot="live"
+        />
 
-        {/* Metric 2: Deposits Secured */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.05 }}
-          whileHover={{ y: -2 }}
-          className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-[#105F68]/30 transition-all flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Deposits Held</span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-700">
-              <CreditCard className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <h3 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
-              ${mounted ? (depositsCollected / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}
-            </h3>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Guaranteed card authorizations
-            </p>
-          </div>
-        </motion.div>
+        <ArcMetricCard
+          label="Deposits Held"
+          value={mounted ? formatCurrency(depositsCollected, currency) : formatCurrency(0, currency)}
+          subValue="Zero chargebacks"
+          trend={{ value: "Card authorized", isPositive: true }}
+          icon={CreditCard}
+          variant="emerald"
+          statusDot="live"
+        />
 
-        {/* Metric 3: Retained Revenue */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.08 }}
-          whileHover={{ y: -2 }}
-          className="p-5 rounded-2xl bg-[#105F68] text-white border border-[#105F68] shadow-xs flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-[#C8E6E2] uppercase tracking-wider">Commission Saved</span>
-            <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-[#63C1BB]">
-              <Sparkles className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <h3 className="text-2xl sm:text-3xl font-light text-white tracking-tight">
-              ${mounted ? feesSaved.toLocaleString() : "0"}
-            </h3>
-            <p className="text-[11px] text-[#C8E6E2] mt-1">
-              Retained vs 20% marketplace cut
-            </p>
-          </div>
-        </motion.div>
+        <ArcMetricCard
+          label="Commission Saved"
+          value={mounted ? formatCurrencyRaw(feesSaved, currency, { showDecimals: false }) : formatCurrencyRaw(0, currency, { showDecimals: false })}
+          subValue="vs 20% marketplace cut"
+          trend={{ value: "0% cut", isPositive: true }}
+          icon={Sparkles}
+          variant="brand"
+          badgeText="0% FEE"
+        />
 
-        {/* Metric 4: Average Order Value */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.11 }}
-          whileHover={{ y: -2 }}
-          className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-[#105F68]/30 transition-all flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Average Ticket</span>
-            <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center text-slate-600">
-              <TrendingUp className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <h3 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
-              ${mounted ? (avgOrderValue / 100).toFixed(2) : "0.00"}
-            </h3>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Average per booking
-            </p>
-          </div>
-        </motion.div>
+        <ArcMetricCard
+          label="Average Ticket"
+          value={mounted ? formatCurrency(avgOrderValue, currency) : formatCurrency(0, currency)}
+          subValue={businessType === "products" ? "Average order total" : "Average per booking"}
+          trend={{ value: "+8.4%", isPositive: true }}
+          icon={TrendingUp}
+        />
 
-        {/* Metric 5: Attendance Reliability */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.14 }}
-          whileHover={{ y: -2 }}
-          className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-[#105F68]/30 transition-all flex flex-col justify-between col-span-2 sm:col-span-1"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Attendance Rate</span>
-            <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center text-emerald-700">
-              <ShieldCheck className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <h3 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
-              98.5%
-            </h3>
-            <p className="text-[11px] text-slate-500 mt-1">
-              $25 no-show card coverage
-            </p>
-          </div>
-        </motion.div>
+        <ArcMetricCard
+          label="Attendance Rate"
+          value="98.5%"
+          subValue="$25 no-show card coverage"
+          trend={{ value: "99.1% target", isPositive: true }}
+          icon={ShieldCheck}
+          statusDot="live"
+          className="col-span-2 sm:col-span-1"
+        />
       </div>
 
       {/* Main Content Layout */}
@@ -417,46 +384,87 @@ export default function DashboardOverviewPage() {
                   </div>
                 </div>
               ) : (
-                bookings.map((b) => (
-                  <motion.div
-                    key={b.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/70 hover:border-slate-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                  >
-                    {/* Time & Client Details */}
-                    <div className="flex items-start sm:items-center gap-3.5">
-                      <div className="w-11 h-11 rounded-xl bg-white border border-slate-200/80 text-slate-800 flex flex-col items-center justify-center shrink-0 font-mono shadow-2xs">
-                        <Clock className="w-3.5 h-3.5 text-[#105F68] mb-0.5" />
-                        <span className="text-[10px] font-semibold">
-                          {b.timeDisplay ? b.timeDisplay.split(" ")[0] : "10:00"}
-                        </span>
-                      </div>
-
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            onClick={() => handleOpenClientDossier(b.clientName)}
-                            className="text-sm font-medium text-slate-900 hover:text-[#105F68] transition-colors flex items-center gap-1"
-                          >
-                            <span>{b.clientName}</span>
-                            <User className="w-3 h-3 text-slate-400" />
-                          </button>
-
-                          <span className="text-[11px] text-slate-400 font-mono">
-                            {b.clientPhone}
+                <>
+                  {quota.isExceeded && subscription.tier === "free" && (
+                    <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs mb-3">
+                      <div className="flex items-center gap-2.5">
+                        <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
+                        <div>
+                          <span className="font-bold text-amber-900 block">
+                            Free Plan Monthly Quota Exceeded (100+ Orders)
                           </span>
-
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                            b.status === "confirmed"
-                              ? "bg-emerald-50 text-emerald-800 border border-emerald-200/60"
-                              : b.status === "completed"
-                              ? "bg-slate-100 text-slate-700"
-                              : "bg-rose-50 text-rose-700 border border-rose-200/60"
-                          }`}>
-                            {b.status === "confirmed" ? "Confirmed" : b.status === "completed" ? "Completed" : "Cancelled"}
+                          <span className="text-[11px] text-amber-800">
+                            Client details on orders exceeding your 100 free monthly threshold are blurred. Upgrade to Growth (LKR 500/mo) to unlock client info.
                           </span>
                         </div>
+                      </div>
+                      <Link
+                        href="/dashboard/settings?tab=plans"
+                        className="shrink-0 px-3.5 py-1.5 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-semibold transition-all shadow-xs text-center text-xs"
+                      >
+                        Upgrade to Growth
+                      </Link>
+                    </div>
+                  )}
+
+                  {bookings.map((b, index) => {
+                    const isBlurred = quota.isExceeded && subscription.tier === "free" && index >= 100;
+                    return (
+                      <motion.div
+                        key={b.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/70 hover:border-slate-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      >
+                        {/* Time & Client Details */}
+                        <div className="flex items-start sm:items-center gap-3.5">
+                          <div className="w-11 h-11 rounded-xl bg-white border border-slate-200/80 text-slate-800 flex flex-col items-center justify-center shrink-0 font-mono shadow-2xs">
+                            <Clock className="w-3.5 h-3.5 text-[#105F68] mb-0.5" />
+                            <span className="text-[10px] font-semibold">
+                              {b.timeDisplay ? b.timeDisplay.split(" ")[0] : "10:00"}
+                            </span>
+                          </div>
+
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {isBlurred ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-slate-400 blur-xs select-none">
+                                    Customer Confidential
+                                  </span>
+                                  <Link
+                                    href="/dashboard/settings?tab=plans"
+                                    className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full hover:bg-amber-200 transition-colors"
+                                  >
+                                    Upgrade to View
+                                  </Link>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => handleOpenClientDossier(b.clientName)}
+                                    className="text-sm font-medium text-slate-900 hover:text-[#105F68] transition-colors flex items-center gap-1"
+                                  >
+                                    <span>{b.clientName}</span>
+                                    <User className="w-3 h-3 text-slate-400" />
+                                  </button>
+
+                                  <span className="text-[11px] text-slate-400 font-mono">
+                                    {b.clientPhone}
+                                  </span>
+                                </>
+                              )}
+
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                                b.status === "confirmed"
+                                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200/60"
+                                  : b.status === "completed"
+                                  ? "bg-slate-100 text-slate-700"
+                                  : "bg-rose-50 text-rose-700 border border-rose-200/60"
+                              }`}>
+                                {b.status === "confirmed" ? "Confirmed" : b.status === "completed" ? "Completed" : "Cancelled"}
+                              </span>
+                            </div>
 
                         <p className="text-xs text-[#105F68] font-medium mt-0.5">
                           {b.serviceName}
@@ -470,8 +478,8 @@ export default function DashboardOverviewPage() {
                           </span>
                           <span className="text-slate-300">•</span>
                           <span className="font-semibold text-slate-900">
-                            ${(b.totalPriceCents / 100).toFixed(2)}
-                            <span className="text-slate-400 font-normal"> (Deposit: ${(b.depositPaidCents / 100).toFixed(2)})</span>
+                            {formatCurrency(b.totalPriceCents, currency)}
+                            <span className="text-slate-400 font-normal"> (Deposit: {formatCurrency(b.depositPaidCents, currency)})</span>
                           </span>
                         </div>
                       </div>
@@ -509,8 +517,10 @@ export default function DashboardOverviewPage() {
                       </Link>
                     </div>
                   </motion.div>
-                ))
-              )}
+                );
+              })}
+            </>
+          )}
             </div>
           </div>
         </div>
@@ -647,7 +657,7 @@ export default function DashboardOverviewPage() {
                       <div className="text-right">
                         {revenueCents > 0 ? (
                           <>
-                            <span className="font-semibold text-emerald-800">${(revenueCents / 100).toFixed(2)}</span>
+                            <span className="font-semibold text-emerald-800">{formatCurrency(revenueCents, currency)}</span>
                             <p className="text-[10px] text-slate-400">Booked</p>
                           </>
                         ) : (

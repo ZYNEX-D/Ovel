@@ -35,6 +35,16 @@ export default function AuthRedirectClient() {
             window.location.replace("/admin");
             return;
           }
+
+          const isCompleted = Boolean(
+            data?.profile?.onboardingCompleted ||
+            (typeof window !== "undefined" && localStorage.getItem("ovel_onboarding_completed") === "true")
+          );
+
+          if (!isCompleted) {
+            window.location.replace("/onboarding/name");
+            return;
+          }
         }
       } catch (err) {
         console.warn("Profile check fallback:", err);

@@ -8,15 +8,102 @@ import { WeeklyWorkingHours } from "./slot-engine";
 import { addMinutes, displayTimeToIsoLocal, localDateString } from "./booking-time";
 import { emitStoreChange } from "./store-events";
 import { interpretWhatsAppReply, WhatsAppIntent } from "./whatsapp-reply";
+import { formatCurrency } from "./currency";
+
+export interface UniversalCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  imageUrl?: string;
+  targetType: "services" | "products" | "both";
+  parentId?: string | null;
+  subCategories?: UniversalCategory[];
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords?: string;
+  isActive: boolean;
+  sortOrder?: number;
+}
+
+export interface ServiceSubCategory {
+  id: string;
+  name: string;
+  description?: string;
+  pricingType?: "fixed" | "range";
+  priceCents: number;
+  priceMaxCents?: number;
+  durationMinutes: number;
+  durationMode?: "fixed" | "around";
+  depositRequired?: boolean;
+  depositCents?: number;
+  subCategories?: ServiceSubCategory[];
+}
 
 export interface ServiceItem {
   id: string;
   name: string;
   description: string;
+  category?: string;
+  categoryId?: string;
+  subCategoryId?: string;
+  pricingType?: "fixed" | "range"; // fixed price or price range
+  priceCents: number;              // base price (or range minimum)
+  priceMaxCents?: number;          // range maximum if pricingType === "range"
   durationMinutes: number;
-  priceCents: number;
+  durationMode?: "fixed" | "around"; // fixed duration or approximate/around
+  depositRequired?: boolean;       // requires advanced deposit or not
   depositCents: number;
   bufferAfterMinutes: number;
+  subCategories?: ServiceSubCategory[]; // nested subcategories (which can also have subcategories)
+  imageUrl?: string;
+  slug?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords?: string;
+  isActive: boolean;
+}
+
+export function formatServicePrice(
+  service: Pick<ServiceItem, "priceCents" | "pricingType" | "priceMaxCents">,
+  currency: string = "LKR"
+): string {
+  if (service.pricingType === "range" && service.priceMaxCents && service.priceMaxCents > service.priceCents) {
+    return `${formatCurrency(service.priceCents, currency)} – ${formatCurrency(service.priceMaxCents, currency)}`;
+  }
+  return formatCurrency(service.priceCents, currency);
+}
+
+export function formatServiceDuration(
+  service: Pick<ServiceItem, "durationMinutes" | "durationMode">
+): string {
+  const mins = service.durationMinutes || 0;
+  if (service.durationMode === "around") {
+    return `~${mins} mins (approx)`;
+  }
+  return `${mins} mins`;
+}
+
+export interface ProductItem {
+  id: string;
+  name: string;
+  description: string;
+  priceCents: number;
+  depositCents?: number;
+  sku?: string;
+  stockCount: number;
+  category: string;
+  categoryId?: string;
+  subCategoryId?: string;
+  subCategories?: ServiceSubCategory[];
+  badge?: string;
+  requiresShipping?: boolean;
+  imageUrl?: string;
+  imageUrls?: string[];
+  slug?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords?: string;
   isActive: boolean;
 }
 
@@ -79,20 +166,54 @@ export interface ClientProfile {
   intakePhotos?: string[];
 }
 
+export interface InvoiceLineItem {
+  id?: string;
+  type?: "product" | "service" | "custom";
+  itemId?: string; // productId or serviceId
+  description: string;
+  quantity?: number;
+  unitPrice?: number;
+  unitPriceCents?: number;
+  priceCents: number; // total line amount
+}
+
 export interface QuoteProposal {
   id: string;
   title: string;
   clientName: string;
   clientEmail: string;
   clientPhone: string;
-  lineItems: { description: string; priceCents: number }[];
+  lineItems: InvoiceLineItem[];
   optionalAddOns: { id: string; description: string; priceCents: number; selected: boolean }[];
   totalCents: number;
   depositCents: number;
+  termsAndConditions?: string;
+  paymentMethodId?: string;
+  paymentMethodName?: string;
+  paymentMethodDetails?: string;
   status: "draft" | "sent" | "accepted" | "converted";
   signatureData?: string;
+  signatureSvg?: string;
   expiresAt: string;
   convertedBookingId?: string;
+  createdAt: string;
+}
+
+export type PaymentMethodType = "bank_transfer" | "card" | "cash" | "online_gateway" | "custom";
+
+export interface PaymentAccount {
+  id: string;
+  name: string;
+  type: PaymentMethodType;
+  isActive: boolean;
+  isDefault?: boolean;
+  bankName?: string;
+  accountName?: string;
+  accountNumber?: string;
+  branchName?: string;
+  swiftOrRouting?: string;
+  gatewayProvider?: string;
+  instructions?: string;
   createdAt: string;
 }
 
@@ -103,6 +224,7 @@ export interface InvoiceRecord {
   clientName: string;
   clientEmail: string;
   itemsSummary?: string;
+  lineItems?: InvoiceLineItem[];
   notes?: string;
   paymentMethod?: string;
   subtotalCents: number;
@@ -136,34 +258,17 @@ export const DEFAULT_WORKING_HOURS: WeeklyWorkingHours = {
   sunday: { start: "00:00", end: "00:00", active: false },
 };
 
-export const INITIAL_SERVICES: ServiceItem[] = [
-  {
-    id: "srv_bridal_aesthetics",
-    name: "Bridal Aesthetics & Skin Rejuvenation Protocol",
-    description: "Multi-modal protocol including gentle lymphatic drainage, cellular micro-current, and regenerative barrier prep.",
-    durationMinutes: 90,
-    priceCents: 108500,
-    depositCents: 27125,
-    bufferAfterMinutes: 15,
-    isActive: true,
-  },
-  {
-    id: "srv_complexion_consult",
-    name: "Aesthetic Complexion Consultation",
-    description: "Digital dermal topography assessment and personalized medical-grade formulation roadmap.",
-    durationMinutes: 45,
-    priceCents: 12000,
-    depositCents: 3500,
-    bufferAfterMinutes: 15,
-    isActive: true,
-  },
-];
+export const INITIAL_SERVICES: ServiceItem[] = [];
+
+export const INITIAL_PRODUCTS: ProductItem[] = [];
+
+export const INITIAL_CATEGORIES: UniversalCategory[] = [];
 
 export const INITIAL_STAFF: StaffMember[] = [
   {
     id: "st_genevieve",
     name: "Dr. Genevieve Moreau",
-    email: "genevieve@ovel.app",
+    email: "genevieve@ovel.lk",
     role: "Lead Clinical Aesthetician & Dermatologist",
     workingHours: DEFAULT_WORKING_HOURS,
     isActive: true,
@@ -171,7 +276,7 @@ export const INITIAL_STAFF: StaffMember[] = [
   {
     id: "st_camille",
     name: "Camille Laurent",
-    email: "camille@ovel.app",
+    email: "camille@ovel.lk",
     role: "Senior Dermal Specialist",
     workingHours: DEFAULT_WORKING_HOURS,
     isActive: true,
@@ -200,14 +305,14 @@ export const INITIAL_BOOKINGS: BookingRecord[] = [
     createdAt: "2026-10-11T08:00:00.000Z",
   },
   {
-    id: "bk_tharusha_urzyi818",
+    id: "bk_marcus_urzyi818",
     serviceId: "srv_complexion_consult",
     serviceName: "Aesthetic Complexion Consultation",
     staffId: "st_genevieve",
     staffName: "Dr. Genevieve Moreau",
-    clientName: "Tharusha Damsara",
-    clientEmail: "tdamsara6@gmail.com",
-    clientPhone: "+94789731507",
+    clientName: "Marcus Sterling",
+    clientEmail: "marcus.sterling@atelier.com",
+    clientPhone: "+1 (415) 890-4421",
     startTime: "2026-10-11T12:00:00.000Z",
     endTime: "2026-10-11T12:45:00.000Z",
     status: "confirmed",
@@ -247,14 +352,14 @@ export const INITIAL_CLIENT_PROFILES: ClientProfile[] = [
     cardOnFile: undefined,
   },
   {
-    id: "cp_tharusha",
-    name: "Tharusha Damsara",
-    email: "tdamsara6@gmail.com",
-    phone: "+94789731507",
+    id: "cp_marcus",
+    name: "Marcus Sterling",
+    email: "marcus.sterling@atelier.com",
+    phone: "+1 (415) 890-4421",
     totalVisits: 1,
     noShowCount: 0,
     reliabilityScore: 100,
-    formulasOrNotes: "Comprehensive barrier assessment. Exploring custom anti-glycation serums.",
+    formulasOrNotes: "Comprehensive barrier assessment. Exploring custom restorative serums.",
     membershipPlan: "Client Member",
     cardOnFile: undefined,
   },
@@ -277,11 +382,11 @@ export const INITIAL_INVOICES: InvoiceRecord[] = [
     createdAt: "2026-10-11T08:05:00.000Z",
   },
   {
-    id: "inv_tharusha_urzyi818",
-    bookingId: "bk_tharusha_urzyi818",
+    id: "inv_marcus_urzyi818",
+    bookingId: "bk_marcus_urzyi818",
     invoiceNumber: "INV-2026-1049",
-    clientName: "Tharusha Damsara",
-    clientEmail: "tdamsara6@gmail.com",
+    clientName: "Marcus Sterling",
+    clientEmail: "marcus.sterling@atelier.com",
     subtotalCents: 12000,
     depositCreditedCents: 3500,
     taxCents: 0,
@@ -291,10 +396,47 @@ export const INITIAL_INVOICES: InvoiceRecord[] = [
   },
 ];
 
+export const INITIAL_PAYMENT_ACCOUNTS: PaymentAccount[] = [
+  {
+    id: "pm_bank_main",
+    name: "Commercial Bank - Corporate Account",
+    type: "bank_transfer",
+    isActive: true,
+    isDefault: true,
+    bankName: "Commercial Bank of Ceylon",
+    accountName: "Ovel Platform Private Limited",
+    accountNumber: "8002938471",
+    branchName: "Colombo Corporate Branch",
+    swiftOrRouting: "CCEYLKFX",
+    instructions: "Please quote your Quote or Invoice ID in the transfer remarks and upload or email the bank remittance slip.",
+    createdAt: "2026-10-01T08:00:00.000Z",
+  },
+  {
+    id: "pm_stripe_online",
+    name: "Stripe Online Card Checkout",
+    type: "online_gateway",
+    isActive: true,
+    isDefault: false,
+    gatewayProvider: "Stripe",
+    instructions: "Direct 0% take-rate card checkout with TLS 256-bit encryption.",
+    createdAt: "2026-10-01T08:00:00.000Z",
+  },
+  {
+    id: "pm_cash_counter",
+    name: "Cash on Delivery / In-Clinic Counter",
+    type: "cash",
+    isActive: true,
+    isDefault: false,
+    instructions: "Settle in cash at the counter or upon delivery of items.",
+    createdAt: "2026-10-01T08:00:00.000Z",
+  },
+];
+
 export const INITIAL_REMINDERS: ReminderLog[] = [];
 
-// Local Storage Keys
 const KEY_SERVICES = "ovel_services_v1";
+const KEY_PRODUCTS = "ovel_products_v1";
+const KEY_CATEGORIES = "ovel_categories_v1";
 const KEY_STAFF = "ovel_staff_v1";
 const KEY_BOOKINGS = "ovel_bookings_v1";
 const KEY_QUOTES = "ovel_quotes_v1";
@@ -302,6 +444,7 @@ const KEY_INVOICES = "ovel_invoices_v1";
 const KEY_REMINDERS = "ovel_reminders_v1";
 const KEY_WAITLIST = "ovel_waitlist_v1";
 const KEY_CLIENT_PROFILES = "ovel_client_profiles_v1";
+const KEY_PAYMENT_ACCOUNTS = "ovel_payment_accounts_v1";
 
 function isLegacyMockId(id: string): boolean {
   return /^(?:bk_10|qt_50|inv_90|rem_1|wl_[12]|cp_[12])\d{0,3}$/.test(id)
@@ -374,24 +517,37 @@ export function getWorkspaceAliases(workspaceOrSlug?: string): string[] {
         const parsed = JSON.parse(raw);
         for (const slug in parsed) {
           const item = parsed[slug];
-          if (
-            slug === workspaceOrSlug ||
-            item.organizationId === workspaceOrSlug ||
-            (item.organizationId && workspaceOrSlug.includes(item.organizationId)) ||
-            (item.organizationId && item.organizationId.includes(workspaceOrSlug))
-          ) {
+          if (!item) continue;
+          const wLower = workspaceOrSlug.toLowerCase();
+          const itemOrgLower = item.organizationId ? item.organizationId.toLowerCase() : "";
+          const itemSlugLower = item.slug ? item.slug.toLowerCase() : "";
+          const slugLower = slug.toLowerCase();
+
+          const matches =
+            itemOrgLower === wLower ||
+            itemSlugLower === wLower ||
+            slugLower === wLower ||
+            (wLower.startsWith("org_") && itemOrgLower === wLower.substring(4)) ||
+            (itemOrgLower.startsWith("org_") && itemOrgLower.substring(4) === wLower) ||
+            (wLower.startsWith("org_") && itemSlugLower === wLower.substring(4)) ||
+            (wLower.startsWith("org_") && slugLower === wLower.substring(4));
+
+          if (matches) {
             if (slug) set.add(slug);
-            if (item.organizationId) set.add(item.organizationId);
+            if (item.slug) set.add(item.slug);
+            if (item.organizationId) {
+              set.add(item.organizationId);
+              if (item.organizationId.startsWith("org_")) {
+                set.add(item.organizationId.substring(4));
+              } else {
+                set.add(`org_${item.organizationId}`);
+              }
+            }
           }
         }
       }
     } catch {
       // ignore
-    }
-
-    const active = localStorage.getItem("ovel_active_workspace_id");
-    if (active && (active === workspaceOrSlug || active.includes(workspaceOrSlug) || workspaceOrSlug.includes(active))) {
-      set.add(active);
     }
   }
 
@@ -536,24 +692,95 @@ function getOfferingsFromStoredOvelink(workspaceId?: string): ServiceItem[] {
           (item.organizationId && a === item.organizationId)
       );
       if (isMatch && Array.isArray(item.offerings) && item.offerings.length > 0) {
-        return item.offerings.map((o: {
-          id: string;
-          name: string;
-          description?: string;
-          durationMinutes?: number;
-          priceCents?: number;
-          depositCents?: number;
-          isActive?: boolean;
-        }) => ({
-          id: o.id,
-          name: o.name,
-          description: o.description || "Custom service treatment.",
-          durationMinutes: o.durationMinutes || 45,
-          priceCents: typeof o.priceCents === "number" ? o.priceCents : 0,
-          depositCents: typeof o.depositCents === "number" ? o.depositCents : 0,
-          bufferAfterMinutes: 15,
-          isActive: o.isActive !== false,
-        }));
+        const serviceOfferings = item.offerings.filter((o: { type?: string }) => o.type !== "order");
+        if (serviceOfferings.length > 0) {
+          return serviceOfferings.map((o: {
+            id: string;
+            name: string;
+            description?: string;
+            durationMinutes?: number;
+            priceCents?: number;
+            depositCents?: number;
+            isActive?: boolean;
+          }) => ({
+            id: o.id,
+            name: o.name,
+            description: o.description || "Custom service delivery.",
+            durationMinutes: o.durationMinutes || 45,
+            priceCents: typeof o.priceCents === "number" ? o.priceCents : 0,
+            depositCents: typeof o.depositCents === "number" ? o.depositCents : 0,
+            bufferAfterMinutes: 15,
+            isActive: o.isActive !== false,
+          }));
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
+function getProductsFromStoredOvelink(workspaceId?: string): ProductItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw =
+      localStorage.getItem("ovel_customized_ovelinks_v2") ||
+      localStorage.getItem("ovel_customized_ovelinks_v1");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    const ws = resolveWorkspace(workspaceId);
+    const aliases = getWorkspaceAliases(ws);
+
+    for (const key in parsed) {
+      const item = parsed[key];
+      if (!item) continue;
+      const isMatch = aliases.some(
+        (a) =>
+          a.toLowerCase() === key.toLowerCase() ||
+          (item.slug && a.toLowerCase() === item.slug.toLowerCase()) ||
+          (item.organizationId && a === item.organizationId)
+      );
+      if (isMatch && Array.isArray(item.offerings) && item.offerings.length > 0) {
+        const orderOfferings = item.offerings.filter((o: { type?: string }) => o.type === "order");
+        if (orderOfferings.length > 0) {
+          return orderOfferings.map((o: {
+            id: string;
+            name: string;
+            description?: string;
+            priceCents?: number;
+            depositCents?: number;
+            badge?: string;
+            category?: string;
+            categoryId?: string;
+            subCategoryId?: string;
+            subCategories?: any[];
+            imageUrl?: string;
+            imageUrls?: string[];
+            stockCount?: number;
+            sku?: string;
+            slug?: string;
+            isActive?: boolean;
+          }) => ({
+            id: o.id,
+            name: o.name,
+            description: o.description || "Retail product item.",
+            priceCents: typeof o.priceCents === "number" ? o.priceCents : 0,
+            depositCents: typeof o.depositCents === "number" ? o.depositCents : 0,
+            stockCount: typeof o.stockCount === "number" ? o.stockCount : 25,
+            sku: o.sku,
+            category: o.category || "Products",
+            categoryId: o.categoryId,
+            subCategoryId: o.subCategoryId,
+            subCategories: o.subCategories,
+            imageUrl: o.imageUrl,
+            imageUrls: o.imageUrls,
+            badge: o.badge,
+            slug: o.slug,
+            requiresShipping: true,
+            isActive: o.isActive !== false,
+          }));
+        }
       }
     }
   } catch {
@@ -576,6 +803,53 @@ export const getServices = (workspaceId?: string): ServiceItem[] => {
 };
 export const saveServices = (data: ServiceItem[], workspaceId?: string) =>
   safeSet(KEY_SERVICES, data, workspaceId);
+
+export const getProducts = (workspaceId?: string): ProductItem[] => {
+  const existing = safeGet(KEY_PRODUCTS, INITIAL_PRODUCTS, workspaceId);
+  if (existing && existing.length > 0) {
+    return existing;
+  }
+  const fromOvelink = getProductsFromStoredOvelink(workspaceId);
+  if (fromOvelink && fromOvelink.length > 0) {
+    return fromOvelink;
+  }
+  return existing;
+};
+export const saveProducts = (data: ProductItem[], workspaceId?: string) =>
+  safeSet(KEY_PRODUCTS, data, workspaceId);
+
+export const getCategories = (workspaceId?: string): UniversalCategory[] =>
+  safeGet(KEY_CATEGORIES, INITIAL_CATEGORIES, workspaceId);
+
+export const saveCategories = (data: UniversalCategory[], workspaceId?: string) =>
+  safeSet(KEY_CATEGORIES, data, workspaceId);
+
+export function deductInventoryForLineItems(
+  items: Array<{ productId?: string; itemId?: string; quantity?: number }>,
+  workspaceId?: string
+): void {
+  const ws = resolveWorkspace(workspaceId);
+  const products = getProducts(ws);
+  let changed = false;
+
+  const updatedProducts = products.map((prod) => {
+    const matched = items.find(
+      (i) => (i.productId && i.productId === prod.id) || (i.itemId && i.itemId === prod.id)
+    );
+    const qty = matched?.quantity ?? 1;
+    if (matched && qty > 0) {
+      changed = true;
+      const currentStock = prod.stockCount || 0;
+      const newStock = Math.max(0, currentStock - qty);
+      return { ...prod, stockCount: newStock };
+    }
+    return prod;
+  });
+
+  if (changed) {
+    saveProducts(updatedProducts, ws);
+  }
+}
 
 export const getStaff = (workspaceId?: string): StaffMember[] =>
   safeGet(KEY_STAFF, INITIAL_STAFF, workspaceId);
@@ -611,6 +885,11 @@ export const getClientProfiles = (workspaceId?: string): ClientProfile[] =>
   safeGet(KEY_CLIENT_PROFILES, INITIAL_CLIENT_PROFILES, workspaceId);
 export const saveClientProfiles = (data: ClientProfile[], workspaceId?: string) =>
   safeSet(KEY_CLIENT_PROFILES, data, workspaceId);
+
+export const getPaymentAccounts = (workspaceId?: string): PaymentAccount[] =>
+  safeGet(KEY_PAYMENT_ACCOUNTS, INITIAL_PAYMENT_ACCOUNTS, workspaceId);
+export const savePaymentAccounts = (data: PaymentAccount[], workspaceId?: string) =>
+  safeSet(KEY_PAYMENT_ACCOUNTS, data, workspaceId);
 
 const BLOCKING_STATUSES = new Set<BookingRecord["status"]>([
   "confirmed",
@@ -659,7 +938,7 @@ function blockedInterval(
   const start = Date.parse(booking.startTime);
   const end = Date.parse(booking.endTime);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
-  const bufferMinutes = services.find((service) => service.id === booking.serviceId)?.bufferAfterMinutes ?? 0;
+  const bufferMinutes = services.find((service) => service.id === booking.serviceId)?.bufferAfterMinutes ?? 15;
   return { start, end: end + Math.max(0, bufferMinutes) * 60000 };
 }
 
@@ -831,7 +1110,7 @@ export function createQuote(
           noShowCount: 0,
           reliabilityScore: 100,
           membershipPlan: "Prospective Client",
-          formulasOrNotes: `Issued Quote: "${data.title}" ($${(data.totalCents / 100).toFixed(2)})`,
+          formulasOrNotes: `Issued Quote: "${data.title}" (${formatCurrency(data.totalCents)})`,
         };
         saveClientProfiles([newClient, ...clients], ws);
       }
@@ -943,6 +1222,10 @@ export function updateInvoiceStatus(
 ): void {
   const ws = resolveWorkspace(workspaceId);
   const all = getInvoices(ws);
+  const target = all.find((inv) => inv.id === invoiceId);
+  if (target && status === "paid" && target.status !== "paid" && target.lineItems && target.lineItems.length > 0) {
+    deductInventoryForLineItems(target.lineItems, ws);
+  }
   const updated = all.map((inv) =>
     inv.id === invoiceId
       ? {
@@ -1077,7 +1360,7 @@ export function claimWaitlistSlot(
 
   const booking = createBooking(
     {
-      serviceId: service?.id ?? "srv_waitlist",
+      serviceId: service?.id ?? (target.serviceName.toLowerCase().includes("complexion") ? "srv_complexion_consult" : "srv_waitlist"),
       serviceName: target.serviceName,
       staffId: staff?.id ?? staffIdFromName(staffName),
       staffName: staff?.name ?? staffName,
@@ -1087,7 +1370,7 @@ export function claimWaitlistSlot(
       startTime,
       endTime,
       status: "confirmed",
-      totalPriceCents: service?.priceCents ?? 0,
+      totalPriceCents: service?.priceCents ?? (target.serviceName.toLowerCase().includes("complexion") ? 12000 : 0),
       depositPaidCents: service?.depositCents ?? 0,
       hasCardOnFile: false,
       notes: "Instant revenue recovery via smart waitlist.",
@@ -1123,7 +1406,7 @@ export function chargeNoShowFee(
       status: "cancelled" as const,
       isNoShow: true,
       noShowFeeChargedCents: feeCents,
-      notes: `${booking.notes || ""} [Enforced 24h late policy: $${(feeCents / 100).toFixed(2)} no-show fee charged to card •••• ${booking.cardLast4}]`.trim(),
+      notes: `${booking.notes || ""} [Enforced 24h late policy: ${formatCurrency(feeCents)} no-show fee charged to card •••• ${booking.cardLast4}]`.trim(),
     };
     return updatedBooking;
   });
@@ -1212,4 +1495,37 @@ export function findBookingByToken(
   }
 
   return { booking: null, workspaceId: ws };
+}
+
+export function findQuoteById(
+  quoteId: string,
+  workspaceId?: string
+): { quote: QuoteProposal | null; workspaceId: string } {
+  const ws = resolveWorkspace(workspaceId);
+  const activeQuotes = getQuotes(ws);
+  const found = activeQuotes.find((q) => q.id === quoteId);
+  if (found) return { quote: found, workspaceId: ws };
+
+  if (typeof window !== "undefined") {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(KEY_QUOTES)) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const list: QuoteProposal[] = JSON.parse(raw);
+            const match = list.find((q) => q.id === quoteId);
+            if (match) {
+              const matchedWs = key === KEY_QUOTES ? ws : key.replace(`${KEY_QUOTES}_`, "");
+              return { quote: match, workspaceId: matchedWs };
+            }
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return { quote: null, workspaceId: ws };
 }

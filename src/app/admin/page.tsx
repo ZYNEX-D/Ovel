@@ -503,7 +503,7 @@ export default function SuperAdminDashboard() {
                         </div>
 
                         <div className="mt-3 flex items-center justify-between text-[11px] text-[#3A9295]">
-                          <span className="font-mono">ovel.app/book/{user.slug}</span>
+                          <span className="font-mono">ovel.lk/l/{user.slug}</span>
                           <span className="font-semibold text-[#105F68]">${user.grossRevenue.toLocaleString()} GMV</span>
                         </div>
                       </div>
@@ -884,7 +884,7 @@ export default function SuperAdminDashboard() {
                     <button
                       onClick={() => {
                         playSuccess();
-                        showToast(`Cloned '${tpl.title}' into new isolated tenant instance! Generated ovel.app/l/${tpl.slug}-clone`);
+                        showToast(`Cloned '${tpl.title}' into new isolated tenant instance! Generated ovel.lk/l/${tpl.slug}-clone`);
                       }}
                       className="w-full py-2 rounded-xl bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-light transition-all flex items-center justify-center gap-1.5 shadow-sm"
                     >

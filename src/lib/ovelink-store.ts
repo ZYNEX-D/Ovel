@@ -1,12 +1,13 @@
 import { emitStoreChange } from "./store-events";
+import { DEFAULT_CURRENCY } from "@/lib/currency";
 
 /**
  * Ovelink Store & Customization Engine
- * Powers universal public booking & ordering pages (ovel.app/l/[slug])
+ * Powers universal public booking & ordering pages (ovel.lk/l/[slug])
  * for ALL businesses taking Appointments, Bookings, or Orders.
  */
 
-import { getServices, saveServices, ServiceItem } from "@/lib/platform-store";
+import { getServices, saveServices, ServiceItem, getProducts, saveProducts, ProductItem, getCategories } from "@/lib/platform-store";
 
 export type OfferingType = "appointment" | "booking" | "order";
 
@@ -15,12 +16,24 @@ export interface OvelinkOffering {
   type: OfferingType;
   name: string;
   description: string;
+  pricingType?: "fixed" | "range";
   priceCents: number;
-  depositCents: number;
+  priceMaxCents?: number;
   durationMinutes?: number;
+  durationMode?: "fixed" | "around";
+  depositRequired?: boolean;
+  depositCents: number;
+  subCategories?: any[];
   requiresTimeSlot?: boolean;
   badge?: string;
   category?: string;
+  categoryId?: string;
+  subCategoryId?: string;
+  imageUrl?: string;
+  imageUrls?: string[];
+  stockCount?: number;
+  sku?: string;
+  slug?: string;
   isActive: boolean;
 }
 
@@ -53,7 +66,9 @@ export interface OvelinkCustomization {
   businessBio: string;
   businessCategory: string;
   avatarInitials: string;
+  avatarUrl?: string;
   logoUrl?: string;
+  greetings?: string;
   coverImageUrl?: string;
   coverGradient: string;
   
@@ -87,6 +102,10 @@ export interface OvelinkCustomization {
   cancellationPolicy?: string;
   minNoticeDays?: number;
   slotDurationNotice?: string;
+
+  // Reviews & Reputation Funnel
+  showReviews?: boolean;
+  googleMapsReviewUrl?: string;
 }
 
 export const THEME_PRESETS: OvelinkThemePreset[] = [
@@ -173,8 +192,8 @@ export const PRESET_OVELINKS: Record<string, OvelinkCustomization> = {
   "leclat": {
     slug: "leclat",
     businessName: "L'Éclat Studio",
-    businessTagline: "Aesthetic Treatments & Barrier Restoration",
-    businessBio: "Private boutique studio specialized in tailored clinical skincare, lymphatic sculpts, and bespoke consultations.",
+    businessTagline: "Premium Services & Bespoke Offerings",
+    businessBio: "Private boutique studio specialized in tailored consultations, bespoke experiences, and curated products.",
     businessCategory: "Appointments & Services",
     avatarInitials: "LE",
     coverGradient: "from-[#105F68] to-[#0D4F57]",
@@ -190,7 +209,7 @@ export const PRESET_OVELINKS: Record<string, OvelinkCustomization> = {
     instagramHandle: "@leclat.studio",
     websiteUrl: "leclat.studio",
     location: "450 Sutter St, San Francisco, CA",
-    currency: "USD",
+    currency: "LKR",
     offerings: [
       {
         id: "off_1",
@@ -252,7 +271,7 @@ export const PRESET_OVELINKS: Record<string, OvelinkCustomization> = {
     instagramHandle: "@apexautolab",
     websiteUrl: "apexautolab.io",
     location: "South Congress Blvd, Austin, TX",
-    currency: "USD",
+    currency: "LKR",
     offerings: [
       {
         id: "off_apex_1",
@@ -313,7 +332,7 @@ export const PRESET_OVELINKS: Record<string, OvelinkCustomization> = {
     instagramHandle: "@velvetcrumbbakes",
     websiteUrl: "velvetcrumb.com",
     location: "SoHo, New York, NY",
-    currency: "USD",
+    currency: "LKR",
     offerings: [
       {
         id: "off_bake_1",
@@ -374,7 +393,7 @@ export const PRESET_OVELINKS: Record<string, OvelinkCustomization> = {
     instagramHandle: "@vancestudios",
     websiteUrl: "vancecreativeloft.com",
     location: "Arts District, Los Angeles, CA",
-    currency: "USD",
+    currency: "LKR",
     offerings: [
       {
         id: "off_vance_1",
@@ -461,7 +480,7 @@ export function createDefaultOvelink(
     cardRadius: "rounded-3xl",
     buttonStyle: "pill",
     whatsappNumber: "",
-    currency: "USD",
+    currency: "LKR",
     bookingModalTitle: "Reserve Time Slot",
     orderModalTitle: "Custom Order Intake",
     timeSlotLabel: "Available Time Slot",
@@ -559,7 +578,7 @@ export function validateSlug(
     if (existing && currentOrgId && existing.organizationId && existing.organizationId !== currentOrgId) {
       return {
         valid: false,
-        error: `Handle "ovel.app/l/${cleanSlug}" is already taken by another business.`,
+        error: `Handle "ovel.lk/l/${cleanSlug}" is already taken by another business.`,
         cleanSlug,
       };
     }
@@ -571,12 +590,19 @@ export function validateSlug(
 const REDIRECTS_KEY = "ovel_slug_redirects_v1";
 
 export function getSlugRedirect(slug: string): string | null {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined" || !slug) return null;
+  const lower = slug.toLowerCase().trim();
+  // Built-in presets must never be redirected to user custom handles
+  if (PRESET_OVELINKS[lower]) return null;
   try {
     const raw = localStorage.getItem(REDIRECTS_KEY);
     if (raw) {
       const map = JSON.parse(raw);
-      return map[slug.toLowerCase()] || null;
+      const target = map[lower];
+      // Defensive: ignore stale redirect pointing to presets or reserved
+      if (target && target !== lower && !PRESET_OVELINKS[target]) {
+        return target;
+      }
     }
   } catch {
     // ignore
@@ -586,10 +612,18 @@ export function getSlugRedirect(slug: string): string | null {
 
 export function setSlugRedirect(oldSlug: string, newSlug: string): void {
   if (typeof window === "undefined" || !oldSlug || !newSlug || oldSlug === newSlug) return;
+  const lowerOld = oldSlug.toLowerCase().trim();
+  const lowerNew = newSlug.toLowerCase().trim();
+  // Never redirect template preset URLs
+  if (PRESET_OVELINKS[lowerOld]) return;
   try {
     const raw = localStorage.getItem(REDIRECTS_KEY);
     const map = raw ? JSON.parse(raw) : {};
-    map[oldSlug.toLowerCase()] = newSlug.toLowerCase();
+    delete map["leclat"];
+    delete map["apex-studio"];
+    delete map["vance-studio"];
+    delete map["craft-bakes"];
+    map[lowerOld] = lowerNew;
     localStorage.setItem(REDIRECTS_KEY, JSON.stringify(map));
   } catch {
     // ignore
@@ -602,7 +636,7 @@ export function getOvelink(
   organizationId?: string
 ): OvelinkCustomization {
   const all = getAllOvelinks();
-  const rawClean = sanitizeSlug(slug) || "leclat";
+  const rawClean = sanitizeSlug(slug) || (organizationId ? `biz-${organizationId.replace(/^org_/, "").slice(-6)}` : "leclat");
   const redirected = getSlugRedirect(rawClean);
   const targetSlug = redirected || rawClean;
 
@@ -618,12 +652,43 @@ export function getOvelink(
     }
   }
 
-  // 2. If not found by organizationId, find by target slug
+  // 2. Multi-tenant isolation: If organizationId provided but no brand exists yet for this organization,
+  // DO NOT borrow or mutate another user's custom brand or leclat dummy clinic!
+  if (!item && organizationId) {
+    if (PRESET_OVELINKS[targetSlug] && targetSlug !== "leclat") {
+      item = {
+        ...PRESET_OVELINKS[targetSlug],
+        organizationId,
+        slug: targetSlug,
+        businessName: fallbackBusinessName || PRESET_OVELINKS[targetSlug].businessName,
+        currency: DEFAULT_CURRENCY,
+      };
+    } else {
+      const uniqueSlug = targetSlug && targetSlug !== "leclat"
+        ? targetSlug
+        : `biz-${organizationId.replace(/^org_/, "").slice(-6)}`;
+      item = createDefaultOvelink(uniqueSlug, fallbackBusinessName || "My Business", organizationId);
+    }
+
+    if (typeof window !== "undefined") {
+      all[item.slug] = item;
+      try {
+        const raw = JSON.stringify(all);
+        localStorage.setItem(STORAGE_KEY, raw);
+        cachedOvelinkRaw = raw;
+        cachedOvelinks = all;
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // 3. Customer / Public View: If not found by organizationId, find by target slug
   if (!item) {
     item = all[targetSlug];
   }
 
-  // 3. Fallback to preset templates
+  // 4. Fallback to preset templates
   if (!item && PRESET_OVELINKS[targetSlug]) {
     item = { ...PRESET_OVELINKS[targetSlug] };
   }
@@ -631,7 +696,7 @@ export function getOvelink(
     item = { ...PRESET_OVELINKS[rawClean] };
   }
 
-  // 4. Default initialization if still not found
+  // 5. Default initialization if still not found
   if (!item) {
     item = createDefaultOvelink(targetSlug, fallbackBusinessName, organizationId);
     if (typeof window !== "undefined") {
@@ -645,7 +710,6 @@ export function getOvelink(
         // ignore
       }
     }
-    return item;
   }
 
   // Ensure default booking/time-slot properties are populated if missing on legacy stored links
@@ -660,9 +724,9 @@ export function getOvelink(
 
   let modified = false;
 
-  // Persist organizationId on item if provided
-  if (organizationId && item.organizationId !== organizationId) {
-    item.organizationId = organizationId;
+  // Default currency to LKR if missing or if set to legacy default USD
+  if (!item.currency || item.currency === "USD") {
+    item.currency = DEFAULT_CURRENCY;
     modified = true;
   }
 
@@ -705,33 +769,14 @@ export function getOvelink(
     modified = true;
   }
 
-  // Sync workspace services from platform store if available (only non-defaults)
-  const wsId = organizationId || item.organizationId;
+  // Sync workspace services, products, and categories from platform store if available
+  const wsId = organizationId || item.organizationId || item.slug;
   if (wsId) {
     try {
-      const wsServices = getServices(wsId);
-      const hasCustomWsServices = wsServices && wsServices.some((s) => !s.id.startsWith("off_def_"));
-      if (hasCustomWsServices) {
-        const hasOnlyDefaults =
-          !item.offerings ||
-          item.offerings.length === 0 ||
-          item.offerings.every((o) => o.id.startsWith("off_def_"));
-
-        if (hasOnlyDefaults) {
-          item.offerings = wsServices.map((srv) => ({
-            id: srv.id,
-            type: "appointment" as const,
-            name: srv.name,
-            description: srv.description || "Professional service session.",
-            priceCents: srv.priceCents,
-            depositCents: srv.depositCents,
-            durationMinutes: srv.durationMinutes,
-            requiresTimeSlot: true,
-            category: "Services",
-            isActive: srv.isActive,
-          }));
-          modified = true;
-        }
+      const beforeCount = item.offerings?.length || 0;
+      item = syncCatalogOfferingsToOvelink(item, wsId);
+      if (item.offerings.length !== beforeCount || wsId) {
+        modified = true;
       }
     } catch {
       // safe fallback
@@ -755,6 +800,124 @@ export function getOvelink(
   return item;
 }
 
+export function syncCatalogOfferingsToOvelink(
+  item: OvelinkCustomization,
+  workspaceId?: string
+): OvelinkCustomization {
+  const wsId = workspaceId || item.organizationId || item.slug;
+  if (!wsId) return item;
+
+  try {
+    let wsServices = getServices(wsId);
+    if ((!wsServices || wsServices.length === 0) && item.organizationId && item.organizationId !== wsId) {
+      const byOrg = getServices(item.organizationId);
+      if (byOrg && byOrg.length > 0) wsServices = byOrg;
+    }
+    if ((!wsServices || wsServices.length === 0) && item.slug && item.slug !== wsId) {
+      const bySlug = getServices(item.slug);
+      if (bySlug && bySlug.length > 0) wsServices = bySlug;
+    }
+
+    let wsProducts = getProducts(wsId);
+    if ((!wsProducts || wsProducts.length === 0) && item.organizationId && item.organizationId !== wsId) {
+      const byOrg = getProducts(item.organizationId);
+      if (byOrg && byOrg.length > 0) wsProducts = byOrg;
+    }
+    if ((!wsProducts || wsProducts.length === 0) && item.slug && item.slug !== wsId) {
+      const bySlug = getProducts(item.slug);
+      if (bySlug && bySlug.length > 0) wsProducts = bySlug;
+    }
+
+    let wsCategories = getCategories(wsId);
+    if ((!wsCategories || wsCategories.length === 0) && item.organizationId && item.organizationId !== wsId) {
+      const byOrg = getCategories(item.organizationId);
+      if (byOrg && byOrg.length > 0) wsCategories = byOrg;
+    }
+    if ((!wsCategories || wsCategories.length === 0) && item.slug && item.slug !== wsId) {
+      const bySlug = getCategories(item.slug);
+      if (bySlug && bySlug.length > 0) wsCategories = bySlug;
+    }
+
+    const categoryMap = new Map<string, string>();
+    wsCategories.forEach((c) => {
+      if (c && c.id && c.name) {
+        categoryMap.set(c.id, c.name);
+      }
+    });
+
+    const hasServices = Array.isArray(wsServices) && wsServices.length > 0;
+    const hasProducts = Array.isArray(wsProducts) && wsProducts.length > 0;
+
+    if (hasServices || hasProducts) {
+      const productIds = new Set((wsProducts || []).map((p) => p.id));
+
+      const syncedServices: OvelinkOffering[] = (wsServices || [])
+        .filter((s) => s.isActive !== false && !productIds.has(s.id))
+        .map((srv) => ({
+          id: srv.id,
+          type: "appointment" as const,
+          name: srv.name,
+          description: srv.description || "Professional service session.",
+          pricingType: srv.pricingType || "fixed",
+          priceCents: srv.priceCents,
+          priceMaxCents: srv.priceMaxCents,
+          durationMinutes: srv.durationMinutes,
+          durationMode: srv.durationMode || "fixed",
+          depositRequired: srv.depositRequired,
+          depositCents: srv.depositCents,
+          requiresTimeSlot: true,
+          category: srv.category || (srv.categoryId ? categoryMap.get(srv.categoryId) : undefined) || "Services",
+          categoryId: srv.categoryId,
+          subCategoryId: srv.subCategoryId,
+          subCategories: srv.subCategories,
+          imageUrl: srv.imageUrl,
+          slug: srv.slug,
+          isActive: true,
+        }));
+
+      const syncedProducts: OvelinkOffering[] = (wsProducts || [])
+        .filter((p) => p.isActive !== false)
+        .map((prod) => ({
+          id: prod.id,
+          type: "order" as const,
+          name: prod.name,
+          description: prod.description || "Curated physical product.",
+          pricingType: "fixed",
+          priceCents: prod.priceCents,
+          depositRequired: false,
+          depositCents: prod.priceCents,
+          requiresTimeSlot: false,
+          category: prod.category || (prod.categoryId ? categoryMap.get(prod.categoryId) : undefined) || "Products",
+          categoryId: prod.categoryId,
+          subCategoryId: prod.subCategoryId,
+          subCategories: prod.subCategories,
+          imageUrl: prod.imageUrl,
+          imageUrls: prod.imageUrls,
+          stockCount: prod.stockCount,
+          sku: prod.sku,
+          badge: prod.badge,
+          slug: prod.slug,
+          isActive: true,
+        }));
+
+      // Retain any custom offerings manually added in studio that are not in catalog and not default mocks
+      const catalogIds = new Set([...syncedServices.map((s) => s.id), ...syncedProducts.map((p) => p.id)]);
+      const retainedCustom = (item.offerings || []).filter(
+        (o) => !o.id.startsWith("off_def_") && !catalogIds.has(o.id)
+      );
+
+      return {
+        ...item,
+        offerings: deduplicateOfferings([...syncedProducts, ...syncedServices, ...retainedCustom]),
+      };
+    }
+  } catch {
+    // fallback
+  }
+
+  return item;
+}
+
 export function deduplicateOfferings(offerings: OvelinkOffering[]): OvelinkOffering[] {
   const seen = new Set<string>();
   return (offerings || []).filter((o) => {
@@ -773,16 +936,18 @@ export function saveOvelink(config: OvelinkCustomization, previousSlug?: string)
   if (config.organizationId) {
     for (const key in all) {
       if (all[key]?.organizationId === config.organizationId && key !== cleanSlug) {
-        setSlugRedirect(key, cleanSlug);
+        if (!PRESET_OVELINKS[key]) {
+          setSlugRedirect(key, cleanSlug);
+        }
         delete all[key];
       }
     }
   }
   if (previousSlug) {
     const cleanPrev = sanitizeSlug(previousSlug);
-    if (cleanPrev && cleanPrev !== cleanSlug) {
+    if (cleanPrev && cleanPrev !== cleanSlug && !PRESET_OVELINKS[cleanPrev]) {
       setSlugRedirect(cleanPrev, cleanSlug);
-      if (all[cleanPrev]) {
+      if (all[cleanPrev] && all[cleanPrev]?.organizationId === config.organizationId) {
         delete all[cleanPrev];
       }
     }
@@ -790,6 +955,7 @@ export function saveOvelink(config: OvelinkCustomization, previousSlug?: string)
 
   const sanitized: OvelinkCustomization = {
     ...config,
+    currency: config.currency || DEFAULT_CURRENCY,
     slug: cleanSlug,
     offerings: deduplicateOfferings(config.offerings),
   };
@@ -805,27 +971,64 @@ export function saveOvelink(config: OvelinkCustomization, previousSlug?: string)
     try {
       localStorage.setItem(`ovel_custom_slug_${config.organizationId}`, cleanSlug);
       localStorage.setItem(`ovel_custom_name_${config.organizationId}`, config.businessName);
+      if (config.avatarUrl) {
+        localStorage.setItem(`ovel_custom_avatar_${config.organizationId}`, config.avatarUrl);
+      }
     } catch {
       // ignore
     }
   }
 
-  // Keep platform store services in sync with offerings
+  // Keep platform store services and products in sync with offerings
   try {
     const wsId = config.organizationId || cleanSlug;
-    const servicesFromOfferings: ServiceItem[] = (sanitized.offerings || []).map((o) => ({
+    const servicesOfferings = (sanitized.offerings || []).filter((o) => o.type !== "order");
+    const productsOfferings = (sanitized.offerings || []).filter((o) => o.type === "order");
+
+    const servicesFromOfferings: ServiceItem[] = servicesOfferings.map((o) => ({
       id: o.id,
       name: o.name,
-      description: o.description || "Custom service treatment.",
+      description: o.description || "Custom service offering.",
       durationMinutes: o.durationMinutes || 45,
       priceCents: typeof o.priceCents === "number" ? o.priceCents : 0,
       depositCents: typeof o.depositCents === "number" ? o.depositCents : 0,
       bufferAfterMinutes: 15,
+      category: o.category,
+      categoryId: o.categoryId,
+      imageUrl: o.imageUrl,
+      slug: o.slug,
+      badge: o.badge,
       isActive: o.isActive !== false,
     }));
     saveServices(servicesFromOfferings, wsId);
     if (config.organizationId && cleanSlug !== config.organizationId) {
       saveServices(servicesFromOfferings, cleanSlug);
+    }
+
+    if (productsOfferings.length > 0) {
+      const productsFromOfferings: ProductItem[] = productsOfferings.map((o) => ({
+        id: o.id,
+        name: o.name,
+        description: o.description || "Curated physical product.",
+        priceCents: typeof o.priceCents === "number" ? o.priceCents : 0,
+        depositCents: typeof o.depositCents === "number" ? o.depositCents : 0,
+        stockCount: typeof o.stockCount === "number" ? o.stockCount : 25,
+        sku: o.sku,
+        badge: o.badge,
+        category: o.category || "Products",
+        categoryId: o.categoryId,
+        subCategoryId: o.subCategoryId,
+        subCategories: o.subCategories,
+        imageUrl: o.imageUrl,
+        imageUrls: o.imageUrls,
+        slug: o.slug,
+        requiresShipping: true,
+        isActive: o.isActive !== false,
+      }));
+      saveProducts(productsFromOfferings, wsId);
+      if (config.organizationId && cleanSlug !== config.organizationId) {
+        saveProducts(productsFromOfferings, cleanSlug);
+      }
     }
   } catch {
     // safe fallback

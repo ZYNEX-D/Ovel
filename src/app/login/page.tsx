@@ -64,7 +64,7 @@ export default function LoginPage() {
         setErrorMsg(error);
       } else {
         playSuccess();
-        const isRoot = email.toLowerCase().includes("root") || email.toLowerCase().includes("tharuux") || email.toLowerCase().includes("admin");
+        const isRoot = email.toLowerCase().includes("root") || email.toLowerCase().includes("admin@");
         router.push(isRoot ? "/admin" : "/dashboard");
       }
     } else {
@@ -236,7 +236,7 @@ export default function LoginPage() {
                       <Terminal className="w-3.5 h-3.5 text-[#3A9295]" />
                       <span>Developer Root</span>
                     </div>
-                    <span className="text-[10px] text-[#3A9295]">tharuux@root</span>
+                    <span className="text-[10px] text-[#3A9295]">admin@ovel.lk</span>
                   </button>
 
                   <button

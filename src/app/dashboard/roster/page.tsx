@@ -45,6 +45,9 @@ import { addMinutes, dollarsToCents, localDateString } from "@/lib/booking-time"
 import { useClientStore } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
 import { useAuth } from "@/lib/auth-context";
+import { formatCurrency, getCurrencySymbol, DEFAULT_CURRENCY } from "@/lib/currency";
+import { getOvelink, PRESET_OVELINKS } from "@/lib/ovelink-store";
+import { getMerchantSubscription, checkOrderQuotaStatus } from "@/lib/subscription-store";
 
 function temporaryClientId(): string {
   return `cp_temp_${Date.now()}`;
@@ -56,6 +59,18 @@ export default function DashboardRosterPage() {
   const wsId = profile?.organizationId;
   const bookings = useClientStore(() => getBookings(wsId), () => INITIAL_BOOKINGS);
   const clientProfiles = useClientStore(() => getClientProfiles(wsId), () => INITIAL_CLIENT_PROFILES);
+
+  const defaultSlug = profile?.organizationSlug || "leclat";
+  const activeOvelink = useClientStore(
+    () => getOvelink(defaultSlug, profile?.organizationName, wsId),
+    () => PRESET_OVELINKS[defaultSlug] || PRESET_OVELINKS.leclat
+  );
+  const currency = activeOvelink?.currency || DEFAULT_CURRENCY;
+  const symbol = getCurrencySymbol(currency);
+
+  const merchantTarget = wsId || defaultSlug;
+  const subscription = getMerchantSubscription(merchantTarget);
+  const quota = checkOrderQuotaStatus(merchantTarget, bookings.length);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStation, setSelectedStation] = useState<string>("all");
@@ -113,7 +128,7 @@ export default function DashboardRosterPage() {
     playSuccess();
     const updated = chargeNoShowFee(bookingId, 2500, wsId);
     if (updated) {
-      showToast(`$25.00 no-show fee charged to card •••• ${updated.cardLast4 || "4242"}.`);
+      showToast(`${formatCurrency(2500, currency)} no-show fee charged to card •••• ${updated.cardLast4 || "4242"}.`);
     } else {
       showToast("No-show fee was not charged. A card must be on file, and the booking cannot already be closed.");
     }
@@ -299,7 +314,7 @@ export default function DashboardRosterPage() {
               <tr className="border-b border-black/5 text-[#3A9295] uppercase tracking-wider font-semibold">
                 <th className="pb-3">Time &amp; Station</th>
                 <th className="pb-3">Client / CRM Dossier</th>
-                <th className="pb-3">Treatment / Order</th>
+                <th className="pb-3">Service / Order</th>
                 <th className="pb-3">Specialist</th>
                 <th className="pb-3">Card on File</th>
                 <th className="pb-3">Status</th>
@@ -322,53 +337,71 @@ export default function DashboardRosterPage() {
                   </td>
                 </tr>
               ) : (
-                filteredBookings.map((b) => (
-                  <tr key={b.id} className="hover:bg-[#F6FAF9]/60 transition-colors">
-                    {/* Time & Station */}
-                    <td className="py-4 font-mono text-[#105F68] whitespace-nowrap">
-                      <div className="font-semibold">
-                        {b.timeDisplay || (
+                filteredBookings.map((b, index) => {
+                  const isBlurred = quota.isExceeded && subscription.tier === "free" && index >= 100;
+                  return (
+                    <tr key={b.id} className="hover:bg-[#F6FAF9]/60 transition-colors">
+                      {/* Time & Station */}
+                      <td className="py-4 font-mono text-[#105F68] whitespace-nowrap">
+                        <div className="font-semibold">
+                          {b.timeDisplay || (
+                            <>
+                              {new Date(b.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              {" - "}
+                              {new Date(b.endTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </>
+                          )}
+                        </div>
+                        {b.stationResource ? (
+                          <span className="inline-block mt-0.5 text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-sans font-medium">
+                            {b.stationResource}
+                          </span>
+                        ) : (
+                          <span className="inline-block mt-0.5 text-[10px] px-2 py-0.5 rounded-full bg-slate-50 text-slate-400 font-sans">
+                            Unassigned Station
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Client / CRM Dossier */}
+                      <td className="py-4">
+                        {isBlurred ? (
+                          <div className="space-y-1">
+                            <span className="text-xs font-semibold text-slate-400 blur-xs select-none block">
+                              Confidential Client
+                            </span>
+                            <Link
+                              href="/dashboard/settings?tab=plans"
+                              className="inline-block text-[9px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full hover:bg-amber-200 transition-colors"
+                            >
+                              Upgrade to View
+                            </Link>
+                          </div>
+                        ) : (
                           <>
-                            {new Date(b.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                            {" - "}
-                            {new Date(b.endTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            <button
+                              onClick={() => handleOpenClientDossier(b.clientName)}
+                              className="font-semibold text-[#105F68] hover:underline flex items-center gap-1.5"
+                            >
+                              <span>{b.clientName}</span>
+                              <User className="w-3 h-3 text-[#3A9295]" />
+                            </button>
+                            <span className="text-[11px] text-[#3A9295] block font-mono mt-0.5">
+                              {b.clientPhone}
+                            </span>
                           </>
                         )}
-                      </div>
-                      {b.stationResource ? (
-                        <span className="inline-block mt-0.5 text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-sans font-medium">
-                          {b.stationResource}
-                        </span>
-                      ) : (
-                        <span className="inline-block mt-0.5 text-[10px] px-2 py-0.5 rounded-full bg-slate-50 text-slate-400 font-sans">
-                          Unassigned Station
-                        </span>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Client / CRM Dossier */}
-                    <td className="py-4">
-                      <button
-                        onClick={() => handleOpenClientDossier(b.clientName)}
-                        className="font-semibold text-[#105F68] hover:underline flex items-center gap-1.5"
-                      >
-                        <span>{b.clientName}</span>
-                        <User className="w-3 h-3 text-[#3A9295]" />
-                      </button>
-                      <span className="text-[11px] text-[#3A9295] block font-mono mt-0.5">
-                        {b.clientPhone}
-                      </span>
-                    </td>
-
-                    {/* Treatment / Order */}
+                    {/* Service / Order */}
                     <td className="py-4">
                       <span className="text-[#105F68] font-semibold block leading-tight">
                         {b.serviceName}
                       </span>
                       <span className="text-[11px] text-emerald-700 font-medium">
-                        ${(b.totalPriceCents / 100).toFixed(2)}{" "}
+                        {formatCurrency(b.totalPriceCents, currency)}{" "}
                         <span className="text-slate-400">
-                          (Dep: ${(b.depositPaidCents / 100).toFixed(2)})
+                          (Dep: {formatCurrency(b.depositPaidCents, currency)})
                         </span>
                       </span>
                     </td>
@@ -428,7 +461,7 @@ export default function DashboardRosterPage() {
                           <button
                             onClick={() => handleChargeNoShow(b.id)}
                             className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-semibold transition-all border border-rose-200/60 flex items-center gap-1"
-                            title="1-Click $25 No-Show Enforcement Charge"
+                            title={`1-Click ${formatCurrency(2500, currency)} No-Show Enforcement Charge`}
                           >
                             <ShieldAlert className="w-3 h-3 text-rose-600" />
                             <span>No-Show Fee</span>
@@ -447,8 +480,9 @@ export default function DashboardRosterPage() {
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
+                );
+              })
+            )}
             </tbody>
           </table>
         </div>
@@ -510,7 +544,7 @@ export default function DashboardRosterPage() {
             {selectedClientProfile.formulasOrNotes && (
               <div className="p-3.5 rounded-2xl bg-[#F6FAF9] border border-black/5 text-xs text-slate-700 space-y-1">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-[#3A9295] block">
-                  Formulas &amp; Treatment History
+                  Service History &amp; Client Notes
                 </span>
                 <p className="leading-relaxed font-mono text-[11px]">
                   {selectedClientProfile.formulasOrNotes}
@@ -595,7 +629,7 @@ export default function DashboardRosterPage() {
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Treatment / Order</label>
+                <label className="font-semibold text-slate-700 block mb-1">Service / Order</label>
                 <input
                   type="text"
                   required
@@ -608,7 +642,7 @@ export default function DashboardRosterPage() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Total Price ($)</label>
+                  <label className="font-semibold text-slate-700 block mb-1">Total Price ({symbol})</label>
                   <input
                     type="number"
                     value={newPrice}
@@ -617,7 +651,7 @@ export default function DashboardRosterPage() {
                   />
                 </div>
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Deposit Paid ($)</label>
+                  <label className="font-semibold text-slate-700 block mb-1">Deposit Paid ({symbol})</label>
                   <input
                     type="number"
                     value={newDeposit}

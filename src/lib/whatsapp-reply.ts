@@ -15,7 +15,7 @@ const REPLIES: Record<Exclude<WhatsAppIntent, "unknown">, { action: string; repl
   },
   reschedule: {
     action: "RESCHEDULE_TRIGGERED",
-    replyMessage: "No problem! You can pick a new slot here: https://ovel.app/portal",
+    replyMessage: "No problem! You can pick a new slot here: https://ovel.lk/portal",
   },
   cancel: {
     action: "CANCELLED",

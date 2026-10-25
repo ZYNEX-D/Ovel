@@ -1,0 +1,74 @@
+.root { --marker: 1.75rem; --halo: 4px; min-width: 0; color: var(--foreground, #103438); font-family: var(--font-body, inherit); letter-spacing: var(--tracking-body, 0); }
+/* A horizontal stepper spans its container, so it can safely measure itself and fold into markers when space runs out. */
+.horizontal { width: 100%; container: stepper / inline-size; }
+.list { display: grid; margin: 0; padding: 0; list-style: none; }
+.item { position: relative; min-width: 0; }
+.horizontal .item:not(:last-child) { padding-inline-end: 1rem; }
+.vertical .item:not(:last-child) { padding-bottom: 1.25rem; }
+.compact.vertical .item:not(:last-child) { padding-bottom: 1.5rem; }
+
+/* Buttons and spans share one head, so a chosen step keeps focus as it becomes the current one. */
+.head { display: grid; margin: 0; padding: 0; border: 0; border-radius: 0.5rem; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: start; cursor: default; -webkit-tap-highlight-color: transparent; }
+.head[data-clickable] { cursor: pointer; }
+.horizontal .head { width: fit-content; max-width: 100%; justify-items: start; row-gap: 0.375rem; }
+.vertical .head { width: 100%; grid-template-columns: var(--marker) minmax(0, 1fr); column-gap: 0.75rem; align-items: start; }
+.compact.vertical .head { grid-template-columns: var(--marker); column-gap: 0; }
+.head:focus-visible { outline: 2px solid var(--accent, #105F68); outline-offset: 4px; }
+.head:focus:not(:focus-visible) { outline: none; }
+
+/* The ring sits behind the disc and grows out of it; the disc carries the state color and the glyph. */
+.marker { position: relative; display: grid; width: var(--marker); height: var(--marker); flex: none; place-items: center; }
+.ring { position: absolute; inset: calc(var(--halo) * -1); border-radius: 9999px; background: rgba(16, 95, 104, 0.15); transition: background-color 0.24s cubic-bezier(0.22, 1, 0.36, 1); }
+.disc { position: relative; display: grid; width: 100%; height: 100%; place-items: center; border-radius: 9999px; background: var(--surface, #ffffff); box-shadow: inset 0 0 0 1px var(--border-strong, rgba(16, 95, 104, 0.25)); color: var(--text-muted, #82a3a5); font-size: 0.75rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; transition: background-color 0.24s, box-shadow 0.24s, color 0.24s, transform 0.2s; }
+.glyph { display: grid; grid-area: 1 / 1; place-items: center; }
+.icon { width: 0.875rem; height: 0.875rem; }
+.item[data-status="current"] .disc { box-shadow: inset 0 0 0 2px var(--accent, #105F68); color: var(--accent, #105F68); font-weight: 700; background: #ffffff; }
+.item[data-status="complete"] .disc { background: var(--accent, #105F68); box-shadow: inset 0 0 0 1px var(--accent, #105F68); color: #ffffff; }
+.item[data-status="error"] .disc { background: rgba(239, 68, 68, 0.12); box-shadow: inset 0 0 0 1.5px #ef4444; color: #ef4444; }
+.item[data-status="error"] .ring { background: rgba(239, 68, 68, 0.2); }
+
+/* The track stays put; only the fill scales along it on a spring, from the step that was just finished. */
+.connector { position: absolute; overflow: hidden; border-radius: 9999px; background: var(--border, rgba(16, 95, 104, 0.12)); pointer-events: none; }
+.horizontal .connector { top: calc(var(--marker) / 2 - 1px); inset-inline: calc(var(--marker) + var(--halo) + 0.25rem) calc(var(--halo) + 0.25rem); height: 2px; }
+/* Both ends keep a clear gap from the markers, and from the current step's ring. */
+.vertical .connector { top: calc(var(--marker) + var(--halo) + 2px); bottom: calc(var(--halo) + 2px); inset-inline-start: calc(var(--marker) / 2 - 1px); width: 2px; }
+.fill { position: absolute; inset: 0; border-radius: inherit; background: var(--accent, #105F68); }
+.horizontal .fill { transform-origin: left center; }
+.horizontal .fill:dir(rtl) { transform-origin: right center; }
+.vertical .fill { transform-origin: center top; }
+
+.text { display: grid; min-width: 0; }
+/* Centers the first line of the label on the marker. */
+.vertical .text { padding-top: .25rem; }
+.label { display: block; color: var(--text-muted, #82a3a5); font-size: 0.8125rem; font-weight: 500; line-height: 1.25rem; overflow-wrap: break-word; transition: color 0.24s; }
+.item[data-status="complete"] .label { color: var(--text-secondary, #3A9295); font-weight: 600; }
+.item[data-status="current"] .label, .item[data-status="error"] .label { color: var(--foreground, #103438); font-weight: 700; }
+/* Changing text pops out of flow against this box while it leaves, so it must be the positioned parent. */
+.slot { display: block; }
+.slotInner { position: relative; display: block; }
+.description, .error { display: block; padding-top: 2px; font-size: 0.72rem; font-weight: 400; line-height: 1.2; overflow-wrap: break-word; }
+.description { color: var(--text-muted, #82a3a5); }
+.error { color: #ef4444; }
+
+.caption { display: none; margin-top: 0.75rem; }
+.captionLabel { display: block; color: var(--foreground, #103438); font-size: 0.875rem; font-weight: 600; line-height: 1.25rem; }
+
+@media (hover: hover) and (pointer: fine) {
+  .head[data-clickable]:hover .label { color: var(--accent, #105F68); }
+  .item[data-status="complete"] .head[data-clickable]:hover .disc { filter: brightness(1.15); transform: scale(1.05); }
+  .item[data-status="error"] .head[data-clickable]:hover .disc { background: rgba(239, 68, 68, 0.2); }
+}
+.head[data-clickable]:active .disc { transform: scale(.92); }
+
+.srOnly, .compact .text { position: absolute; width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.compact.horizontal .caption { display: grid; }
+/* Four labels no longer fit side by side: keep the markers and name the current step underneath. */
+@container stepper (max-width: 30rem) {
+  .horizontal .text { position: absolute; width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .horizontal .caption { display: grid; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disc, .ring, .label { transition: none; }
+  .head[data-clickable]:active .disc { transform: none; }
+}
