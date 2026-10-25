@@ -99,8 +99,16 @@ export default function OfferingTypeStep() {
               return (
                 <div
                   key={opt.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleSelect(opt.id)}
-                  className={`relative p-5 rounded-3xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleSelect(opt.id);
+                    }
+                  }}
+                  className={`relative p-5 rounded-3xl border-2 cursor-pointer transition-all flex flex-col justify-between select-none ${
                     isSelected
                       ? "border-[#105F68] bg-[#F6FAF9] shadow-md scale-[1.02]"
                       : "border-black/10 bg-white hover:border-[#105F68]/30 hover:bg-[#F6FAF9]/50"

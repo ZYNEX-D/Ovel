@@ -23,7 +23,10 @@ const GREETING_PRESETS = [
 export default function ClientGreetingsStep() {
   const { data, updateData, goBack, completeOnboarding, skipAllToDashboard, isSaving } = useOnboarding();
   const { playClick, playSuccess } = useAudio();
-  const [selectedPreset, setSelectedPreset] = useState<number | null>(0);
+  const [selectedPreset, setSelectedPreset] = useState<number | null>(() => {
+    const idx = GREETING_PRESETS.findIndex((p) => p.text === data.greetings);
+    return idx >= 0 ? idx : 0;
+  });
 
   const cleanName = data.businessName || "Our Studio";
 

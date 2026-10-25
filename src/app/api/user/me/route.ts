@@ -56,14 +56,29 @@ export async function PATCH(req: Request) {
     const client = await clerkClient();
     const user = await client.users.getUser(authResult.userId);
 
+    // Safeguard Clerk 8KB metadata limit: only persist external URLs or compact strings
+    const safeAvatarUrl =
+      typeof avatarUrl === "string" && (!avatarUrl.startsWith("data:") || avatarUrl.length < 3072)
+        ? avatarUrl
+        : avatarUrl === null
+        ? null
+        : undefined;
+
+    const safeLogoUrl =
+      typeof logoUrl === "string" && (!logoUrl.startsWith("data:") || logoUrl.length < 3072)
+        ? logoUrl
+        : logoUrl === null
+        ? null
+        : undefined;
+
     const updatedMetadata = {
       ...user.unsafeMetadata,
       ...(typeof businessName === "string" ? { businessName: businessName.trim() } : {}),
       ...(typeof businessSlug === "string"
         ? { businessSlug: businessSlug.toLowerCase().trim().replace(/[^a-z0-9-]/g, "") }
         : {}),
-      ...(typeof avatarUrl === "string" || avatarUrl === null ? { avatarUrl } : {}),
-      ...(typeof logoUrl === "string" || logoUrl === null ? { logoUrl } : {}),
+      ...(safeAvatarUrl !== undefined ? { avatarUrl: safeAvatarUrl } : {}),
+      ...(safeLogoUrl !== undefined ? { logoUrl: safeLogoUrl } : {}),
       ...(typeof businessType === "string" && ["services", "products", "both"].includes(businessType)
         ? { businessType }
         : {}),

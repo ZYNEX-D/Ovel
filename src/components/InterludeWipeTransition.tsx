@@ -35,6 +35,14 @@ export function InterludeWipeProvider({ children }: { children: React.ReactNode 
 
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
+  const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    return () => {
+      // Clean up timers on unmount
+      timerRefs.current.forEach(clearTimeout);
+    };
+  }, []);
 
   const triggerWipe = useCallback((targetUrl: string, dir: WipeDirection = "forward", callback?: () => void) => {
     if (phaseRef.current !== "idle") return;
@@ -50,27 +58,29 @@ export function InterludeWipeProvider({ children }: { children: React.ReactNode 
     setPhase("covering");
 
     // Phase 1: Covering (360ms to slide across to center)
-    setTimeout(() => {
+    const t1 = setTimeout(() => {
       setPhase("covered");
 
       // Midpoint: execute callback or route navigation
       if (callback) {
         callback();
-      }
-      if (targetUrl) {
+      } else if (targetUrl) {
         router.push(targetUrl);
       }
 
       // Small pause to allow React / Next.js to mount the new page while curtain is closed
-      setTimeout(() => {
+      const t2 = setTimeout(() => {
         setPhase("uncovering");
 
         // Phase 2: Uncovering (380ms to slide off viewport)
-        setTimeout(() => {
+        const t3 = setTimeout(() => {
           setPhase("idle");
         }, 420);
+        timerRefs.current.push(t3);
       }, 70);
+      timerRefs.current.push(t2);
     }, 360);
+    timerRefs.current.push(t1);
   }, [router, playClick, playChannelSwitch]);
 
   const value = useMemo(() => ({
@@ -82,9 +92,9 @@ export function InterludeWipeProvider({ children }: { children: React.ReactNode 
   }), [triggerWipe, phase, stepLabel]);
 
   // Transform styles based on direction and phase
-  // Forward: Left to Right
-  // Backward: Right to Left
-  const getPanelTransform = (isPrimary: boolean) => {
+  // Forward: Left to Right (-100% -> 0 -> +100%)
+  // Backward: Right to Left (+100% -> 0 -> -100%)
+  const getPanelTransform = () => {
     const isForward = direction === "forward";
 
     if (phase === "idle") {
@@ -98,6 +108,8 @@ export function InterludeWipeProvider({ children }: { children: React.ReactNode 
     // Uncovering
     return isForward ? "translate-x-full" : "-translate-x-full";
   };
+
+  const isIdle = phase === "idle";
 
   return (
     <InterludeWipeContext.Provider value={value}>
@@ -116,20 +128,28 @@ export function InterludeWipeProvider({ children }: { children: React.ReactNode 
 
       {/* Layer 1: Leading Accent Blade (Mint Trail #63C1BB / #C8E6E2) */}
       <div
-        className={`fixed inset-0 z-[998] pointer-events-none bg-gradient-to-r from-[#63C1BB] to-[#3A9295] transition-transform duration-400 ease-[cubic-bezier(0.76,0,0.24,1)] will-change-transform ${getPanelTransform(false)}`}
+        className={`fixed inset-0 z-[998] pointer-events-none bg-gradient-to-r from-[#63C1BB] to-[#3A9295] will-change-transform ${
+          isIdle
+            ? "invisible transition-none"
+            : "visible transition-transform ease-[cubic-bezier(0.76,0,0.24,1)]"
+        } ${getPanelTransform()}`}
         style={{
-          transitionDuration: phase === "covering" ? "360ms" : "400ms",
-          transitionDelay: phase === "covering" ? "0ms" : "40ms",
+          transitionDuration: isIdle ? "0ms" : phase === "covering" ? "360ms" : "400ms",
+          transitionDelay: isIdle ? "0ms" : phase === "covering" ? "0ms" : "40ms",
         }}
         aria-hidden="true"
       />
 
       {/* Layer 2: Main Primary Curtain (Deep Brand Teal #105F68) */}
       <div
-        className={`fixed inset-0 z-[999] pointer-events-none flex flex-col items-center justify-center bg-[#105F68] transition-transform ease-[cubic-bezier(0.76,0,0.24,1)] will-change-transform shadow-2xl ${getPanelTransform(true)}`}
+        className={`fixed inset-0 z-[999] pointer-events-none flex flex-col items-center justify-center bg-[#105F68] will-change-transform shadow-2xl ${
+          isIdle
+            ? "invisible transition-none"
+            : "visible transition-transform ease-[cubic-bezier(0.76,0,0.24,1)]"
+        } ${getPanelTransform()}`}
         style={{
-          transitionDuration: phase === "covering" ? "380ms" : "420ms",
-          transitionDelay: phase === "covering" ? "35ms" : "0ms",
+          transitionDuration: isIdle ? "0ms" : phase === "covering" ? "380ms" : "420ms",
+          transitionDelay: isIdle ? "0ms" : phase === "covering" ? "35ms" : "0ms",
         }}
         aria-hidden="true"
       >

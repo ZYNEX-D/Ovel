@@ -17,7 +17,9 @@ const MONOGRAM_PALETTES = [
 export default function BrandLogoStep() {
   const { data, updateData, goNext, goBack, skipStep } = useOnboarding();
   const { playClick, playSuccess } = useAudio();
-  const [selectedPalette, setSelectedPalette] = useState(MONOGRAM_PALETTES[0]);
+  const [selectedPalette, setSelectedPalette] = useState(() => {
+    return MONOGRAM_PALETTES.find((p) => p.gradient === data.coverGradient) || MONOGRAM_PALETTES[0];
+  });
 
   const cleanName = data.businessName || "My Business";
   const initials = data.avatarInitials || cleanName.slice(0, 2).toUpperCase();
@@ -81,7 +83,7 @@ export default function BrandLogoStep() {
               name={cleanName}
               src={data.logoUrl || undefined}
               size={96}
-              outputSize={512}
+              outputSize={160}
               label="Brand Logo & Avatar"
               hint={
                 <span className="text-[11px] text-[#3A9295]">
@@ -117,6 +119,7 @@ export default function BrandLogoStep() {
                     onClick={() => {
                       playClick();
                       setSelectedPalette(pal);
+                      updateData({ coverGradient: pal.gradient });
                     }}
                     className={`w-7 h-7 rounded-full bg-gradient-to-br ${pal.gradient} transition-transform ${
                       selectedPalette.name === pal.name

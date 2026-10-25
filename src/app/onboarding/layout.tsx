@@ -62,10 +62,10 @@ function OnboardingHeader() {
           type="button"
           onClick={skipAllToDashboard}
           disabled={isSaving}
-          className="text-xs text-[#3A9295] hover:text-[#105F68] font-medium transition-colors hover:underline px-2 py-1.5 rounded-lg flex items-center gap-1 group"
+          className="text-xs text-[#3A9295] hover:text-[#105F68] font-medium transition-colors hover:underline px-2 py-1.5 rounded-lg flex items-center gap-1 group disabled:opacity-50"
           title="Skip setup and go directly to your dashboard"
         >
-          <span>Skip to Dashboard</span>
+          <span>{isSaving ? "Finalizing..." : "Skip to Dashboard"}</span>
           <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
         </button>
       </div>

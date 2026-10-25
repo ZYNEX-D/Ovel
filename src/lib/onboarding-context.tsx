@@ -15,6 +15,7 @@ export interface OnboardingData {
   logoUrl: string;
   avatarInitials: string;
   greetings: string;
+  coverGradient?: string;
 }
 
 interface OnboardingContextType {
@@ -38,7 +39,8 @@ const DEFAULT_DATA: OnboardingData = {
   businessType: "both",
   logoUrl: "",
   avatarInitials: "OV",
-  greetings: "Welcome! Browse our curated offerings and select a time slot or product below.",
+  greetings: "Welcome! Browse our services and curated products below to reserve your appointment with instant confirmation.",
+  coverGradient: "from-[#105F68] to-[#0D4F57]",
 };
 
 const OnboardingContext = createContext<OnboardingContextType>({
@@ -63,10 +65,12 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   // Initialize data from profile or localStorage draft
   useEffect(() => {
     let initial = { ...DEFAULT_DATA };
+    let hasSavedDraft = false;
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         initial = { ...initial, ...JSON.parse(saved) };
+        hasSavedDraft = true;
       }
     } catch {
       // ignore
@@ -79,7 +83,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       if (profile.organizationSlug && !initial.businessSlug) {
         initial.businessSlug = profile.organizationSlug;
       }
-      if (profile.businessType) {
+      if (profile.businessType && !hasSavedDraft) {
         initial.businessType = profile.businessType;
       }
       if (profile.logoUrl && !initial.logoUrl) {
@@ -110,20 +114,25 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const updateData = useCallback((patch: Partial<OnboardingData>) => {
     setData((prev) => {
       const next = { ...prev, ...patch };
+
       // Auto-compute slug and initials if business name changed
       if (patch.businessName !== undefined) {
         const cleanName = patch.businessName.trim();
-        if (cleanName && (!prev.businessSlug || prev.businessSlug === "my-business")) {
-          next.businessSlug = cleanName
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/(^-|-$)/g, "");
+        const autoSlug = cleanName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "");
+
+        if (patch.businessSlug === undefined) {
+          next.businessSlug = autoSlug || "my-brand";
         }
+
         const words = cleanName.split(/\s+/).filter(Boolean);
         next.avatarInitials = words.length >= 2
           ? (words[0][0] + words[1][0]).toUpperCase()
           : (cleanName.slice(0, 2) || "OV").toUpperCase();
       }
+
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       } catch {
@@ -176,7 +185,18 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       updateBusinessType(finalType);
     }
 
-    // 2. Persist to Ovelink storefront store
+    // 2. Persist local cache for instant dashboard shell access
+    try {
+      localStorage.setItem("ovel_selected_business_type", finalType);
+      if (profile?.organizationId) {
+        localStorage.setItem(`ovel_business_type_${profile.organizationId}`, finalType);
+      }
+      localStorage.setItem(`ovel_business_type_${finalSlug}`, finalType);
+    } catch {
+      // ignore
+    }
+
+    // 3. Persist to Ovelink storefront store
     try {
       const existing = getOvelink(finalSlug, finalName, profile?.organizationId);
       saveOvelink({
@@ -189,13 +209,16 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         logoUrl: data.logoUrl || existing.logoUrl,
         avatarInitials: data.avatarInitials || existing.avatarInitials,
         greetings: data.greetings.trim() || existing.greetings,
+        coverGradient: data.coverGradient || existing.coverGradient || "from-[#105F68] to-[#0D4F57]",
       }, existing.slug);
     } catch (e) {
       console.warn("Ovelink storefront sync:", e);
     }
 
-    // 3. Persist to Clerk user unsafeMetadata via PATCH /api/user/me
+    // 4. Persist to Clerk user unsafeMetadata via PATCH /api/user/me
+    // Note: Clerk unsafeMetadata has an 8KB limit, so data URLs are kept locally
     try {
+      const safeAvatarUrl = data.logoUrl && !data.logoUrl.startsWith("data:") ? data.logoUrl : undefined;
       await fetch("/api/user/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -203,8 +226,8 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
           businessName: finalName,
           businessSlug: finalSlug,
           businessType: finalType,
-          avatarUrl: data.logoUrl || undefined,
-          logoUrl: data.logoUrl || undefined,
+          avatarUrl: safeAvatarUrl,
+          logoUrl: safeAvatarUrl,
           businessBio: data.businessBio.trim(),
           businessTagline: data.businessTagline.trim(),
           greetings: data.greetings.trim(),
@@ -215,7 +238,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       console.warn("Clerk metadata sync:", e);
     }
 
-    // 4. Set local completion flags
+    // 5. Set local completion flags and remove draft
     try {
       localStorage.setItem("ovel_onboarding_completed", "true");
       localStorage.removeItem(STORAGE_KEY);
@@ -229,7 +252,9 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const skipAllToDashboard = useCallback(async () => {
     await persistAllData(true);
     setStepLabel("Opening Dashboard");
-    triggerWipe("/dashboard", "forward");
+    triggerWipe("/dashboard", "forward", () => {
+      window.location.href = "/dashboard";
+    });
   }, [persistAllData, setStepLabel, triggerWipe]);
 
   const completeOnboarding = useCallback(async () => {
@@ -247,7 +272,9 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
     await persistAllData(true);
     setStepLabel("Launching Your Dashboard");
-    triggerWipe("/dashboard", "forward");
+    triggerWipe("/dashboard", "forward", () => {
+      window.location.href = "/dashboard";
+    });
   }, [persistAllData, setStepLabel, triggerWipe]);
 
   const value = useMemo(() => ({
