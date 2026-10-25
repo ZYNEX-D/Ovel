@@ -118,15 +118,31 @@ export default function OvelinkStudioPage() {
     showToast("Direct product link copied to clipboard!");
   };
 
-  const handleSaveOvelinkSettings = () => {
+  const handleSaveOvelinkSettings = async () => {
     const validation = validateSlug(activeOvelink.slug, profile?.organizationId);
     if (!validation.valid) {
       showToast(validation.error || "Please enter a valid URL handle.");
       return;
     }
-    playSuccess();
+
     const cleanSlug = validation.cleanSlug;
     const previous = initialSlug;
+
+    // Check database if handle is changing
+    if (previous !== cleanSlug) {
+      try {
+        const checkRes = await fetch(`/api/slug/check?slug=${encodeURIComponent(cleanSlug)}`);
+        const checkJson = await checkRes.json();
+        if (!checkJson.available) {
+          showToast(checkJson.error || `Handle "${cleanSlug}" is already taken.`);
+          return;
+        }
+      } catch {
+        // Continue if offline
+      }
+    }
+
+    playSuccess();
     const sanitized = { ...activeOvelink, slug: cleanSlug };
     setActiveOvelink(sanitized);
     saveOvelink(sanitized, previous !== cleanSlug ? previous : undefined);

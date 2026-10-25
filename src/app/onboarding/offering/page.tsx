@@ -5,7 +5,6 @@ import { useOnboarding } from "@/lib/onboarding-context";
 import { Sparkles, ShoppingBag, Layers, ArrowRight, ArrowLeft, Check, CheckCircle2 } from "lucide-react";
 import { useAudio } from "@/components/AudioController";
 import { BusinessType } from "@/lib/auth-context";
-import ArcBadge from "@/components/ui/ArcBadge";
 
 const OFFERING_OPTIONS: Array<{
   id: BusinessType;
@@ -21,7 +20,7 @@ const OFFERING_OPTIONS: Array<{
     badge: "Appointments & Sessions",
     icon: Sparkles,
     description:
-      "Calendar bookings, time-slot allocation, staff rosters, and client appointments with automatic confirmation.",
+      "Calendar bookings, time-slot allocation, staff rosters, and appointments with automatic confirmation.",
     features: ["Bookable Time Slots", "Staff Scheduling", "Deposit Intake"],
   },
   {
@@ -39,7 +38,7 @@ const OFFERING_OPTIONS: Array<{
     badge: "Recommended",
     icon: Layers,
     description:
-      "The complete platform: offer bookable calendar appointments alongside physical retail items in one seamless client storefront.",
+      "The complete platform: offer bookable calendar appointments alongside physical retail items in one client storefront.",
     features: ["All-in-One Catalog", "Combined Invoicing", "Cross-selling"],
   },
 ];
@@ -75,23 +74,25 @@ export default function OfferingTypeStep() {
   };
 
   return (
-    <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom-3 duration-500">
+    <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom-2 duration-500">
+      {/* Step Header */}
       <div className="text-center space-y-2 mb-8">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#105F68]/10 text-[#105F68] text-xs font-medium border border-[#105F68]/15 mb-2">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#105F68]/10 text-[#105F68] text-xs font-medium border border-[#105F68]/15 mb-1">
           <Layers className="w-3.5 h-3.5" />
           <span>Catalog Structure</span>
         </div>
-        <h1 className="text-3xl sm:text-4xl font-light text-[#105F68] tracking-tight">
+        <h1 className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
           What does your business offer?
         </h1>
-        <p className="text-sm text-[#3A9295] max-w-lg mx-auto leading-relaxed">
-          Select your offering model. This tailors your sidebar tabs and storefront layout to match your operations.
+        <p className="text-xs sm:text-sm text-[#3A9295] max-w-lg mx-auto leading-relaxed">
+          Select your offering model. This tailors your dashboard navigation and storefront layout.
         </p>
       </div>
 
-      <div className="bg-white p-6 sm:p-10 rounded-[2.5rem] border border-[#105F68]/15 shadow-xl space-y-6">
+      {/* Main Card */}
+      <div className="bg-white p-6 sm:p-8 rounded-2xl border border-black/[0.08] shadow-[0_4px_24px_-4px_rgba(16,95,104,0.06)] space-y-6">
         <form onSubmit={handleContinue} className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {OFFERING_OPTIONS.map((opt) => {
               const isSelected = selectedType === opt.id;
               const Icon = opt.icon;
@@ -108,98 +109,102 @@ export default function OfferingTypeStep() {
                       handleSelect(opt.id);
                     }
                   }}
-                  className={`relative p-5 rounded-3xl border-2 cursor-pointer transition-all flex flex-col justify-between select-none ${
+                  className={`relative p-4 sm:p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between select-none ${
                     isSelected
-                      ? "border-[#105F68] bg-[#F6FAF9] shadow-md scale-[1.02]"
-                      : "border-black/10 bg-white hover:border-[#105F68]/30 hover:bg-[#F6FAF9]/50"
+                      ? "border-[#105F68] bg-[#F8FAF9] shadow-2xs"
+                      : "border-black/[0.08] bg-white hover:border-[#105F68]/30 hover:bg-[#F8FAF9]/50"
                   }`}
                 >
-                  {/* Selected checkmark floating pill */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div
-                      className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-colors ${
-                        isSelected
-                          ? "bg-[#105F68] text-white"
-                          : "bg-black/5 text-[#3A9295]"
-                      }`}
-                    >
-                      <Icon className="w-5 h-5" />
-                    </div>
+                  <div>
+                    {/* Top row: Icon and check indicator */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                          isSelected
+                            ? "bg-[#105F68] text-white"
+                            : "bg-black/[0.04] text-[#3A9295]"
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                      </div>
 
-                    {isSelected ? (
-                      <span className="w-5 h-5 rounded-full bg-[#105F68] text-white flex items-center justify-center">
-                        <Check className="w-3 h-3 stroke-[3]" />
-                      </span>
-                    ) : (
-                      <span className="w-5 h-5 rounded-full border border-black/10" />
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <h3 className="text-sm font-semibold text-[#105F68]">
-                        {opt.title}
-                      </h3>
-                      {opt.id === "both" && (
-                        <ArcBadge variant="teal" size="xs">
-                          {opt.badge}
-                        </ArcBadge>
+                      {isSelected ? (
+                        <span className="w-4 h-4 rounded-full bg-[#105F68] text-white flex items-center justify-center">
+                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        </span>
+                      ) : (
+                        <span className="w-4 h-4 rounded-full border border-black/15" />
                       )}
                     </div>
 
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
-                      {opt.description}
-                    </p>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h3 className="text-xs sm:text-sm font-semibold text-[#105F68]">
+                          {opt.title}
+                        </h3>
+                        {opt.id === "both" && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-[#105F68]/10 text-[#105F68] font-semibold">
+                            Recommended
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="pt-2 border-t border-black/5 flex flex-wrap gap-1">
-                      {opt.features.map((feat) => (
-                        <span
-                          key={feat}
-                          className="text-[9px] px-1.5 py-0.5 rounded-md bg-black/5 text-slate-600 font-medium"
-                        >
-                          {feat}
-                        </span>
-                      ))}
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        {opt.description}
+                      </p>
                     </div>
+                  </div>
+
+                  <div className="pt-3 mt-3 border-t border-black/[0.05] flex flex-wrap gap-1">
+                    {opt.features.map((feat) => (
+                      <span
+                        key={feat}
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-black/[0.03] text-slate-600 font-medium"
+                      >
+                        {feat}
+                      </span>
+                    ))}
                   </div>
                 </div>
               );
             })}
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-[#C8E6E2]/25 border border-[#9ED5D1]/40 text-xs text-[#105F68] flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-[#105F68] flex-shrink-0" />
+          <div className="p-3 rounded-xl bg-[#F8FAF9] border border-black/[0.06] text-[11px] text-[#105F68] flex items-center gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#105F68] flex-shrink-0" />
             <span>
-              You can toggle between Services, Products, or Both anytime from your Workspace Settings.
+              You can toggle between Services, Products, or Both anytime in your Business Settings.
             </span>
           </div>
 
-          {/* Action Buttons */}
-          <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+          {/* Minimal Action Bar */}
+          <div className="pt-4 border-t border-black/[0.06] flex items-center justify-between">
             <button
               type="button"
               onClick={handleBack}
-              className="w-full sm:w-auto px-4 py-3.5 rounded-full border border-black/10 hover:border-black/20 text-[#3A9295] hover:text-[#105F68] text-xs sm:text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-slate-500 hover:text-[#105F68] hover:bg-black/[0.03] transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Back</span>
             </button>
 
-            <button
-              type="submit"
-              className="w-full sm:flex-1 py-3.5 px-6 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs sm:text-sm font-medium tracking-wide transition-all shadow-md hover:scale-[1.01] flex items-center justify-center gap-2 group"
-            >
-              <span>Continue to Brand Logo</span>
-              <ArrowRight className="w-4 h-4 text-[#63C1BB] group-hover:translate-x-1 transition-transform" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSkip}
+                className="px-3.5 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-slate-600 hover:bg-black/[0.02] transition-colors"
+              >
+                Skip for now
+              </button>
 
-            <button
-              type="button"
-              onClick={handleSkip}
-              className="w-full sm:w-auto px-4 py-3.5 rounded-full border border-black/10 hover:border-black/20 text-[#3A9295] hover:text-[#105F68] text-xs sm:text-sm font-medium transition-colors text-center"
-            >
-              Skip for now
-            </button>
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#105F68] hover:bg-[#0D4F57] active:scale-[0.99] text-white text-xs sm:text-sm font-medium tracking-tight transition-all shadow-2xs hover:shadow-sm"
+              >
+                <span>Continue</span>
+                <ArrowRight className="w-3.5 h-3.5 text-[#63C1BB]" />
+              </button>
+            </div>
           </div>
         </form>
       </div>

@@ -16,6 +16,7 @@ const isPublicRoute = createRouteMatcher([
   "/portal(.*)",
   "/api/webhooks/(.*)",
   "/api/public/(.*)",
+  "/api/slug/(.*)",
 ]);
 
 const isClerkActive = !!(

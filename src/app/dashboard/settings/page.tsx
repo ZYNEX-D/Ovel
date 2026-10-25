@@ -195,7 +195,7 @@ export default function BrandSettingsPage() {
     showToast("Custom avatar removed.");
   };
 
-  const handleSaveBrandDetails = (e?: React.FormEvent) => {
+  const handleSaveBrandDetails = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!brand.businessName.trim()) {
       showToast("Please enter a valid brand name.");
@@ -208,11 +208,25 @@ export default function BrandSettingsPage() {
       return;
     }
 
-    setIsSaving(true);
-    playSuccess();
-
     const cleanSlug = validation.cleanSlug;
     const previous = initialSlug;
+
+    // Check database if handle is changing
+    if (previous !== cleanSlug) {
+      try {
+        const checkRes = await fetch(`/api/slug/check?slug=${encodeURIComponent(cleanSlug)}`);
+        const checkJson = await checkRes.json();
+        if (!checkJson.available) {
+          showToast(checkJson.error || `Handle "${cleanSlug}" is already taken.`);
+          return;
+        }
+      } catch {
+        // Continue if offline
+      }
+    }
+
+    setIsSaving(true);
+    playSuccess();
 
     const updatedBrand: OvelinkCustomization = {
       ...brand,

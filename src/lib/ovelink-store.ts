@@ -578,7 +578,7 @@ export function validateSlug(
     if (existing && currentOrgId && existing.organizationId && existing.organizationId !== currentOrgId) {
       return {
         valid: false,
-        error: `Handle "ovel.lk/l/${cleanSlug}" is already taken by another business.`,
+        error: `Handle "${cleanSlug}" is already taken by another business.`,
         cleanSlug,
       };
     }
@@ -625,6 +625,23 @@ export function setSlugRedirect(oldSlug: string, newSlug: string): void {
     delete map["craft-bakes"];
     map[lowerOld] = lowerNew;
     localStorage.setItem(REDIRECTS_KEY, JSON.stringify(map));
+  } catch {
+    // ignore
+  }
+}
+
+export function removeSlugRedirect(slug: string): void {
+  if (typeof window === "undefined" || !slug) return;
+  const lower = slug.toLowerCase().trim();
+  try {
+    const raw = localStorage.getItem(REDIRECTS_KEY);
+    if (raw) {
+      const map = JSON.parse(raw);
+      if (map[lower]) {
+        delete map[lower];
+        localStorage.setItem(REDIRECTS_KEY, JSON.stringify(map));
+      }
+    }
   } catch {
     // ignore
   }
@@ -934,27 +951,43 @@ export function saveOvelink(config: OvelinkCustomization, previousSlug?: string)
   const retiredSlugs = new Set<string>();
 
   // Clean up any old key that previously belonged to this organization
+  // Completely release old slug handle so it becomes available to new users
   if (config.organizationId) {
     for (const key in all) {
       if (all[key]?.organizationId === config.organizationId && key !== cleanSlug) {
         if (!PRESET_OVELINKS[key]) {
-          setSlugRedirect(key, cleanSlug);
+          removeSlugRedirect(key);
           retiredSlugs.add(key);
         }
         delete all[key];
+        try {
+          localStorage.removeItem(`ovel_business_type_${key}`);
+          localStorage.removeItem(`ovel_custom_slug_${key}`);
+          localStorage.removeItem(`ovel_custom_name_${key}`);
+        } catch {
+          // ignore
+        }
       }
     }
   }
   if (previousSlug) {
     const cleanPrev = sanitizeSlug(previousSlug);
     if (cleanPrev && cleanPrev !== cleanSlug && !PRESET_OVELINKS[cleanPrev]) {
-      setSlugRedirect(cleanPrev, cleanSlug);
+      // Remove any redirect on the old slug so it is freed up for new users
+      removeSlugRedirect(cleanPrev);
       const previousEntry = all[cleanPrev];
       if (previousEntry && previousEntry?.organizationId === config.organizationId) {
         delete all[cleanPrev];
       }
       if (!previousEntry || !previousEntry.organizationId || previousEntry.organizationId === config.organizationId) {
         retiredSlugs.add(cleanPrev);
+      }
+      try {
+        localStorage.removeItem(`ovel_business_type_${cleanPrev}`);
+        localStorage.removeItem(`ovel_custom_slug_${cleanPrev}`);
+        localStorage.removeItem(`ovel_custom_name_${cleanPrev}`);
+      } catch {
+        // ignore
       }
     }
   }
