@@ -73,6 +73,35 @@ export function getMerchantVipPasses(merchantSlugOrId: string): VipPass[] {
 }
 
 /**
+ * Remove VIP passes linked to a deleted workspace without touching passes
+ * created by other merchants in the same browser.
+ */
+export function purgeVipPassesForWorkspace(identifiers: string[]): number {
+  if (typeof window === "undefined") return 0;
+  const ids = new Set(identifiers.filter(Boolean));
+  if (ids.size === 0) return 0;
+
+  const passes = getAllVipPasses();
+  const remaining = passes.filter(
+    (pass) => !ids.has(pass.merchantSlug) && !ids.has(pass.merchantId || "")
+  );
+  const removed = passes.length - remaining.length;
+  if (removed === 0) return 0;
+
+  try {
+    if (remaining.length === 0) {
+      localStorage.removeItem(STORAGE_KEY_VIP_PASSES);
+    } else {
+      localStorage.setItem(STORAGE_KEY_VIP_PASSES, JSON.stringify(remaining));
+    }
+  } catch {
+    // ignore
+  }
+  emitStoreChange(STORAGE_KEY_VIP_PASSES);
+  return removed;
+}
+
+/**
  * Create a new single-use VIP pass link
  */
 export function createVipPass(params: {

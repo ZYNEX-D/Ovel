@@ -486,6 +486,45 @@ export function setActiveWorkspaceId(workspaceId: string): void {
   }
 }
 
+const KEY_WORKSPACE_ALIASES = "ovel_workspace_aliases_v1";
+
+function readWorkspaceAliasRegistry(): Record<string, string[]> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(KEY_WORKSPACE_ALIASES);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, string[]>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Persist every alias that has held data for a workspace. This lets account
+ * deletion find keys written under an older slug after a business was renamed.
+ */
+function registerWorkspaceAliases(workspaceId: string, aliases: string[]): void {
+  if (typeof window === "undefined" || !workspaceId) return;
+  try {
+    const registry = readWorkspaceAliasRegistry();
+    const tracked = new Set<string>(registry[workspaceId] || []);
+    for (const alias of aliases) {
+      if (alias) tracked.add(alias);
+    }
+    registry[workspaceId] = Array.from(tracked).slice(-100);
+    localStorage.setItem(KEY_WORKSPACE_ALIASES, JSON.stringify(registry));
+  } catch {
+    // ignore
+  }
+}
+
+export function getRegisteredWorkspaceAliases(workspaceId: string): string[] {
+  if (!workspaceId) return [];
+  const tracked = readWorkspaceAliasRegistry()[workspaceId];
+  return Array.isArray(tracked) ? tracked.filter((alias) => typeof alias === "string" && alias) : [];
+}
+
 export function getWorkspaceAliases(workspaceOrSlug?: string): string[] {
   if (!workspaceOrSlug) return [];
   const set = new Set<string>();
@@ -633,12 +672,6 @@ function safeGet<T>(baseKey: string, demoFallback: T, explicitWorkspace?: string
       return !isLegacyMockId(String(item.id));
     });
 
-    if (cleaned.length === 0 && isDemoOrRoot && Array.isArray(demoFallback) && demoFallback.length > 0) {
-      const fallbackRaw = JSON.stringify(demoFallback);
-      localStorage.setItem(effectiveKey, fallbackRaw);
-      return remember(effectiveKey, fallbackRaw, demoFallback);
-    }
-
     if (cleaned.length !== parsed.length) {
       const cleanedRaw = JSON.stringify(cleaned);
       localStorage.setItem(effectiveKey, cleanedRaw);
@@ -654,6 +687,7 @@ function safeSet<T>(baseKey: string, value: T, explicitWorkspace?: string) {
   if (typeof window === "undefined") return;
   const ws = resolveWorkspace(explicitWorkspace);
   const aliases = getWorkspaceAliases(ws);
+  registerWorkspaceAliases(ws, aliases);
   try {
     const serialized = JSON.stringify(value);
     for (const alias of aliases) {
@@ -890,6 +924,115 @@ export const getPaymentAccounts = (workspaceId?: string): PaymentAccount[] =>
   safeGet(KEY_PAYMENT_ACCOUNTS, INITIAL_PAYMENT_ACCOUNTS, workspaceId);
 export const savePaymentAccounts = (data: PaymentAccount[], workspaceId?: string) =>
   safeSet(KEY_PAYMENT_ACCOUNTS, data, workspaceId);
+
+const WORKSPACE_DATA_KEYS = [
+  KEY_SERVICES,
+  KEY_PRODUCTS,
+  KEY_CATEGORIES,
+  KEY_STAFF,
+  KEY_BOOKINGS,
+  KEY_QUOTES,
+  KEY_INVOICES,
+  KEY_REMINDERS,
+  KEY_WAITLIST,
+  KEY_CLIENT_PROFILES,
+  KEY_PAYMENT_ACCOUNTS,
+  "ovel_merchant_subscriptions",
+  "ovel_reviews_v2",
+  "ovel_reputation_config_v2",
+];
+
+const WORKSPACE_PROPERTY_PREFIXES = [
+  "ovel_business_type_",
+  "ovel_custom_slug_",
+  "ovel_custom_name_",
+  "ovel_custom_avatar_",
+  "ovelink_customization_",
+  "ovel_onboarding_completed_",
+];
+
+const GLOBAL_DEMO_DATA_KEYS = [
+  ...WORKSPACE_DATA_KEYS,
+  "ovel_reviews_v1",
+  "ovel_reputation_config_v1",
+  "ovel_onboarding_completed",
+  "ovel_selected_business_type",
+];
+
+/**
+ * Remove every localStorage record owned by a workspace. Scoped keys use the
+ * `<base>_<workspaceAlias>` format, so we must remove the org id, the raw user
+ * id, the current slug, and any older aliases recorded for the workspace.
+ */
+export function purgeWorkspaceStorage(
+  workspaceIds: string[],
+  aliases: string[] = []
+): number {
+  if (typeof window === "undefined") return 0;
+
+  const ids = Array.from(new Set([...workspaceIds, ...aliases].filter(Boolean)));
+  const isDemoWorkspace = workspaceIds.some((id) => id === "demo" || id === "root" || id === "org_root");
+  let removed = 0;
+
+  const removeKey = (key: string) => {
+    try {
+      if (localStorage.getItem(key) !== null) {
+        localStorage.removeItem(key);
+        removed += 1;
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  for (const id of ids) {
+    for (const baseKey of WORKSPACE_DATA_KEYS) {
+      removeKey(`${baseKey}_${id}`);
+      // Older releases stored the same records without the `_v1/_v2` suffix.
+      removeKey(`${baseKey.replace(/_v\d+$/, "")}_${id}`);
+    }
+    for (const prefix of WORKSPACE_PROPERTY_PREFIXES) {
+      removeKey(`${prefix}${id}`);
+    }
+  }
+
+  if (isDemoWorkspace) {
+    for (const key of GLOBAL_DEMO_DATA_KEYS) removeKey(key);
+  }
+
+  try {
+    const activeWorkspace = localStorage.getItem("ovel_active_workspace_id");
+    if (activeWorkspace && ids.includes(activeWorkspace)) {
+      removeKey("ovel_active_workspace_id");
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    const registry = readWorkspaceAliasRegistry();
+    let registryChanged = false;
+    for (const id of ids) {
+      if (registry[id]) {
+        delete registry[id];
+        registryChanged = true;
+      }
+    }
+    if (registryChanged) {
+      if (Object.keys(registry).length === 0) {
+        removeKey(KEY_WORKSPACE_ALIASES);
+      } else {
+        localStorage.setItem(KEY_WORKSPACE_ALIASES, JSON.stringify(registry));
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  clearSnapshotCache();
+  emitStoreChange();
+  return removed;
+}
 
 const BLOCKING_STATUSES = new Set<BookingRecord["status"]>([
   "confirmed",

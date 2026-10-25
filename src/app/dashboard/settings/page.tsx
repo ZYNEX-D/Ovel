@@ -248,7 +248,12 @@ export default function BrandSettingsPage() {
 
     setIsDeleting(true);
     try {
-      await deleteAccount();
+      const result = await deleteAccount();
+      if (result.error) {
+        setIsDeleting(false);
+        showToast(result.error);
+        return;
+      }
       showToast("Workspace & account deleted successfully.");
       router.push("/sign-in");
     } catch {

@@ -5,6 +5,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { useClerk, useUser, useSession } from "@clerk/nextjs";
 import { clerkSessionView } from "./auth-session";
 import { setActiveWorkspaceId } from "./platform-store";
+import { purgeWorkspace } from "./workspace-cleanup";
 
 export type UserRole = "super_admin" | "business_owner" | "staff" | "client";
 export type BusinessType = "services" | "products" | "both";
@@ -227,54 +228,70 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
   }, [clerk]);
 
   const deleteAccount = useCallback(async (): Promise<{ error: string | null }> => {
-    try {
-      const token = await sessionRef.current?.getToken();
-      // Call server deletion route
-      await fetch("/api/user/delete", {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
+    // Capture the tenant identity before the Clerk session is removed.
+    const metadataSlug =
+      typeof clerkUser?.unsafeMetadata?.businessSlug === "string"
+        ? clerkUser.unsafeMetadata.businessSlug
+        : undefined;
+    const identity = {
+      organizationId:
+        profile?.organizationId || (clerkUser?.id ? `org_${clerkUser.id}` : undefined),
+      organizationSlug: profile?.organizationSlug || metadataSlug,
+      userId: profile?.id || clerkUser?.id,
+    };
 
-      // Also attempt client SDK delete if user exists
-      if (clerkUser) {
+    try {
+      let serverDeleted = false;
+      let deletionError: string | null = null;
+
+      try {
+        const token = await sessionRef.current?.getToken();
+        const response = await fetch("/api/user/delete", {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { message?: string; error?: string }
+          | null;
+
+        if (response.ok) {
+          serverDeleted = true;
+        } else {
+          deletionError =
+            payload?.message ||
+            payload?.error ||
+            `Account deletion failed (HTTP ${response.status}).`;
+        }
+      } catch (err: unknown) {
+        deletionError = (err as Error)?.message || "Could not reach the account deletion service.";
+      }
+
+      // Fallback for deployments where the server route cannot access the
+      // Clerk backend key. The signed-in user can delete their own account.
+      if (!serverDeleted && clerkUser) {
         try {
           await clerkUser.delete();
-        } catch {
-          // Ignore if already deleted by server route
+          serverDeleted = true;
+          deletionError = null;
+        } catch (err: unknown) {
+          deletionError = (err as Error)?.message || deletionError;
         }
       }
 
-      // Purge workspace storage keys for this organization
-      if (typeof window !== "undefined" && profile) {
-        const identifiers = [
-          profile.organizationId,
-          profile.organizationSlug,
-          `org_${profile.id}`,
-          profile.id,
-        ].filter(Boolean) as string[];
-
-        identifiers.forEach((id) => {
-          localStorage.removeItem(`ovel_bookings_${id}`);
-          localStorage.removeItem(`ovel_services_${id}`);
-          localStorage.removeItem(`ovel_products_${id}`);
-          localStorage.removeItem(`ovel_business_type_${id}`);
-          localStorage.removeItem(`ovel_staff_${id}`);
-          localStorage.removeItem(`ovel_roster_${id}`);
-          localStorage.removeItem(`ovel_invoices_${id}`);
-          localStorage.removeItem(`ovel_quotes_${id}`);
-          localStorage.removeItem(`ovel_clients_${id}`);
-          localStorage.removeItem(`ovel_reminders_${id}`);
-          localStorage.removeItem(`ovel_reviews_${id}`);
-          localStorage.removeItem(`ovelink_customization_${id}`);
-        });
-
-        localStorage.removeItem(AUTH_STORAGE_KEY);
+      if (!serverDeleted) {
+        return {
+          error: deletionError || "Failed to delete account. Please try again.",
+        };
       }
+
+      // Only purge after the server confirms the Clerk account is gone.
+      // Otherwise a failed deletion would destroy the user's working data.
+      purgeWorkspace(identity);
 
       try {
         await clerk.signOut();
       } catch {
-        // ignore
+        // The server may already have invalidated the session.
       }
 
       setProfile(null);

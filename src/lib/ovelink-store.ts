@@ -7,7 +7,7 @@ import { DEFAULT_CURRENCY } from "@/lib/currency";
  * for ALL businesses taking Appointments, Bookings, or Orders.
  */
 
-import { getServices, saveServices, ServiceItem, getProducts, saveProducts, ProductItem, getCategories } from "@/lib/platform-store";
+import { getServices, saveServices, ServiceItem, getProducts, saveProducts, ProductItem, getCategories, purgeWorkspaceStorage } from "@/lib/platform-store";
 
 export type OfferingType = "appointment" | "booking" | "order";
 
@@ -931,6 +931,7 @@ export function saveOvelink(config: OvelinkCustomization, previousSlug?: string)
   if (typeof window === "undefined") return;
   const all = getAllOvelinks();
   const cleanSlug = sanitizeSlug(config.slug) || "my-brand";
+  const retiredSlugs = new Set<string>();
 
   // Clean up any old key that previously belonged to this organization
   if (config.organizationId) {
@@ -938,6 +939,7 @@ export function saveOvelink(config: OvelinkCustomization, previousSlug?: string)
       if (all[key]?.organizationId === config.organizationId && key !== cleanSlug) {
         if (!PRESET_OVELINKS[key]) {
           setSlugRedirect(key, cleanSlug);
+          retiredSlugs.add(key);
         }
         delete all[key];
       }
@@ -947,8 +949,12 @@ export function saveOvelink(config: OvelinkCustomization, previousSlug?: string)
     const cleanPrev = sanitizeSlug(previousSlug);
     if (cleanPrev && cleanPrev !== cleanSlug && !PRESET_OVELINKS[cleanPrev]) {
       setSlugRedirect(cleanPrev, cleanSlug);
-      if (all[cleanPrev] && all[cleanPrev]?.organizationId === config.organizationId) {
+      const previousEntry = all[cleanPrev];
+      if (previousEntry && previousEntry?.organizationId === config.organizationId) {
         delete all[cleanPrev];
+      }
+      if (!previousEntry || !previousEntry.organizationId || previousEntry.organizationId === config.organizationId) {
+        retiredSlugs.add(cleanPrev);
       }
     }
   }
@@ -1005,33 +1011,42 @@ export function saveOvelink(config: OvelinkCustomization, previousSlug?: string)
       saveServices(servicesFromOfferings, cleanSlug);
     }
 
-    if (productsOfferings.length > 0) {
-      const productsFromOfferings: ProductItem[] = productsOfferings.map((o) => ({
-        id: o.id,
-        name: o.name,
-        description: o.description || "Curated physical product.",
-        priceCents: typeof o.priceCents === "number" ? o.priceCents : 0,
-        depositCents: typeof o.depositCents === "number" ? o.depositCents : 0,
-        stockCount: typeof o.stockCount === "number" ? o.stockCount : 25,
-        sku: o.sku,
-        badge: o.badge,
-        category: o.category || "Products",
-        categoryId: o.categoryId,
-        subCategoryId: o.subCategoryId,
-        subCategories: o.subCategories,
-        imageUrl: o.imageUrl,
-        imageUrls: o.imageUrls,
-        slug: o.slug,
-        requiresShipping: true,
-        isActive: o.isActive !== false,
-      }));
-      saveProducts(productsFromOfferings, wsId);
-      if (config.organizationId && cleanSlug !== config.organizationId) {
-        saveProducts(productsFromOfferings, cleanSlug);
-      }
+    // Always write the array, even when it is empty. Skipping empty writes left
+    // the previous owner's catalog under the reused slug key after the last
+    // product was deleted (or after an account was deleted and recreated).
+    const productsFromOfferings: ProductItem[] = productsOfferings.map((o) => ({
+      id: o.id,
+      name: o.name,
+      description: o.description || "Curated physical product.",
+      priceCents: typeof o.priceCents === "number" ? o.priceCents : 0,
+      depositCents: typeof o.depositCents === "number" ? o.depositCents : 0,
+      stockCount: typeof o.stockCount === "number" ? o.stockCount : 25,
+      sku: o.sku,
+      badge: o.badge,
+      category: o.category || "Products",
+      categoryId: o.categoryId,
+      subCategoryId: o.subCategoryId,
+      subCategories: o.subCategories,
+      imageUrl: o.imageUrl,
+      imageUrls: o.imageUrls,
+      slug: o.slug,
+      requiresShipping: true,
+      isActive: o.isActive !== false,
+    }));
+    saveProducts(productsFromOfferings, wsId);
+    if (config.organizationId && cleanSlug !== config.organizationId) {
+      saveProducts(productsFromOfferings, cleanSlug);
     }
   } catch {
     // safe fallback
+  }
+
+  // Drop catalog records left under a retired handle. Without this, a future
+  // account that claims the old handle could read the previous owner's data.
+  for (const retired of retiredSlugs) {
+    if (retired && retired !== cleanSlug) {
+      purgeWorkspaceStorage([retired], [retired]);
+    }
   }
 
   // Dispatch custom reactive event so dashboard, layouts, and active tabs update live
@@ -1042,6 +1057,92 @@ export function saveOvelink(config: OvelinkCustomization, previousSlug?: string)
     // SSR safe
   }
   emitStoreChange();
+}
+
+/**
+ * Remove a workspace's public storefronts and any redirects that point at the
+ * deleted handles. Presets are never removed from the source template map.
+ */
+export function purgeOvelinkWorkspace(options: {
+  organizationId?: string | null;
+  aliases?: string[];
+}): string[] {
+  if (typeof window === "undefined") return [];
+
+  const owner = options.organizationId?.trim() || "";
+  const aliases = new Set<string>();
+  for (const alias of options.aliases || []) {
+    const clean = sanitizeSlug(alias);
+    if (clean) aliases.add(clean);
+  }
+  if (owner) {
+    const cleanOwner = sanitizeSlug(owner);
+    if (cleanOwner) aliases.add(cleanOwner);
+  }
+
+  const all = getAllOvelinks();
+  const removed = new Set<string>();
+
+  for (const key of Object.keys(all)) {
+    const item = all[key];
+    const slugMatches = aliases.has(key) || aliases.has(sanitizeSlug(key));
+    const ownedByWorkspace = Boolean(owner && item?.organizationId === owner);
+    if (!slugMatches && !ownedByWorkspace) continue;
+
+    // Never delete a storefront that belongs to a different account, even if
+    // the slug is supplied by stale local state.
+    if (item?.organizationId && item.organizationId !== owner) continue;
+
+    delete all[key];
+    removed.add(key);
+  }
+
+  try {
+    const raw = localStorage.getItem(REDIRECTS_KEY);
+    if (raw) {
+      const map = JSON.parse(raw) as Record<string, string>;
+      let changed = false;
+      for (const [from, to] of Object.entries(map)) {
+        if (
+          removed.has(from) ||
+          removed.has(to) ||
+          aliases.has(from) ||
+          aliases.has(to)
+        ) {
+          delete map[from];
+          changed = true;
+        }
+      }
+      if (changed) {
+        if (Object.keys(map).length === 0) localStorage.removeItem(REDIRECTS_KEY);
+        else localStorage.setItem(REDIRECTS_KEY, JSON.stringify(map));
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  const nextRaw = JSON.stringify(all);
+  try {
+    localStorage.setItem(STORAGE_KEY, nextRaw);
+    cachedOvelinkRaw = nextRaw;
+    cachedOvelinks = all;
+  } catch {
+    // Storage may be unavailable/quota-limited; the in-memory cache is still
+    // cleared so the deleted storefront cannot be read in this session.
+    cachedOvelinkRaw = null;
+    cachedOvelinks = null;
+  }
+
+  try {
+    window.dispatchEvent(new CustomEvent("ovel:brand_updated", { detail: { purged: Array.from(removed) } }));
+    window.dispatchEvent(new CustomEvent("ovel:data_updated", { detail: { type: "brand", purged: Array.from(removed) } }));
+  } catch {
+    // SSR safe
+  }
+  emitStoreChange();
+
+  return Array.from(removed);
 }
 
 export function updateBrandDetails(
