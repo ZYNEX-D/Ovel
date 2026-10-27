@@ -11,6 +11,7 @@ export interface EmptyStateProps {
   description: string;
   action?: ReactNode;
   icon?: ReactNode;
+  videoSrc?: string;
   className?: string;
   /** Optional accessible label for the state region. */
   label?: string;
@@ -69,9 +70,27 @@ function HeightFrame({ reduce, morphKey, children }: { reduce: boolean | null; m
   </motion.div>;
 }
 
-export function EmptyState({ title, description, action, icon, className, label }: EmptyStateProps) {
+export function EmptyState({ title, description, action, icon, videoSrc, className, label }: EmptyStateProps) {
   const reduce = useReducedMotion();
-  const glyph = icon ?? <Folder width={24} height={24} strokeWidth={1.5} />;
+  const isVideo = Boolean(videoSrc) || title.toLowerCase().includes("appointment") || description.toLowerCase().includes("appointment");
+  const glyph = icon ?? (
+    isVideo ? (
+      <video
+        src={videoSrc || "/animations/noresult.webm"}
+        autoPlay
+        loop
+        muted
+        playsInline
+        className={styles.illustration}
+      />
+    ) : (
+      <img
+        src="/animations/emptyfiles.svg"
+        alt=""
+        className={styles.illustration}
+      />
+    )
+  );
   const enter: Transition = reduce ? { duration: motionTokens.duration.instant } : { duration: motionTokens.duration.standard, ease: [...motionTokens.ease.enter] };
   const swap: MotionProps = { initial: reduce ? { opacity: 0 } : textIn, animate: shown, exit: reduce ? fadeOut : textOut, transition: enter };
   // The result of an action morphs in place: the icon crossfades and the copy rises in while the old copy leaves.

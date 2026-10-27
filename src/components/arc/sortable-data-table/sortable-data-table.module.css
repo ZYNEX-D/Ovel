@@ -52,7 +52,7 @@
 .number { font-variant-numeric: tabular-nums; }
 .clear { height: 30px; flex: none; border: 0; border-radius: var(--radius-control); padding: 0 var(--space-3); background: transparent; color: var(--foreground); font: inherit; font-weight: 500; letter-spacing: inherit; cursor: pointer; transition: background-color var(--duration-fast) var(--ease-standard); -webkit-tap-highlight-color: transparent; }
 
-.empty { height: 120px !important; color: var(--text-muted) !important; text-align: center !important; }
+.empty { padding: var(--space-4) 0 !important; color: var(--text-muted) !important; text-align: center !important; }
 
 @media (hover: hover) and (pointer: fine) {
   .table tbody tr:hover td { --cell-fill: color-mix(in oklab, var(--foreground) 3%, var(--cell-base)); }

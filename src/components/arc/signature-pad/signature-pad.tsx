@@ -246,6 +246,14 @@ export interface SignaturePadProps {
   /** Accessible name of the drawing surface. */
   label?: string;
   className?: string;
+  /** Show or hide ink color choices. Defaults to false. */
+  showColors?: boolean;
+  /** Show or hide stroke width choices. Defaults to true. */
+  showWidths?: boolean;
+  /** Show or hide the replay button. Defaults to false. */
+  showReplay?: boolean;
+  /** Show or hide export download buttons. Defaults to false. */
+  showExports?: boolean;
 }
 
 /** `fresh` is the stroke just drawn: it is already on screen from the live path, so it appears without a fade. */
@@ -259,7 +267,20 @@ function useReducedFlag() {
   return !!useReducedMotion() && hydrated;
 }
 
-export function SignaturePad({ signer, hint = "Sign here", defaultColor = "black", defaultWidth = "medium", onChange, fileName = "signature", label = "Signature pad", className }: SignaturePadProps) {
+export function SignaturePad({
+  signer,
+  hint = "Sign here",
+  defaultColor = "black",
+  defaultWidth = "medium",
+  onChange,
+  fileName = "signature",
+  label = "Signature pad",
+  className,
+  showColors = false,
+  showWidths = true,
+  showReplay = false,
+  showExports = false,
+}: SignaturePadProps) {
   const uid = useId().replace(/[^a-zA-Z0-9-]/g, "");
   const reduced = useReducedFlag();
   const [history, setHistory] = useState<History>({ past: [], present: [], future: [], fresh: null });
@@ -479,39 +500,133 @@ export function SignaturePad({ signer, hint = "Sign here", defaultColor = "black
 
     <div className={styles.toolbar}>
       <div className={styles.group}>
-        <Choice label="Ink color" options={COLORS} value={color} onChange={next => { setColor(next); setStatus(`${INK[next].label} selected`); }} layoutId={`${uid}-color`} reduced={reduced}
-          render={option => <span className={styles.swatch} data-color={option} />} name={option => INK[option].label} />
-        <span className={styles.divider} aria-hidden="true" />
-        <Choice label="Stroke width" options={SIZES} value={width} onChange={next => { setWidth(next); setStatus(`${WIDTHS[next].label} nib selected`); }} layoutId={`${uid}-width`} reduced={reduced}
-          render={option => <span className={styles.weight} style={{ width: WIDTHS[option].size + 2, height: WIDTHS[option].size + 2 }} />} name={option => WIDTHS[option].label} />
+        {showColors && (
+          <>
+            <Choice
+              label="Ink color"
+              options={COLORS}
+              value={color}
+              onChange={(next) => {
+                setColor(next);
+                setStatus(`${INK[next].label} selected`);
+              }}
+              layoutId={`${uid}-color`}
+              reduced={reduced}
+              render={(option) => <span className={styles.swatch} data-color={option} />}
+              name={(option) => INK[option].label}
+            />
+            {showWidths && <span className={styles.divider} aria-hidden="true" />}
+          </>
+        )}
+        {showWidths && (
+          <Choice
+            label="Stroke width"
+            options={SIZES}
+            value={width}
+            onChange={(next) => {
+              setWidth(next);
+              setStatus(`${WIDTHS[next].label} nib selected`);
+            }}
+            layoutId={`${uid}-width`}
+            reduced={reduced}
+            render={(option) => (
+              <span
+                className={styles.weight}
+                style={{ width: WIDTHS[option].size + 2, height: WIDTHS[option].size + 2 }}
+              />
+            )}
+            name={(option) => WIDTHS[option].label}
+          />
+        )}
       </div>
       <div className={styles.group}>
-        <IconButton label="Undo" onClick={undo} disabled={!history.past.length || wiping}><Undo2 size={18} strokeWidth={1.75} aria-hidden="true" /></IconButton>
-        <IconButton label="Redo" onClick={redo} disabled={!history.future.length || wiping}><Redo2 size={18} strokeWidth={1.75} aria-hidden="true" /></IconButton>
-        <IconButton label={replaying ? "Stop replay" : "Replay signature"} onClick={toggleReplay} disabled={empty || wiping} pressed={replaying}>
-          <AnimatePresence mode="popLayout" initial={false}>
-            <motion.span key={replaying ? "stop" : "play"} className={styles.swap} initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.6 }} transition={t}>
-              {replaying ? <Square size={15} strokeWidth={1.75} aria-hidden="true" /> : <Play size={17} strokeWidth={1.75} aria-hidden="true" />}
-            </motion.span>
-          </AnimatePresence>
+        <IconButton label="Undo" onClick={undo} disabled={!history.past.length || wiping}>
+          <Undo2 size={18} strokeWidth={1.75} aria-hidden="true" />
         </IconButton>
-        <IconButton label="Clear signature" onClick={clear} disabled={empty || wiping}><Eraser size={18} strokeWidth={1.75} aria-hidden="true" /></IconButton>
+        <IconButton label="Redo" onClick={redo} disabled={!history.future.length || wiping}>
+          <Redo2 size={18} strokeWidth={1.75} aria-hidden="true" />
+        </IconButton>
+        {showReplay && (
+          <IconButton
+            label={replaying ? "Stop replay" : "Replay signature"}
+            onClick={toggleReplay}
+            disabled={empty || wiping}
+            pressed={replaying}
+          >
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.span
+                key={replaying ? "stop" : "play"}
+                className={styles.swap}
+                initial={{ opacity: 0, scale: 0.6 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.6 }}
+                transition={t}
+              >
+                {replaying ? (
+                  <Square size={15} strokeWidth={1.75} aria-hidden="true" />
+                ) : (
+                  <Play size={17} strokeWidth={1.75} aria-hidden="true" />
+                )}
+              </motion.span>
+            </AnimatePresence>
+          </IconButton>
+        )}
+        <IconButton label="Clear signature" onClick={clear} disabled={empty || wiping}>
+          <Eraser size={18} strokeWidth={1.75} aria-hidden="true" />
+        </IconButton>
       </div>
     </div>
 
-    <div className={styles.exports}>
-      <span className={styles.exportLabel}>Save as</span>
-      {(["png", "svg"] as const).map(kind => <button key={kind} type="button" className={styles.export} onClick={() => save(kind)} disabled={empty}
-        aria-label={`Download ${kind.toUpperCase()}`}>
-        <AnimatePresence mode="popLayout" initial={false}>
-          <motion.span key={saved === kind ? "done" : saved === "failed" ? "failed" : "idle"} className={styles.exportContent}
-            initial={{ opacity: 0, y: reduced ? 0 : 4, filter: reduced ? "blur(0px)" : `blur(${blur.subtle}px)` }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            exit={{ opacity: 0, y: reduced ? 0 : -4, transition: { duration: duration.instant } }} transition={reduced ? { duration: duration.instant } : { duration: duration.fast, ease: [...ease.enter] }}>
-            {saved === kind ? <><Check size={15} strokeWidth={1.75} aria-hidden="true" />Saved</> : <><Download size={15} strokeWidth={1.75} aria-hidden="true" />{kind.toUpperCase()}</>}
-          </motion.span>
-        </AnimatePresence>
-      </button>)}
-    </div>
+    {showExports && (
+      <div className={styles.exports}>
+        <span className={styles.exportLabel}>Save as</span>
+        {(["png", "svg"] as const).map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            className={styles.export}
+            onClick={() => save(kind)}
+            disabled={empty}
+            aria-label={`Download ${kind.toUpperCase()}`}
+          >
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.span
+                key={saved === kind ? "done" : saved === "failed" ? "failed" : "idle"}
+                className={styles.exportContent}
+                initial={{
+                  opacity: 0,
+                  y: reduced ? 0 : 4,
+                  filter: reduced ? "blur(0px)" : `blur(${blur.subtle}px)`,
+                }}
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                exit={{
+                  opacity: 0,
+                  y: reduced ? 0 : -4,
+                  transition: { duration: duration.instant },
+                }}
+                transition={
+                  reduced
+                    ? { duration: duration.instant }
+                    : { duration: duration.fast, ease: [...ease.enter] }
+                }
+              >
+                {saved === kind ? (
+                  <>
+                    <Check size={15} strokeWidth={1.75} aria-hidden="true" />
+                    Saved
+                  </>
+                ) : (
+                  <>
+                    <Download size={15} strokeWidth={1.75} aria-hidden="true" />
+                    {kind.toUpperCase()}
+                  </>
+                )}
+              </motion.span>
+            </AnimatePresence>
+          </button>
+        ))}
+      </div>
+    )}
     <p id={`${uid}-keys`} className={styles.srOnly}>Press Control or Command Z to undo, add Shift to redo, and Delete to clear.</p>
     <p className={styles.srOnly} role="status" aria-live="polite">{status}</p>
   </div>;

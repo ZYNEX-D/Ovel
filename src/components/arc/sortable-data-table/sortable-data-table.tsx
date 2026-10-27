@@ -27,6 +27,8 @@ export type SortableDataTableProps<T extends Record<string, unknown>> = {
   rowKey: keyof T | ((row: T) => string);
   caption?: string;
   emptyMessage?: string;
+  emptyVideoSrc?: string;
+  emptyImageSrc?: string;
   /** Sort applied on the first render. */
   defaultSort?: SortState;
   onSortChange?: (sort: SortState) => void;
@@ -123,7 +125,7 @@ function SelectBox({ checked, mixed = false, label, nav, reduced, onToggle, inpu
   </label>;
 }
 
-export function SortableDataTable<T extends Record<string, unknown>>({ rows, columns, rowKey, caption = "Data table", emptyMessage = "No rows to show", defaultSort, onSortChange, selectable = false, selectedKeys, defaultSelectedKeys, onSelectionChange, itemName = { one: "row", other: "rows" } }: SortableDataTableProps<T>) {
+export function SortableDataTable<T extends Record<string, unknown>>({ rows, columns, rowKey, caption = "Data table", emptyMessage = "No rows to show", emptyVideoSrc, emptyImageSrc, defaultSort, onSortChange, selectable = false, selectedKeys, defaultSelectedKeys, onSelectionChange, itemName = { one: "row", other: "rows" } }: SortableDataTableProps<T>) {
   const reduced = useReducedMotion() ?? false;
   const tableRef = useRef<HTMLTableElement>(null);
   const selectAllRef = useRef<HTMLInputElement>(null);
@@ -294,7 +296,31 @@ export function SortableDataTable<T extends Record<string, unknown>>({ rows, col
             {selectable ? <td role="cell" className={styles.selectCell}><SelectBox checked={selected} label={`Select ${String(row[columns[0]?.key as string] ?? key)}`} nav="row" reduced={reduced} onToggle={extend => toggleRow(key, extend)} /></td> : null}
             {columns.map((column, columnIndex) => <td key={column.key} role="cell" data-label={column.label} data-primary={columnIndex === 0 || undefined} data-sorted={sort?.key === column.key || undefined} data-numeric={numeric.has(column.key) || undefined}>{column.render ? column.render(row[column.key], row) : String(row[column.key] ?? "–")}</td>)}
           </motion.tr>;
-        }) : <tr role="row"><td role="cell" className={styles.empty} colSpan={columns.length + (selectable ? 1 : 0)}>{emptyMessage}</td></tr>}</tbody>
+        }) : (
+          <tr role="row">
+            <td role="cell" className={styles.empty} colSpan={columns.length + (selectable ? 1 : 0)}>
+              <div className="py-6 flex flex-col items-center justify-center text-center select-none">
+                {emptyVideoSrc || (emptyMessage && (emptyMessage.toLowerCase().includes("appointment") || emptyMessage.toLowerCase().includes("booking"))) ? (
+                  <video
+                    src={emptyVideoSrc || "/animations/noresult.webm"}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="w-24 h-24 mx-auto object-contain pointer-events-none mb-2"
+                  />
+                ) : (
+                  <img
+                    src={emptyImageSrc || "/animations/emptyfiles.svg"}
+                    alt="No results"
+                    className="w-24 h-24 mx-auto object-contain pointer-events-none mb-2"
+                  />
+                )}
+                <p className="text-xs text-slate-500 font-medium">{emptyMessage}</p>
+              </div>
+            </td>
+          </tr>
+        )}</tbody>
       </table>
     </div>
     {selectable ? <div className={styles.footer}>

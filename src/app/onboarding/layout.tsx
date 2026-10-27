@@ -12,7 +12,7 @@ const STEPS = [
   { path: "/onboarding/bio", label: "Bio & Tagline", step: 2 },
   { path: "/onboarding/offering", label: "Offering Type", step: 3 },
   { path: "/onboarding/logo", label: "Brand Logo", step: 4 },
-  { path: "/onboarding/greetings", label: "Client Greetings", step: 5 },
+  { path: "/onboarding/greetings", label: "Welcome to Ovel", step: 5 },
 ];
 
 function OnboardingHeader() {

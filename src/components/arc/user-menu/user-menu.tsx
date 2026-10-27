@@ -74,11 +74,11 @@ const enter = [...motionTokens.ease.enter] as [number, number, number, number];
 const standard = [...motionTokens.ease.standard] as [number, number, number, number];
 const exitEase = [0.4, 0, 1, 1] as [number, number, number, number];
 
-/** The panel grows out of the trigger on a critically damped spring; rows follow a beat later. Closing is a short fade. */
+/** The panel fades in cleanly so Chromium does not isolate the backdrop-filter layer with a transform. */
 const panelMotion: Variants = {
-  closed: { opacity: 0, scale: .94 },
-  open: { opacity: 1, scale: 1, transition: { type: "spring", visualDuration: .3, bounce: 0, opacity: { duration: motionTokens.duration.fast, ease: enter }, delayChildren: .03, staggerChildren: .016 } },
-  exit: { opacity: 0, scale: .97, transition: { duration: motionTokens.duration.instant, ease: exitEase } },
+  closed: { opacity: 0 },
+  open: { opacity: 1, transition: { duration: motionTokens.duration.fast, ease: enter, delayChildren: .03, staggerChildren: .016 } },
+  exit: { opacity: 0, transition: { duration: motionTokens.duration.instant, ease: exitEase } },
 };
 const sheetMotion: Variants = {
   closed: { y: "100%" },

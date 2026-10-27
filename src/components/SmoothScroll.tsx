@@ -25,6 +25,19 @@ export default function SmoothScroll({ children }: SmoothScrollProps) {
       wheelMultiplier: 0.95,
       touchMultiplier: 1.5,
       infinite: false,
+      allowNestedScroll: true,
+      prevent: (node) => {
+        if (!(node instanceof HTMLElement)) return false;
+        return (
+          node.hasAttribute("data-lenis-prevent") ||
+          node.closest("[data-lenis-prevent]") !== null ||
+          node.closest('[role="dialog"]') !== null ||
+          node.closest('[role="alertdialog"]') !== null ||
+          node.closest('[data-radix-portal]') !== null ||
+          node.closest(".overflow-y-auto") !== null ||
+          node.closest(".overflow-auto") !== null
+        );
+      },
     });
 
     lenisRef.current = lenis;

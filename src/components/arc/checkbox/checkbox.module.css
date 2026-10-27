@@ -1,0 +1,15 @@
+.field { display: inline-flex; align-items: flex-start; gap: 0; min-width: 0; }
+.box { position: relative; flex: 0 0 auto; display: grid; place-items: center; width: var(--control-height-md, 36px); height: var(--control-height-md, 36px); border: 0; border-radius: var(--radius-control, 8px); padding: 0; background: transparent; color: var(--control-glyph, #105F68); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+/* The square is the only part that reacts to a press, so the hit area and label never move. */
+.visual { position: relative; display: block; width: 18px; height: 18px; border: 1px solid var(--border-strong, #cbd5e1); border-radius: 5px; background: var(--surface, #ffffff); transition: border-color var(--duration-fast, 150ms) var(--ease-standard, ease), transform var(--duration-spring, 300ms) var(--ease-spring, ease); }
+.fill { position: absolute; inset: -1px; border-radius: inherit; background: var(--control-on, #105F68); }
+.mark { position: absolute; inset: -1px; width: 18px; height: 18px; overflow: visible; color: #ffffff; }
+.box[data-state="checked"] .visual, .box[data-state="indeterminate"] .visual { border-color: var(--control-on, #105F68); }
+@media (hover: hover) and (pointer: fine) { .box[data-state="unchecked"]:hover:not(:disabled) .visual { border-color: var(--text-muted, #94a3b8); } }
+.box:active:not(:disabled) .visual { transform: scale(.95); transition: border-color var(--duration-fast, 150ms) var(--ease-standard, ease), transform var(--duration-instant, 50ms) var(--ease-standard, ease); }
+.box:disabled { opacity: .5; cursor: not-allowed; }
+/* The label's first line centers on the square: (44px box - 19.6px line) / 2. */
+.copy { display: grid; gap: 2px; min-width: 0; margin-left: 1px; padding-top: calc((var(--control-height-md, 36px) - var(--text-sm, 14px) * 1.4) / 2); }
+.copy label { color: var(--foreground, #0f172a); font-size: var(--text-sm, 14px); font-weight: 500; line-height: var(--leading-body, 1.5); cursor: pointer; }
+.copy span { color: var(--text-muted, #64748b); font-size: var(--text-xs, 12px); line-height: var(--leading-body, 1.5); }
+@media (prefers-reduced-motion: reduce) { .visual, .box:active:not(:disabled) .visual { transition: none; transform: none; } }

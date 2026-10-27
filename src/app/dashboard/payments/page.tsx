@@ -323,22 +323,26 @@ export default function DashboardPaymentsPage() {
 
       {/* Account Cards Grid */}
       {filteredAccounts.length === 0 ? (
-        <div className="p-12 text-center rounded-3xl bg-white border border-dashed border-black/15 space-y-3">
-          <div className="w-12 h-12 mx-auto rounded-full bg-[#105F68]/10 text-[#105F68] flex items-center justify-center">
-            <Landmark className="w-6 h-6" />
-          </div>
-          <h3 className="text-sm font-semibold text-[#103438]">No Payment Accounts Found</h3>
+        <div className="p-8 sm:p-12 text-center rounded-3xl bg-white border border-dashed border-black/15 space-y-3 select-none">
+          <img
+            src="/animations/emptyfiles.svg"
+            alt="No results"
+            className="w-32 h-32 mx-auto object-contain pointer-events-none mb-1"
+          />
+          <h3 className="text-base font-medium text-[#103438]">No Payment Accounts Found</h3>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">
             Add bank details or payment methods so clients can settle quotation deposits and invoices seamlessly.
           </p>
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#105F68] text-white text-xs font-medium cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add First Account</span>
-          </button>
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#105F68] text-white text-xs font-medium cursor-pointer hover:bg-[#0D4F57] transition-all shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add First Account</span>
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -570,20 +574,24 @@ export default function DashboardPaymentsPage() {
         <DialogContent
           title={editingAccount ? "Edit Payment Method" : "Add Payment Method & Account"}
           description="Configure how clients send funds, account bank details, and payment instructions."
-          className="sm:max-w-lg"
+          className="sm:max-w-2xl [--dialog-max-width:700px]"
+          style={{ ['--dialog-max-width' as string]: '700px' }}
         >
-          <form onSubmit={handleSaveAccount} className="space-y-4 pt-2">
+          <form onSubmit={handleSaveAccount} className="space-y-6 pt-1 font-['Kaleko_105',sans-serif]">
             {/* Account Type Selector */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-[#103438] block">Payment Channel Type</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-800 uppercase tracking-wider block">
+                Payment Channel Type
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {[
-                  { key: "bank_transfer", label: "Bank Transfer", icon: Landmark },
-                  { key: "online_gateway", label: "Card / Gateway", icon: CreditCard },
-                  { key: "cash", label: "Cash / Counter", icon: Coins },
-                  { key: "custom", label: "Custom", icon: FileText },
+                  { key: "bank_transfer", label: "Bank Transfer", sublabel: "Direct Wire / ACH", icon: Landmark },
+                  { key: "online_gateway", label: "Card Gateway", sublabel: "Stripe, PayHere", icon: CreditCard },
+                  { key: "cash", label: "Cash / Counter", sublabel: "In-Person, COD", icon: Coins },
+                  { key: "custom", label: "Custom", sublabel: "Flexible Terms", icon: FileText },
                 ].map((item) => {
                   const Icon = item.icon;
+                  const isSelected = type === item.key;
                   return (
                     <button
                       key={item.key}
@@ -592,14 +600,22 @@ export default function DashboardPaymentsPage() {
                         playClick();
                         setType(item.key as PaymentMethodType);
                       }}
-                      className={`p-2.5 rounded-xl border text-center flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
-                        type === item.key
-                          ? "bg-[#105F68]/10 border-[#105F68] text-[#105F68] font-semibold"
-                          : "bg-white border-black/10 text-slate-600 hover:border-black/20"
+                      className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                        isSelected
+                          ? "bg-[#105F68]/10 border-[#105F68] text-[#105F68] ring-1 ring-[#105F68]/30 shadow-xs"
+                          : "bg-white border-slate-200/80 text-slate-600 hover:border-slate-300 hover:bg-slate-50/50"
                       }`}
                     >
-                      <Icon className="w-4 h-4" />
-                      <span className="text-[11px] leading-tight">{item.label}</span>
+                      <div className="flex items-center justify-between w-full mb-2">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${isSelected ? "bg-[#105F68] text-white" : "bg-slate-100 text-slate-600"}`}>
+                          <Icon className="w-3.5 h-3.5" />
+                        </div>
+                        {isSelected && <span className="w-2 h-2 rounded-full bg-[#105F68]" />}
+                      </div>
+                      <div>
+                        <span className="text-xs font-semibold block leading-tight">{item.label}</span>
+                        <span className="text-[10px] text-slate-400 mt-0.5 block">{item.sublabel}</span>
+                      </div>
                     </button>
                   );
                 })}
@@ -607,154 +623,190 @@ export default function DashboardPaymentsPage() {
             </div>
 
             {/* Display Name */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#103438] block">
-                Display Label / Account Title *
-              </label>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-800 uppercase tracking-wider block">
+                  Display Label / Account Title *
+                </label>
+                <span className="text-[11px] text-slate-400">Shown to clients during payment</span>
+              </div>
               <input
                 type="text"
                 required
                 placeholder="e.g. Commercial Bank - Colombo Branch, or Stripe Online"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs text-[#103438] focus:outline-none focus:border-[#105F68]"
+                className="w-full h-11 px-3.5 rounded-xl bg-white border border-slate-200 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#105F68]/20 focus:border-[#105F68] transition-all"
               />
             </div>
 
             {/* Bank Specific Fields */}
             {type === "bank_transfer" && (
-              <div className="p-3.5 rounded-2xl bg-[#F6FAF9] border border-black/5 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-slate-600 block">Bank Name *</label>
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#F6FAF9]/80 border border-[#105F68]/15 space-y-4">
+                <div className="flex items-center gap-2 pb-1 border-b border-black/5">
+                  <div className="w-6 h-6 rounded-lg bg-[#C8E6E2]/50 text-[#105F68] flex items-center justify-center">
+                    <Landmark className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold text-[#105F68]">Bank Account Details</h4>
+                    <p className="text-[10px] text-[#3A9295]">Used for wire transfers and direct bank remittances</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-slate-700 block">Bank Name *</label>
                     <input
                       type="text"
                       required
                       placeholder="e.g. Commercial Bank of Ceylon"
                       value={bankName}
                       onChange={(e) => setBankName(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-lg bg-white border border-black/10 text-xs text-[#103438] focus:outline-none focus:border-[#105F68]"
+                      className="w-full h-10 px-3.5 rounded-xl bg-white border border-slate-200 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#105F68]/20 focus:border-[#105F68] transition-all"
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-slate-600 block">Account Holder Name *</label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-slate-700 block">Branch Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Colombo City Office"
+                      value={branchName}
+                      onChange={(e) => setBranchName(e.target.value)}
+                      className="w-full h-10 px-3.5 rounded-xl bg-white border border-slate-200 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#105F68]/20 focus:border-[#105F68] transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-slate-700 block">Account Holder / Beneficiary *</label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Ovel Salon &amp; Wellness"
+                      placeholder="e.g. Ovel Commerce &amp; Wellness"
                       value={accountName}
                       onChange={(e) => setAccountName(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-lg bg-white border border-black/10 text-xs text-[#103438] focus:outline-none focus:border-[#105F68]"
+                      className="w-full h-10 px-3.5 rounded-xl bg-white border border-slate-200 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#105F68]/20 focus:border-[#105F68] transition-all"
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-slate-600 block">Account Number *</label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-slate-700 block">Account Number / IBAN *</label>
                     <input
                       type="text"
                       required
                       placeholder="e.g. 8002938471"
                       value={accountNumber}
                       onChange={(e) => setAccountNumber(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-lg bg-white border border-black/10 text-xs font-mono text-[#103438] focus:outline-none focus:border-[#105F68]"
+                      className="w-full h-10 px-3.5 rounded-xl bg-white border border-slate-200 text-xs sm:text-sm font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#105F68]/20 focus:border-[#105F68] transition-all"
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-slate-600 block">Branch Name</label>
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <label className="text-xs font-medium text-slate-700 block">SWIFT / BIC / Routing Code (Optional)</label>
                     <input
                       type="text"
-                      placeholder="e.g. Colombo City Office"
-                      value={branchName}
-                      onChange={(e) => setBranchName(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-lg bg-white border border-black/10 text-xs text-[#103438] focus:outline-none focus:border-[#105F68]"
+                      placeholder="e.g. CCEYLKFX"
+                      value={swiftOrRouting}
+                      onChange={(e) => setSwiftOrRouting(e.target.value)}
+                      className="w-full h-10 px-3.5 rounded-xl bg-white border border-slate-200 text-xs sm:text-sm font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#105F68]/20 focus:border-[#105F68] transition-all"
                     />
                   </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-slate-600 block">SWIFT / Routing Code (Optional)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. CCEYLKFX"
-                    value={swiftOrRouting}
-                    onChange={(e) => setSwiftOrRouting(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg bg-white border border-black/10 text-xs font-mono text-[#103438] focus:outline-none focus:border-[#105F68]"
-                  />
                 </div>
               </div>
             )}
 
             {/* Online Gateway Field */}
             {type === "online_gateway" && (
-              <div className="p-3.5 rounded-2xl bg-[#F6FAF9] border border-black/5 space-y-2">
-                <label className="text-[11px] font-medium text-slate-600 block">Gateway Provider</label>
-                <select
-                  value={gatewayProvider}
-                  onChange={(e) => setGatewayProvider(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs text-[#103438] focus:outline-none focus:border-[#105F68]"
-                >
-                  <option value="Stripe">Stripe (Direct Card Checkout)</option>
-                  <option value="PayHere">PayHere (Sri Lanka / Local)</option>
-                  <option value="Square">Square</option>
-                  <option value="PayPal">PayPal</option>
-                  <option value="Other">Other / Custom Gateway</option>
-                </select>
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#F6FAF9]/80 border border-[#105F68]/15 space-y-3">
+                <div className="flex items-center gap-2 pb-1 border-b border-black/5">
+                  <div className="w-6 h-6 rounded-lg bg-[#C8E6E2]/50 text-[#105F68] flex items-center justify-center">
+                    <CreditCard className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold text-[#105F68]">Merchant Gateway</h4>
+                    <p className="text-[10px] text-[#3A9295]">Card processing and checkout gateway selection</p>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-slate-700 block">Gateway Provider</label>
+                  <select
+                    value={gatewayProvider}
+                    onChange={(e) => setGatewayProvider(e.target.value)}
+                    className="w-full h-11 px-3.5 rounded-xl bg-white border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#105F68]/20 focus:border-[#105F68] transition-all cursor-pointer"
+                  >
+                    <option value="Stripe">Stripe (Global Card Checkout &amp; Apple Pay)</option>
+                    <option value="PayHere">PayHere (Sri Lanka / Local Cards &amp; Wallets)</option>
+                    <option value="Square">Square</option>
+                    <option value="PayPal">PayPal</option>
+                    <option value="Other">Other / Custom Gateway</option>
+                  </select>
+                </div>
               </div>
             )}
 
             {/* Instructions */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#103438] block">
-                Payment &amp; Remittance Instructions
-              </label>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-800 uppercase tracking-wider block">
+                  Payment &amp; Remittance Instructions
+                </label>
+                <span className="text-[11px] text-slate-400">Included on client proposals and invoices</span>
+              </div>
               <textarea
                 rows={3}
                 placeholder="e.g. Please quote your Quote ID on the transfer remarks and email payment slip to billing@yourbusiness.com"
                 value={instructions}
                 onChange={(e) => setInstructions(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs text-[#103438] focus:outline-none focus:border-[#105F68]"
+                className="w-full p-3.5 rounded-xl bg-white border border-slate-200 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#105F68]/20 focus:border-[#105F68] transition-all leading-relaxed"
               />
             </div>
 
-            {/* Checkboxes */}
-            <div className="space-y-2 pt-1 border-t border-black/5">
-              <label className="flex items-center gap-2 text-xs text-[#103438] cursor-pointer">
+            {/* Preference Toggle Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                isDefault ? "bg-[#105F68]/5 border-[#105F68]/40" : "bg-white border-slate-200 hover:bg-slate-50"
+              }`}>
                 <input
                   type="checkbox"
                   checked={isDefault}
                   onChange={(e) => setIsDefault(e.target.checked)}
-                  className="w-4 h-4 rounded text-[#105F68] accent-[#105F68]"
+                  className="w-4 h-4 rounded text-[#105F68] accent-[#105F68] mt-0.5 cursor-pointer shrink-0"
                 />
-                <span>Set as default settlement account for new quotes and invoices</span>
+                <div className="text-xs leading-relaxed">
+                  <span className="font-semibold text-slate-800 block">Default Settlement Account</span>
+                  <span className="text-[11px] text-slate-500">Auto-assigned to new quotes and invoices.</span>
+                </div>
               </label>
 
-              <label className="flex items-center gap-2 text-xs text-[#103438] cursor-pointer">
+              <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                isActive ? "bg-[#105F68]/5 border-[#105F68]/40" : "bg-white border-slate-200 hover:bg-slate-50"
+              }`}>
                 <input
                   type="checkbox"
                   checked={isActive}
                   onChange={(e) => setIsActive(e.target.checked)}
-                  className="w-4 h-4 rounded text-[#105F68] accent-[#105F68]"
+                  className="w-4 h-4 rounded text-[#105F68] accent-[#105F68] mt-0.5 cursor-pointer shrink-0"
                 />
-                <span>Account is active and selectable for client proposals</span>
+                <div className="text-xs leading-relaxed">
+                  <span className="font-semibold text-slate-800 block">Active Status</span>
+                  <span className="text-[11px] text-slate-500">Selectable by clients during proposal authorization.</span>
+                </div>
               </label>
             </div>
 
             {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-2 pt-4 border-t border-black/5">
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 rounded-full border border-black/10 text-xs text-slate-600 hover:bg-black/5 cursor-pointer"
+                className="px-5 py-2.5 rounded-full border border-slate-200 text-xs sm:text-sm text-slate-600 font-medium hover:bg-slate-50 hover:text-slate-800 transition-all cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-medium shadow-sm cursor-pointer"
+                className="px-6 py-2.5 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs sm:text-sm font-semibold tracking-tight shadow-sm hover:shadow-md transition-all cursor-pointer"
               >
                 {editingAccount ? "Save Changes" : "Create Account"}
               </button>

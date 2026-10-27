@@ -278,8 +278,16 @@ export default function DashboardReviewsPage() {
         {/* Reviews Cards List */}
         <div className="space-y-4">
           {filteredReviews.length === 0 ? (
-            <div className="py-12 text-center text-xs text-[#3A9295]">
-              No reviews matching this filter.
+            <div className="p-8 sm:p-12 rounded-3xl border border-black/5 bg-[#FBFDFD] text-center space-y-2 select-none">
+              <img
+                src="/animations/emptyfiles.svg"
+                alt="No results"
+                className="w-28 h-28 mx-auto object-contain pointer-events-none mb-1"
+              />
+              <p className="text-sm font-medium text-[#105F68]">No reviews matching this filter</p>
+              <p className="text-xs text-[#3A9295]">
+                Verified client reviews submitted via client confirmation links will appear here.
+              </p>
             </div>
           ) : (
             filteredReviews.map((rev) => (

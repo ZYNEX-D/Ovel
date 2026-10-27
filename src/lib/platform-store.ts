@@ -177,16 +177,32 @@ export interface InvoiceLineItem {
   priceCents: number; // total line amount
 }
 
+export type QuoteFulfillmentType = "none" | "appointment" | "delivery" | "project";
+
 export interface QuoteProposal {
   id: string;
+  quoteNumber?: string;
   title: string;
+  fulfillmentType?: QuoteFulfillmentType;
+  requiresScheduling?: boolean;
   clientName: string;
   clientEmail: string;
   clientPhone: string;
+  clientCompany?: string;
+  clientAddress?: string;
+  scopeDescription?: string;
   lineItems: InvoiceLineItem[];
   optionalAddOns: { id: string; description: string; priceCents: number; selected: boolean }[];
+  subtotalCents?: number;
+  discountCents?: number;
+  discountPercentage?: number;
+  taxCents?: number;
+  taxRate?: number;
   totalCents: number;
   depositCents: number;
+  requireDeposit?: boolean;
+  requireSignature?: boolean;
+  notes?: string;
   termsAndConditions?: string;
   paymentMethodId?: string;
   paymentMethodName?: string;
@@ -195,7 +211,9 @@ export interface QuoteProposal {
   signatureData?: string;
   signatureSvg?: string;
   expiresAt: string;
+  issuedAt?: string;
   convertedBookingId?: string;
+  convertedInvoiceId?: string;
   createdAt: string;
 }
 
@@ -217,12 +235,28 @@ export interface PaymentAccount {
   createdAt: string;
 }
 
+export type PaymentCreditTerms = "due_on_receipt" | "net_7" | "net_15" | "net_30" | "net_60" | "custom";
+
+export interface PaymentEntry {
+  id: string;
+  amountCents: number;
+  paidAt: string;
+  paymentMethod: string;
+  reference?: string;
+  note?: string;
+}
+
 export interface InvoiceRecord {
   id: string;
   bookingId: string;
+  quoteId?: string;
+  quoteNumber?: string;
   invoiceNumber: string;
   clientName: string;
   clientEmail: string;
+  clientPhone?: string;
+  clientCompany?: string;
+  clientAddress?: string;
   itemsSummary?: string;
   lineItems?: InvoiceLineItem[];
   notes?: string;
@@ -230,8 +264,21 @@ export interface InvoiceRecord {
   subtotalCents: number;
   depositCreditedCents: number;
   taxCents: number;
+  taxPercent?: number;
+  totalCents?: number;
+  paidAmountCents?: number;
   balanceDueCents: number;
-  status: "draft" | "sent" | "paid";
+
+  // Credit Period & Payment Terms
+  creditTerms?: PaymentCreditTerms;
+  creditPeriodDays?: number;
+  issueDate?: string;
+  dueDate?: string;
+
+  // Partial Payments & History
+  payments?: PaymentEntry[];
+
+  status: "draft" | "sent" | "partial" | "paid" | "overdue";
   paidAt?: string;
   createdAt: string;
 }
@@ -1386,6 +1433,227 @@ export function updateInvoiceStatus(
       // ignore
     }
   }
+}
+
+export function calculateDueDate(
+  issueDate: string,
+  creditTerms: PaymentCreditTerms = "due_on_receipt",
+  customDays?: number
+): string {
+  const base = issueDate ? new Date(issueDate) : new Date();
+  if (isNaN(base.getTime())) return new Date().toISOString();
+
+  let days = 0;
+  switch (creditTerms) {
+    case "net_7":
+      days = 7;
+      break;
+    case "net_15":
+      days = 15;
+      break;
+    case "net_30":
+      days = 30;
+      break;
+    case "net_60":
+      days = 60;
+      break;
+    case "custom":
+      days = customDays && customDays > 0 ? customDays : 30;
+      break;
+    case "due_on_receipt":
+    default:
+      days = 0;
+      break;
+  }
+
+  const due = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+  return due.toISOString();
+}
+
+export function recordInvoicePayment(
+  invoiceId: string,
+  payment: Omit<PaymentEntry, "id">,
+  workspaceId?: string
+): InvoiceRecord | null {
+  const ws = resolveWorkspace(workspaceId);
+  const all = getInvoices(ws);
+  const target = all.find((inv) => inv.id === invoiceId);
+  if (!target) return null;
+
+  const newEntry: PaymentEntry = {
+    ...payment,
+    id: "pay_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+    paidAt: payment.paidAt || new Date().toISOString(),
+  };
+
+  const existingPayments = target.payments || [];
+  const updatedPayments = [...existingPayments, newEntry];
+
+  // Total invoice cost
+  const totalCents = target.totalCents || (target.subtotalCents + target.taxCents);
+  const depositCredited = target.depositCreditedCents || 0;
+
+  // Total paid = deposit + all recorded payments
+  const paymentsSum = updatedPayments.reduce((acc, p) => acc + (p.amountCents || 0), 0);
+  const totalPaid = depositCredited + paymentsSum;
+  const balanceDue = Math.max(0, totalCents - totalPaid);
+
+  let newStatus: InvoiceRecord["status"] = target.status;
+  if (balanceDue === 0) {
+    newStatus = "paid";
+  } else if (totalPaid > 0) {
+    newStatus = "partial";
+  }
+
+  const updatedInvoice: InvoiceRecord = {
+    ...target,
+    totalCents,
+    payments: updatedPayments,
+    paidAmountCents: totalPaid,
+    balanceDueCents: balanceDue,
+    status: newStatus,
+    paidAt: newStatus === "paid" ? (target.paidAt || newEntry.paidAt) : target.paidAt,
+  };
+
+  const updatedList = all.map((inv) => (inv.id === invoiceId ? updatedInvoice : inv));
+  saveInvoices(updatedList, ws);
+
+  if (typeof window !== "undefined") {
+    try {
+      window.dispatchEvent(
+        new CustomEvent("ovel:invoice_payment_recorded", {
+          detail: { invoice: updatedInvoice, payment: newEntry },
+        })
+      );
+      window.dispatchEvent(new CustomEvent("ovel:data_updated", { detail: { type: "invoice", ws } }));
+    } catch {
+      // ignore
+    }
+  }
+
+  return updatedInvoice;
+}
+
+export function convertQuoteToInvoice(
+  quoteId: string,
+  options?: {
+    creditTerms?: PaymentCreditTerms;
+    creditPeriodDays?: number;
+    dueDate?: string;
+    issueDate?: string;
+    initialPaymentCents?: number;
+    initialPaymentMethod?: string;
+    notes?: string;
+  },
+  workspaceId?: string
+): InvoiceRecord | null {
+  const ws = resolveWorkspace(workspaceId);
+  const quotes = getQuotes(ws);
+  const quote = quotes.find((q) => q.id === quoteId);
+  if (!quote) return null;
+
+  const issueDate = options?.issueDate || new Date().toISOString();
+  const creditTerms = options?.creditTerms || "net_30";
+  const creditDays =
+    options?.creditPeriodDays !== undefined
+      ? options.creditPeriodDays
+      : creditTerms === "net_7"
+      ? 7
+      : creditTerms === "net_15"
+      ? 15
+      : creditTerms === "net_30"
+      ? 30
+      : creditTerms === "net_60"
+      ? 60
+      : 0;
+  const dueDate = options?.dueDate || calculateDueDate(issueDate, creditTerms, creditDays);
+
+  const subtotalCents = quote.subtotalCents || (quote.totalCents - (quote.taxCents || 0));
+  const taxCents = quote.taxCents || 0;
+  const totalCents = quote.totalCents || (subtotalCents + taxCents);
+  const depositCreditedCents = quote.depositCents || 0;
+
+  const payments: PaymentEntry[] = [];
+  if (depositCreditedCents > 0) {
+    payments.push({
+      id: "pay_dep_" + Date.now(),
+      amountCents: depositCreditedCents,
+      paidAt: quote.createdAt || issueDate,
+      paymentMethod: quote.paymentMethodName || "Upfront Deposit",
+      reference: "Deposit Credited from Quote " + (quote.quoteNumber || quote.id),
+      note: "Authorized & credited from accepted quotation",
+    });
+  }
+
+  if (options?.initialPaymentCents && options.initialPaymentCents > 0) {
+    payments.push({
+      id: "pay_init_" + Date.now(),
+      amountCents: options.initialPaymentCents,
+      paidAt: issueDate,
+      paymentMethod: options.initialPaymentMethod || "Direct Payment",
+      reference: "Initial Payment on Acceptance",
+      note: "Partial payment recorded during invoice generation",
+    });
+  }
+
+  const totalPaid = payments.reduce((acc, p) => acc + p.amountCents, 0);
+  const balanceDueCents = Math.max(0, totalCents - totalPaid);
+
+  let initialStatus: InvoiceRecord["status"] = "sent";
+  if (balanceDueCents === 0) {
+    initialStatus = "paid";
+  } else if (totalPaid > 0) {
+    initialStatus = "partial";
+  }
+
+  const invoiceNumber =
+    "INV-" + new Date().getFullYear() + "-" + Math.floor(1000 + Math.random() * 9000);
+
+  const newInvoice = createInvoice(
+    {
+      invoiceNumber,
+      bookingId: quote.convertedBookingId || "",
+      quoteId: quote.id,
+      quoteNumber: quote.quoteNumber,
+      clientName: quote.clientName,
+      clientEmail: quote.clientEmail,
+      clientPhone: quote.clientPhone,
+      clientCompany: quote.clientCompany,
+      clientAddress: quote.clientAddress,
+      itemsSummary: `${quote.title} (${quote.lineItems?.length || 0} line items)`,
+      lineItems: quote.lineItems || [],
+      notes: options?.notes || quote.notes || `Generated from Accepted Quotation: ${quote.quoteNumber || quote.title}`,
+      paymentMethod: options?.initialPaymentMethod || quote.paymentMethodName || "Bank Transfer",
+      subtotalCents,
+      depositCreditedCents,
+      taxCents,
+      totalCents,
+      paidAmountCents: totalPaid,
+      balanceDueCents,
+      creditTerms,
+      creditPeriodDays: creditDays,
+      issueDate,
+      dueDate,
+      payments,
+      status: initialStatus,
+      paidAt: initialStatus === "paid" ? issueDate : undefined,
+    },
+    ws
+  );
+
+  // Update quote status to "converted" and save convertedInvoiceId
+  const updatedQuotes = quotes.map((q) =>
+    q.id === quote.id
+      ? {
+          ...q,
+          status: "converted" as const,
+          convertedInvoiceId: newInvoice.id,
+        }
+      : q
+  );
+  saveQuotes(updatedQuotes, ws);
+
+  return newInvoice;
 }
 
 export function simulateWhatsAppReply(bookingId: string, reply: "1" | "2", workspaceId?: string) {

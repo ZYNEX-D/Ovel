@@ -324,14 +324,19 @@ export default function DashboardRosterPage() {
             <tbody className="divide-y divide-black/5">
               {filteredBookings.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-14 text-center text-xs text-[#3A9295]">
+                  <td colSpan={7} className="py-10 text-center text-xs text-[#3A9295] select-none">
                     <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
-                      <div className="w-10 h-10 rounded-2xl bg-[#C8E6E2]/40 text-[#105F68] flex items-center justify-center">
-                        <CalendarIcon className="w-5 h-5 text-[#105F68]" />
-                      </div>
-                      <p className="font-semibold text-sm text-[#105F68]">No matching bookings found</p>
+                      <video
+                        src="/animations/noresult.webm"
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="w-24 h-24 sm:w-28 sm:h-28 mx-auto object-contain pointer-events-none mb-1"
+                      />
+                      <p className="font-semibold text-sm text-[#105F68]">No appointments scheduled</p>
                       <p className="text-[11px] text-[#3A9295]">
-                        Clear your filters or schedule a new reservation to see it listed here.
+                        Appointments booked via your branded booking page will appear here automatically.
                       </p>
                     </div>
                   </td>

@@ -379,23 +379,27 @@ export default function DashboardUsersPage() {
 
       {/* Client Records List / Cards */}
       {filteredClients.length === 0 ? (
-        <div className="p-12 rounded-3xl border border-black/5 bg-white text-center space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-[#C8E6E2]/40 text-[#105F68] flex items-center justify-center mx-auto">
-            <Users className="w-6 h-6" />
-          </div>
-          <h3 className="text-base font-light text-[#105F68]">No matching users found</h3>
+        <div className="p-8 sm:p-12 rounded-3xl border border-black/5 bg-white text-center space-y-3 select-none">
+          <img
+            src="/animations/emptyfiles.svg"
+            alt="No results"
+            className="w-32 h-32 mx-auto object-contain pointer-events-none mb-1"
+          />
+          <h3 className="text-base font-medium text-[#105F68]">No matching users found</h3>
           <p className="text-xs text-[#3A9295] max-w-sm mx-auto">
             Try adjusting your search query or segment filter, or add a new client directly to your CRM.
           </p>
-          <button
-            onClick={() => {
-              playClick();
-              setIsAddModalOpen(true);
-            }}
-            className="px-4 py-2 rounded-full bg-[#105F68] text-white text-xs font-medium shadow-sm hover:bg-[#0D4F57] transition-all"
-          >
-            + Add Client
-          </button>
+          <div className="pt-1">
+            <button
+              onClick={() => {
+                playClick();
+                setIsAddModalOpen(true);
+              }}
+              className="px-4 py-2 rounded-full bg-[#105F68] text-white text-xs font-medium shadow-sm hover:bg-[#0D4F57] transition-all"
+            >
+              + Add Client
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -649,9 +653,20 @@ export default function DashboardUsersPage() {
                   b.clientEmail.toLowerCase() === selectedDossier.email.toLowerCase() ||
                   b.clientName.toLowerCase() === selectedDossier.name.toLowerCase()
               ).length === 0 ? (
-                <p className="text-xs text-slate-400 italic p-3 rounded-2xl bg-slate-50 border border-black/5">
-                  No appointments logged for this client in the active booking matrix yet.
-                </p>
+                <div className="py-6 px-4 text-center space-y-2 rounded-2xl bg-slate-50 border border-black/5">
+                  <video
+                    src="/animations/noresult.webm"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="w-20 h-20 mx-auto object-contain pointer-events-none"
+                  />
+                  <p className="text-xs font-semibold text-[#105F68]">No appointments scheduled yet</p>
+                  <p className="text-[11px] text-[#3A9295]">
+                    Appointments booked via your branded booking page will appear here automatically.
+                  </p>
+                </div>
               ) : (
                 <div className="space-y-1.5 max-h-40 overflow-y-auto">
                   {bookings

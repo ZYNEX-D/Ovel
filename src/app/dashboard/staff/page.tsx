@@ -70,7 +70,7 @@ export default function DashboardStaffPage() {
             Team &amp; Working Hours
           </h1>
           <p className="text-xs text-[#3A9295] mt-1 max-w-2xl leading-relaxed">
-            Manage your staff, consultants, or service providers. Working hours directly power booking slot availability on your public booking page.
+            Manage your staff, specialists, or team members. Working hours power availability for services and consultations on your public storefront.
           </p>
         </div>
 
@@ -87,26 +87,30 @@ export default function DashboardStaffPage() {
       </div>
 
       {staff.length === 0 ? (
-        <div className="p-12 rounded-3xl border border-slate-200/80 bg-white text-center space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#C8E6E2]/40 text-[#105F68] flex items-center justify-center mx-auto">
-            <Users className="w-6 h-6" />
-          </div>
+        <div className="p-8 sm:p-12 rounded-3xl border border-slate-200/80 bg-white text-center space-y-3 select-none">
+          <img
+            src="/animations/emptyfiles.svg"
+            alt="No results"
+            className="w-32 h-32 mx-auto object-contain pointer-events-none mb-1"
+          />
           <div>
             <h3 className="text-base font-medium text-slate-900">No team members added yet</h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
               Add your team, stylists, instructors, or consultants to enable online bookings, automatic schedule assignment, and collective availability.
             </p>
           </div>
-          <button
-            onClick={() => {
-              playClick();
-              setIsAddStaffOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#105F68] text-white text-xs font-medium hover:bg-[#0D4F57] transition-all shadow-xs"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Your First Team Member</span>
-          </button>
+          <div className="pt-1">
+            <button
+              onClick={() => {
+                playClick();
+                setIsAddStaffOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#105F68] text-white text-xs font-medium hover:bg-[#0D4F57] transition-all shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Your First Team Member</span>
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

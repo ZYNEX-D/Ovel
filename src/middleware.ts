@@ -5,18 +5,27 @@ import { NextResponse } from "next/server";
 const isPublicRoute = createRouteMatcher([
   "/",
   "/login(.*)",
+  "/admin/login(.*)",
   "/signup(.*)",
   "/forgot-password(.*)",
   "/sso-callback(.*)",
   "/auth/redirect(.*)",
   "/onboarding(.*)",
   "/l/(.*)",
+  "/forma(.*)",
+  "/spaces(.*)",
+  "/models/(.*)",
+  "/images/(.*)",
+  "/draco/(.*)",
+  "/env/(.*)",
+  "/assets/(.*)",
   "/book/(.*)",
   "/quote/(.*)",
   "/portal(.*)",
   "/api/webhooks/(.*)",
   "/api/public/(.*)",
   "/api/slug/(.*)",
+  "/api/auth/(.*)",
 ]);
 
 const isClerkActive = !!(
@@ -27,6 +36,17 @@ const isClerkActive = !!(
 
 export default isClerkActive
   ? clerkMiddleware(async (auth, req) => {
+      const requestHeaders = new Headers(req.headers);
+      requestHeaders.set("x-pathname", req.nextUrl.pathname);
+
+      if (req.cookies.get("ovel_admin_session")?.value === "super_admin") {
+        return NextResponse.next({
+          request: {
+            headers: requestHeaders,
+          },
+        });
+      }
+
       if (!isPublicRoute(req)) {
         const { userId } = await auth();
         if (!userId) {
@@ -37,17 +57,32 @@ export default isClerkActive
           return NextResponse.redirect(loginUrl);
         }
       }
+
+      return NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      });
     }, {
       // Local clocks can lag Clerk by a few seconds and otherwise cause a
       // token-refresh loop. Keep the normal verification policy in production.
       clockSkewInMs: process.env.NODE_ENV === "development" ? 15000 : 5000,
     })
-  : () => NextResponse.next();
+  : (req: Request) => {
+      const url = new URL(req.url);
+      const requestHeaders = new Headers(req.headers);
+      requestHeaders.set("x-pathname", url.pathname);
+      return NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      });
+    };
 
 export const config = {
   matcher: [
     // Skip Next.js internals and all static files, unless found in search params
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest|avif|glb|wasm|hdr)).*)",
     // Always run for API routes
     "/(api|trpc)(.*)",
   ],

@@ -69,8 +69,8 @@ export default function DashboardLayout({
   const businessType: BusinessType = profile?.businessType || (
     typeof window !== "undefined"
       ? (localStorage.getItem(`ovel_business_type_${profile?.organizationId || ovelinkSlug}`) as BusinessType)
-        || (localStorage.getItem("ovel_selected_business_type") as BusinessType)
-        || "both"
+      || (localStorage.getItem("ovel_selected_business_type") as BusinessType)
+      || "both"
       : "both"
   );
 
@@ -80,7 +80,7 @@ export default function DashboardLayout({
         title: "Overview",
         items: [
           { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-          { href: "/dashboard/roster", label: "Appointments", icon: CalendarIcon },
+          { href: "/dashboard/roster", label: "Orders & Bookings", icon: CalendarIcon },
           { href: "/dashboard/users", label: "Clients", icon: UserCheck },
         ],
       },
@@ -98,7 +98,7 @@ export default function DashboardLayout({
       {
         title: "Online Presence",
         items: [
-          { href: "/dashboard/ovelink", label: "Booking & Store", icon: Link2 },
+          { href: "/dashboard/ovelink", label: "Online Storefront", icon: Link2 },
           { href: "/dashboard/reminders", label: "Reminders", icon: MessageSquare },
           { href: "/dashboard/reviews", label: "Reviews", icon: Star },
         ],
@@ -134,13 +134,13 @@ export default function DashboardLayout({
       {/* Sidebar for Desktop */}
       <aside className="hidden lg:flex flex-col w-72 bg-white border-r border-[#105F68]/10 sticky top-0 h-screen z-30 select-none">
         {/* Brand Header */}
-        <div className="p-6 border-b border-[#105F68]/10 flex items-center justify-between">
+        <div className="px-6 pt-6 pb-3 border-b border-[#105F68]/10 flex items-center justify-center">
           <Link href="/" className="flex items-center group">
-            <span className="font-['Disolve'] text-2xl text-[#105F68] tracking-tight">Ovel</span>
+            <span className="font-['Disolve'] text-4xl text-[#105F68] tracking-tight">Ovel</span>
           </Link>
-          <ArcBadge variant="teal" pulseDot size="xs">
+          {/* <ArcBadge variant="teal" pulseDot size="xs">
             0% Commission
-          </ArcBadge>
+          </ArcBadge> */}
         </div>
 
         {/* Business Tenant Identity */}
@@ -168,7 +168,7 @@ export default function DashboardLayout({
               <Link
                 href={`/l/${activeOvelink.slug}`}
                 target="_blank"
-                title="Open Booking Page"
+                title="View Public Storefront"
                 className="p-1 text-[#105F68] hover:bg-[#F6FAF9] rounded transition-colors"
               >
                 <ExternalLink className="w-3 h-3" />
@@ -201,11 +201,10 @@ export default function DashboardLayout({
                       href={item.href}
                       prefetch={false}
                       onClick={() => playClick()}
-                      className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all ${
-                        isActive
-                          ? "bg-[#105F68] text-white font-medium shadow-sm"
-                          : "text-[#3A9295] hover:text-[#105F68] hover:bg-[#F6FAF9]"
-                      }`}
+                      className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all ${isActive
+                        ? "bg-[#105F68] text-white font-medium shadow-sm"
+                        : "text-[#3A9295] hover:text-[#105F68] hover:bg-[#F6FAF9]"
+                        }`}
                     >
                       <div className="flex items-center gap-2.5">
                         <Icon className="w-4 h-4 shrink-0" />
@@ -213,9 +212,8 @@ export default function DashboardLayout({
                       </div>
                       {item.badge && (
                         <span
-                          className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold ${
-                            isActive ? "bg-white/20 text-white" : "bg-[#C8E6E2] text-[#105F68]"
-                          }`}
+                          className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold ${isActive ? "bg-white/20 text-white" : "bg-[#C8E6E2] text-[#105F68]"
+                            }`}
                         >
                           {item.badge}
                         </span>
@@ -291,7 +289,7 @@ export default function DashboardLayout({
               className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-[#105F68]/20 bg-white text-xs text-[#105F68] hover:bg-[#105F68]/5 transition-all shadow-sm"
             >
               <ExternalLink className="w-3.5 h-3.5 text-[#3A9295]" />
-              <span>Booking Page</span>
+              <span>View Storefront</span>
             </Link>
 
             <UserAuthNav />
@@ -321,11 +319,10 @@ export default function DashboardLayout({
                           playClick();
                           setIsMobileMenuOpen(false);
                         }}
-                        className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all ${
-                          isActive
-                            ? "bg-[#105F68] text-white font-medium"
-                            : "text-[#3A9295] hover:bg-[#F6FAF9]"
-                        }`}
+                        className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all ${isActive
+                          ? "bg-[#105F68] text-white font-medium"
+                          : "text-[#3A9295] hover:bg-[#F6FAF9]"
+                          }`}
                       >
                         <div className="flex items-center gap-2.5">
                           <Icon className="w-4 h-4 shrink-0" />
@@ -333,9 +330,8 @@ export default function DashboardLayout({
                         </div>
                         {item.badge && (
                           <span
-                            className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold ${
-                              isActive ? "bg-white/20 text-white" : "bg-[#C8E6E2] text-[#105F68]"
-                            }`}
+                            className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold ${isActive ? "bg-white/20 text-white" : "bg-[#C8E6E2] text-[#105F68]"
+                              }`}
                           >
                             {item.badge}
                           </span>

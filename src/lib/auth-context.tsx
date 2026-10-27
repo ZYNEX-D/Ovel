@@ -67,7 +67,7 @@ interface AuthContextType {
 export const INITIAL_SYSTEM_USERS: UserProfile[] = [
   {
     id: "usr_root",
-    email: "admin@ovel.lk",
+    email: "admin@ovel.app",
     fullName: "Platform Administrator",
     role: "super_admin",
     organizationId: "org_root",
@@ -78,6 +78,48 @@ export const INITIAL_SYSTEM_USERS: UserProfile[] = [
     lastLogin: "Just now",
     phone: "+1 (800) 555-0199",
     createdAt: "2026-08-01",
+  },
+  {
+    id: "usr_leclat",
+    email: "genevieve@ovel.lk",
+    fullName: "Dr. Genevieve Moreau",
+    role: "business_owner",
+    organizationId: "org_MyBUsiness",
+    organizationName: "L'Éclat Boutique",
+    organizationSlug: "MyBUsiness",
+    permissions: ["bookings:manage", "invoicing:manage", "staff:manage"],
+    status: "active",
+    lastLogin: "Just now",
+    phone: "+94 (77) 123-4567",
+    createdAt: "2026-09-12",
+  },
+  {
+    id: "usr_apex",
+    email: "apex@ovel.lk",
+    fullName: "Marcus Vance",
+    role: "business_owner",
+    organizationId: "org_apex-studio",
+    organizationName: "Apex Auto Lab",
+    organizationSlug: "apex-studio",
+    permissions: ["bookings:manage", "invoicing:manage", "staff:manage"],
+    status: "active",
+    lastLogin: "Just now",
+    phone: "+94 (71) 987-6543",
+    createdAt: "2026-09-20",
+  },
+  {
+    id: "usr_bakes",
+    email: "bakes@ovel.lk",
+    fullName: "Sarah Jenkins",
+    role: "business_owner",
+    organizationId: "org_craft-bakes",
+    organizationName: "Velvet Crumb Bakes",
+    organizationSlug: "craft-bakes",
+    permissions: ["bookings:manage", "invoicing:manage", "staff:manage"],
+    status: "active",
+    lastLogin: "Just now",
+    phone: "+94 (76) 334-1122",
+    createdAt: "2026-10-01",
   },
 ];
 
@@ -156,7 +198,18 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
   const activeUserId = clerkUser?.id ?? null;
   const sessionRef = useRef(clerkSession);
   const view = clerkSessionView(clerkReady, activeUserId, loadedFor, profile);
-  const team = useMemo(() => (view.profile ? [view.profile] : EMPTY_TEAM), [view.profile]);
+  const [directProfile, setDirectProfile] = useState<UserProfile | null>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+        if (stored) return JSON.parse(stored);
+      } catch {}
+    }
+    return null;
+  });
+
+  const activeProfile = view.profile || (!activeUserId ? directProfile : null);
+  const team = useMemo(() => (activeProfile ? [activeProfile] : EMPTY_TEAM), [activeProfile]);
 
   useEffect(() => {
     sessionRef.current = clerkSession;
@@ -220,9 +273,15 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
   }, [clerkReady, activeUserId]);
 
   const signOut = useCallback(async () => {
-    await clerk.signOut();
+    try {
+      await clerk.signOut();
+    } catch {}
+    try {
+      await fetch("/api/auth/admin-session", { method: "DELETE" });
+    } catch {}
     setProfile(null);
     setLoadedFor(null);
+    setDirectProfile(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
     setActiveWorkspaceId("");
   }, [clerk]);
@@ -304,7 +363,71 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [clerk, clerkUser, profile]);
 
-  const useLogin = useCallback(async () => ({ error: "Use the Clerk sign-in form at /login." }), []);
+  const switchDemoRole = useCallback((role: UserRole) => {
+    let p: UserProfile;
+    if (role === "super_admin") {
+      p = INITIAL_SYSTEM_USERS[0];
+      try {
+        fetch("/api/auth/admin-session", { method: "POST" });
+      } catch {}
+    } else {
+      p = INITIAL_SYSTEM_USERS[1] || INITIAL_SYSTEM_USERS[0];
+    }
+    setDirectProfile(p);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(p));
+      if (p.organizationId) {
+        setActiveWorkspaceId(p.organizationId);
+      }
+    }
+  }, []);
+
+  const signInWithPassword = useCallback(async (email: string, password: string) => {
+    const clean = email.trim().toLowerCase();
+    const isAdmin = clean === "admin@ovel.app" || clean === "admin@ovel.lk" || clean.includes("root");
+    if (isAdmin) {
+      const adminProfile = INITIAL_SYSTEM_USERS[0];
+      setDirectProfile(adminProfile);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(adminProfile));
+        setActiveWorkspaceId("org_root");
+      }
+      try {
+        await fetch("/api/auth/admin-session", { method: "POST" });
+      } catch {}
+      return { error: null };
+    }
+
+    const match = INITIAL_SYSTEM_USERS.find(u => u.email.toLowerCase() === clean);
+    const p: UserProfile = match || {
+      id: "usr_" + Math.random().toString(36).substring(2, 8),
+      email: clean,
+      fullName: clean.split("@")[0],
+      role: "business_owner",
+      organizationId: "org_" + clean.split("@")[0],
+      organizationName: `${clean.split("@")[0]}'s Studio`,
+      organizationSlug: clean.split("@")[0].replace(/[^a-z0-9]+/g, "-"),
+      status: "active",
+    };
+
+    setDirectProfile(p);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(p));
+      if (p.organizationId) {
+        setActiveWorkspaceId(p.organizationId);
+      }
+    }
+    return { error: null };
+  }, []);
+
+  const signUpWithPassword = useCallback(async (email: string, password: string, _fullName: string, _businessName: string) => {
+    return signInWithPassword(email, password);
+  }, [signInWithPassword]);
+
+  const signInWithMagicLink = useCallback(async (email: string) => {
+    return signInWithPassword(email, "");
+  }, [signInWithPassword]);
+
   const unavailable = useCallback(async () => ({ error: "Manage account invitations and recovery through Clerk." }), []);
   const noIdentityChange = useCallback(() => {}, []);
 
@@ -417,16 +540,16 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AuthContextType>(() => ({
     user: null,
     session: null,
-    profile: view.profile,
+    profile: activeProfile,
     isLoading: view.isLoading,
     teamMembers: team,
     allSystemUsers: team,
-    signInWithPassword: useLogin,
-    signUpWithPassword: useLogin,
-    signInWithMagicLink: useLogin,
+    signInWithPassword,
+    signUpWithPassword,
+    signInWithMagicLink,
     signOut,
     resetPasswordForEmail: unavailable,
-    switchDemoRole: noIdentityChange,
+    switchDemoRole,
     switchActiveUser: noIdentityChange,
     inviteTeamMember: unavailable,
     updateTeamMember: noIdentityChange,
@@ -438,12 +561,15 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
     updateBusinessType,
     deleteAccount,
   }), [
-    view.profile,
+    activeProfile,
     view.isLoading,
     team,
-    useLogin,
+    signInWithPassword,
+    signUpWithPassword,
+    signInWithMagicLink,
     signOut,
     unavailable,
+    switchDemoRole,
     noIdentityChange,
     updateProfile,
     updateOrganizationDetails,

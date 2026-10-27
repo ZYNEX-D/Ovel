@@ -47,11 +47,16 @@ export default function DashboardRemindersPage() {
       </div>
 
       {reminders.length === 0 ? (
-        <div className="p-12 rounded-3xl border border-black/5 bg-white text-center space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-[#E8F5E9] text-[#2E7D32] flex items-center justify-center mx-auto">
-            <MessageSquare className="w-6 h-6" />
-          </div>
-          <h3 className="text-base font-light text-[#105F68]">No WhatsApp reminders dispatched yet</h3>
+        <div className="p-8 sm:p-12 rounded-3xl border border-black/5 bg-white text-center space-y-3 select-none">
+          <video
+            src="/animations/noresult.webm"
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-28 h-28 sm:w-32 sm:h-32 mx-auto object-contain pointer-events-none mb-1"
+          />
+          <h3 className="text-base font-medium text-[#105F68]">No WhatsApp reminders dispatched yet</h3>
           <p className="text-xs text-[#3A9295] max-w-md mx-auto">
             Automated WhatsApp reminders are sent at T-24h and T-2h before upcoming bookings with 2-way reply confirmation parsing.
           </p>

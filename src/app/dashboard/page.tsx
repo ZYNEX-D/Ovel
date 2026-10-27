@@ -3,13 +3,13 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Calendar as CalendarIcon, 
-  ExternalLink, 
-  Check, 
-  Clock, 
-  DollarSign, 
-  TrendingUp, 
+import {
+  Calendar as CalendarIcon,
+  ExternalLink,
+  Check,
+  Clock,
+  DollarSign,
+  TrendingUp,
   Sparkles,
   ShieldAlert,
   CreditCard,
@@ -23,10 +23,12 @@ import {
   ChevronRight,
   ShieldCheck,
   CheckCircle2,
-  Package
+  Package,
+  Camera,
+  Globe
 } from "lucide-react";
-import { 
-  getBookings, 
+import {
+  getBookings,
   saveBookings,
   INITIAL_BOOKINGS,
   INITIAL_WAITLIST,
@@ -48,9 +50,10 @@ import {
   INITIAL_PRODUCTS,
 } from "@/lib/platform-store";
 import { formatCurrency, formatCurrencyRaw, DEFAULT_CURRENCY } from "@/lib/currency";
-import { getOvelink, PRESET_OVELINKS } from "@/lib/ovelink-store";
+import { getOvelink, saveOvelink, PRESET_OVELINKS } from "@/lib/ovelink-store";
 import { useClientStore, useHydrated } from "@/lib/use-client-store";
 import { useAudio } from "@/components/AudioController";
+import EditBannerModal from "@/components/EditBannerModal";
 import { useAuth, BusinessType } from "@/lib/auth-context";
 import { Coins } from "lucide-react";
 import { getMerchantSubscription, checkOrderQuotaStatus } from "@/lib/subscription-store";
@@ -69,8 +72,8 @@ export default function DashboardOverviewPage() {
   const businessType: BusinessType = profile?.businessType || (
     typeof window !== "undefined"
       ? (localStorage.getItem(`ovel_business_type_${profile?.organizationId || profile?.organizationSlug}`) as BusinessType)
-        || (localStorage.getItem("ovel_selected_business_type") as BusinessType)
-        || "both"
+      || (localStorage.getItem("ovel_selected_business_type") as BusinessType)
+      || "both"
       : "both"
   );
 
@@ -81,9 +84,9 @@ export default function DashboardOverviewPage() {
   const staff = useClientStore(() => getStaff(wsId), () => INITIAL_STAFF);
   const [roundRobinActive, setRoundRobinActive] = useState(true);
 
-  // Modals & Panels
   const [isWaitlistModalOpen, setIsWaitlistModalOpen] = useState(false);
   const [isSingleUseModalOpen, setIsSingleUseModalOpen] = useState(false);
+  const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
   const [singleUseLink, setSingleUseLink] = useState("");
   const [copiedVip, setCopiedVip] = useState(false);
   const [selectedClientProfile, setSelectedClientProfile] = useState<ClientProfile | null>(null);
@@ -206,7 +209,7 @@ export default function DashboardOverviewPage() {
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Monitor daily appointments, specialist capacity, and direct revenue collection in real time.
+            Monitor daily orders, appointments, catalog capacity, and direct revenue collection in real time.
           </p>
         </div>
 
@@ -219,7 +222,7 @@ export default function DashboardOverviewPage() {
               className="px-3.5 py-2 rounded-xl bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-medium transition-all flex items-center gap-1.5 shadow-xs"
             >
               <CalendarIcon className="w-3.5 h-3.5 text-[#63C1BB]" />
-              <span>Full Schedule</span>
+              <span>Orders &amp; Schedule</span>
             </Link>
           )}
 
@@ -227,11 +230,10 @@ export default function DashboardOverviewPage() {
             <Link
               href="/dashboard/products"
               onClick={() => playClick()}
-              className={`px-3.5 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 shadow-xs ${
-                businessType === "products"
-                  ? "bg-[#105F68] hover:bg-[#0D4F57] text-white"
-                  : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
-              }`}
+              className={`px-3.5 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 shadow-xs ${businessType === "products"
+                ? "bg-[#105F68] hover:bg-[#0D4F57] text-white"
+                : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+                }`}
             >
               <Package className="w-3.5 h-3.5 text-[#63C1BB]" />
               <span>Products ({products.length})</span>
@@ -245,6 +247,18 @@ export default function DashboardOverviewPage() {
           >
             <Lock className="w-3.5 h-3.5 text-slate-500" />
             <span>VIP Pass</span>
+          </button>
+
+          <button
+            onClick={() => {
+              playClick();
+              setIsBannerModalOpen(true);
+            }}
+            className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs text-slate-700 font-medium transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+            title="Edit Storefront Cover Banner"
+          >
+            <Camera className="w-3.5 h-3.5 text-[#105F68]" />
+            <span>Edit Banner</span>
           </button>
 
           {businessType !== "products" && (
@@ -268,11 +282,10 @@ export default function DashboardOverviewPage() {
                 setRoundRobinActive(!roundRobinActive);
                 showToast(roundRobinActive ? "Staff auto-distribution disabled" : "Staff auto-distribution enabled");
               }}
-              className={`px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 border shadow-xs ${
-                roundRobinActive
-                  ? "bg-slate-900 text-white border-slate-900"
-                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-              }`}
+              className={`px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 border shadow-xs ${roundRobinActive
+                ? "bg-slate-900 text-white border-slate-900"
+                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                }`}
             >
               <Users className="w-3.5 h-3.5" />
               <span>Auto-Assign: {roundRobinActive ? "On" : "Off"}</span>
@@ -281,12 +294,91 @@ export default function DashboardOverviewPage() {
         </div>
       </div>
 
+      {/* Storefront Hero Banner Card */}
+      {mounted && activeOvelink && (
+        <div
+          className={`relative w-full rounded-2xl sm:rounded-3xl bg-gradient-to-r ${
+            activeOvelink.coverGradient || "from-[#105F68] to-[#0D4F57]"
+          } p-4 sm:p-5 text-white overflow-hidden shadow-sm border border-black/10 bg-cover bg-center transition-all`}
+          style={
+            activeOvelink.coverImageUrl
+              ? { backgroundImage: `url(${activeOvelink.coverImageUrl})` }
+              : undefined
+          }
+        >
+          {/* Ambient Lighting & Sheen */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/45 to-black/25 pointer-events-none" />
+          <div className="absolute -top-16 -right-16 w-56 h-56 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
+              {/* Monogram / Avatar */}
+              <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl bg-white text-[#105F68] font-bold text-base sm:text-lg flex items-center justify-center shrink-0 shadow-md border-2 border-white/70">
+                {activeOvelink.avatarInitials || "OV"}
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base sm:text-lg font-semibold truncate leading-tight drop-shadow-sm">
+                    {activeOvelink.businessName || profile?.organizationName || "Your Storefront"}
+                  </h2>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/25 backdrop-blur-md border border-emerald-400/40 text-emerald-200 text-[10px] font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Storefront Live</span>
+                  </span>
+                </div>
+                <p className="text-xs text-white/80 truncate mt-0.5 max-w-md">
+                  {activeOvelink.businessTagline || "Public link for bookings, orders, and quotations"}
+                </p>
+                <div className="flex items-center gap-3 mt-1.5 text-[11px] text-white/75">
+                  <Link
+                    href={`/l/${activeOvelink.slug}`}
+                    target="_blank"
+                    className="hover:text-white underline underline-offset-2 flex items-center gap-1 font-mono transition-colors"
+                  >
+                    <Globe className="w-3 h-3 text-[#63C1BB]" />
+                    <span>ovel.lk/l/{activeOvelink.slug}</span>
+                    <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                  </Link>
+                  <span>•</span>
+                  <span>{activeOvelink.offerings?.length || 0} Offerings active</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  playClick();
+                  setIsBannerModalOpen(true);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/30 text-white text-xs font-medium transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Camera className="w-3.5 h-3.5 text-[#63C1BB]" />
+                <span>Edit Banner</span>
+              </button>
+
+              <Link
+                href="/dashboard/ovelink"
+                onClick={() => playClick()}
+                className="px-3.5 py-2 rounded-xl bg-black/35 hover:bg-black/50 backdrop-blur-md border border-white/20 text-white text-xs font-medium transition-all shadow-xs flex items-center gap-1.5"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>Customize Storefront</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* KPI Metric Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3.5 sm:gap-4">
         <ArcMetricCard
-          label="Booked Volume"
+          label="Total Sales Volume"
           value={mounted ? formatCurrency(totalRevenue, currency) : formatCurrency(0, currency)}
-          subValue="100% direct to account"
+          subValue="100% direct settlement"
           trend={{ value: "+14.2% mo/mo", isPositive: true }}
           icon={Coins}
           statusDot="live"
@@ -315,7 +407,7 @@ export default function DashboardOverviewPage() {
         <ArcMetricCard
           label="Average Ticket"
           value={mounted ? formatCurrency(avgOrderValue, currency) : formatCurrency(0, currency)}
-          subValue={businessType === "products" ? "Average order total" : "Average per booking"}
+          subValue="Average per order / booking"
           trend={{ value: "+8.4%", isPositive: true }}
           icon={TrendingUp}
         />
@@ -339,10 +431,10 @@ export default function DashboardOverviewPage() {
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <h2 className="text-base font-semibold text-slate-900 tracking-tight">
-                  Today&apos;s Schedule
+                  Today&apos;s Schedule &amp; Orders
                 </h2>
                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium">
-                  {mounted ? activeBookingsCount : 0} {activeBookingsCount === 1 ? "Session" : "Sessions"}
+                  {mounted ? activeBookingsCount : 0} {activeBookingsCount === 1 ? "Order / Booking" : "Orders & Bookings"}
                 </span>
               </div>
 
@@ -351,7 +443,7 @@ export default function DashboardOverviewPage() {
                 onClick={() => playClick()}
                 className="text-xs text-[#105F68] hover:text-[#0D4F57] font-medium flex items-center gap-1 group transition-colors"
               >
-                <span>Full Calendar</span>
+                <span>View All Orders</span>
                 <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
@@ -363,9 +455,16 @@ export default function DashboardOverviewPage() {
                   <div className="w-6 h-6 rounded-full border-2 border-[#105F68] border-t-transparent animate-spin mx-auto" />
                 </div>
               ) : bookings.length === 0 ? (
-                <div className="py-12 px-4 text-center space-y-3">
-                  <div className="w-14 h-14 mx-auto flex items-center justify-center opacity-85">
-                    <LottieAnimation animationData={clockLottie} className="w-full h-full" />
+                <div className="py-10 px-4 text-center space-y-3">
+                  <div className="w-24 h-24 sm:w-24 sm:h-24 mx-auto flex items-center justify-center">
+                    <video
+                      src="/animations/NoResult.webm"
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="w-full h-full object-contain pointer-events-none"
+                    />
                   </div>
                   <div>
                     <p className="text-sm font-medium text-slate-800">No appointments scheduled today</p>
@@ -378,7 +477,7 @@ export default function DashboardOverviewPage() {
                       href="/dashboard/roster"
                       className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/70 text-slate-800 text-xs font-medium transition-all"
                     >
-                      <span>Create Appointment</span>
+                      <span>New Order / Booking</span>
                       <ArrowRight className="w-3 h-3 text-slate-500" />
                     </Link>
                   </div>
@@ -455,72 +554,71 @@ export default function DashboardOverviewPage() {
                                 </>
                               )}
 
-                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                                b.status === "confirmed"
-                                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200/60"
-                                  : b.status === "completed"
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${b.status === "confirmed"
+                                ? "bg-emerald-50 text-emerald-800 border border-emerald-200/60"
+                                : b.status === "completed"
                                   ? "bg-slate-100 text-slate-700"
                                   : "bg-rose-50 text-rose-700 border border-rose-200/60"
-                              }`}>
+                                }`}>
                                 {b.status === "confirmed" ? "Confirmed" : b.status === "completed" ? "Completed" : "Cancelled"}
                               </span>
                             </div>
 
-                        <p className="text-xs text-[#105F68] font-medium mt-0.5">
-                          {b.serviceName}
-                        </p>
+                            <p className="text-xs text-[#105F68] font-medium mt-0.5">
+                              {b.serviceName}
+                            </p>
 
-                        <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-slate-500">
-                          <span>Team Member: <b className="text-slate-700">{b.staffName}</b></span>
-                          <span className="text-slate-300">•</span>
-                          <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200/60 font-medium text-slate-600">
-                            {b.stationResource || "Station 1"}
-                          </span>
-                          <span className="text-slate-300">•</span>
-                          <span className="font-semibold text-slate-900">
-                            {formatCurrency(b.totalPriceCents, currency)}
-                            <span className="text-slate-400 font-normal"> (Deposit: {formatCurrency(b.depositPaidCents, currency)})</span>
-                          </span>
+                            <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-slate-500">
+                              <span>Team Member: <b className="text-slate-700">{b.staffName}</b></span>
+                              <span className="text-slate-300">•</span>
+                              <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200/60 font-medium text-slate-600">
+                                {b.stationResource || "Station 1"}
+                              </span>
+                              <span className="text-slate-300">•</span>
+                              <span className="font-semibold text-slate-900">
+                                {formatCurrency(b.totalPriceCents, currency)}
+                                <span className="text-slate-400 font-normal"> (Deposit: {formatCurrency(b.depositPaidCents, currency)})</span>
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
-                      {b.status !== "completed" && (
-                        <button
-                          onClick={() => handleMarkCompleted(b.id)}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-medium transition-all border border-emerald-200/80"
-                        >
-                          Complete
-                        </button>
-                      )}
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                          {b.status !== "completed" && (
+                            <button
+                              onClick={() => handleMarkCompleted(b.id)}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-medium transition-all border border-emerald-200/80"
+                            >
+                              Complete
+                            </button>
+                          )}
 
-                      {!b.isNoShow && b.status !== "completed" && (
-                        <button
-                          onClick={() => handleChargeNoShow(b.id)}
-                          className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-rose-50 text-rose-700 text-xs font-medium transition-all border border-slate-200 hover:border-rose-200 flex items-center gap-1"
-                          title="Apply $25 late cancellation or no-show policy"
-                        >
-                          <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
-                          <span>No-Show</span>
-                        </button>
-                      )}
+                          {!b.isNoShow && b.status !== "completed" && (
+                            <button
+                              onClick={() => handleChargeNoShow(b.id)}
+                              className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-rose-50 text-rose-700 text-xs font-medium transition-all border border-slate-200 hover:border-rose-200 flex items-center gap-1"
+                              title="Apply $25 late cancellation or no-show policy"
+                            >
+                              <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
+                              <span>No-Show</span>
+                            </button>
+                          )}
 
-                      <Link
-                        href={`/portal/${b.rescheduleToken}`}
-                        target="_blank"
-                        className="p-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 text-xs transition-all border border-slate-200"
-                        title="Open Client Portal"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </Link>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </>
-          )}
+                          <Link
+                            href={`/portal/${b.rescheduleToken}`}
+                            target="_blank"
+                            className="p-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 text-xs transition-all border border-slate-200"
+                            title="Open Client Portal"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </Link>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -759,9 +857,17 @@ export default function DashboardOverviewPage() {
                   Queued Clients
                 </h4>
                 {waitlist.length === 0 ? (
-                  <div className="p-6 rounded-xl bg-slate-50 border border-slate-100 text-center text-xs text-slate-500 space-y-1">
+                  <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 text-center text-xs text-slate-500 space-y-2">
+                    <video
+                      src="/animations/noresult.webm"
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="w-20 h-20 mx-auto object-contain pointer-events-none"
+                    />
                     <p className="font-medium text-slate-800">No clients on the waitlist right now</p>
-                    <p className="text-[11px]">Clients can join your waitlist from your booking page when fully booked.</p>
+                    <p className="text-[11px]">Clients can join your waitlist from your storefront when fully booked.</p>
                   </div>
                 ) : (
                   waitlist.map((entry) => (
@@ -775,13 +881,12 @@ export default function DashboardOverviewPage() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                          entry.status === "claimed" 
-                            ? "bg-emerald-100 text-emerald-800"
-                            : entry.status === "notified"
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${entry.status === "claimed"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : entry.status === "notified"
                             ? "bg-blue-100 text-blue-800"
                             : "bg-slate-200/70 text-slate-600"
-                        }`}>
+                          }`}>
                           {entry.status}
                         </span>
 
@@ -954,6 +1059,27 @@ export default function DashboardOverviewPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Edit Banner Modal */}
+      {activeOvelink && (
+        <EditBannerModal
+          open={isBannerModalOpen}
+          onOpenChange={setIsBannerModalOpen}
+          currentGradient={activeOvelink.coverGradient}
+          currentImageUrl={activeOvelink.coverImageUrl}
+          storeName={activeOvelink.businessName || profile?.organizationName}
+          avatarInitials={activeOvelink.avatarInitials}
+          onSave={(banner) => {
+            const updated = {
+              ...activeOvelink,
+              coverGradient: banner.coverGradient,
+              coverImageUrl: banner.coverImageUrl
+            };
+            saveOvelink(updated);
+            showToast("Storefront cover banner updated successfully!");
+          }}
+        />
+      )}
     </div>
   );
 }

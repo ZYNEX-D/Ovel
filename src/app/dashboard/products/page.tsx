@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { 
   Plus, 
@@ -34,7 +34,8 @@ import {
   INITIAL_SERVICES,
   getCategories,
   UniversalCategory,
-  ServiceSubCategory
+  ServiceSubCategory,
+  getActiveWorkspaceId
 } from "@/lib/platform-store";
 import { dollarsToCents, centsToDollars } from "@/lib/booking-time";
 import { useClientStore, useHydrated } from "@/lib/use-client-store";
@@ -61,7 +62,28 @@ export default function DashboardProductsPage() {
   const hydrated = useHydrated();
   const wsId = profile?.organizationId || profile?.organizationSlug;
 
-  const readProducts = useCallback(() => getProducts(wsId), [wsId]);
+  const defaultSlug = profile?.organizationSlug || profile?.organizationId || "my-brand";
+  const activeOvelink = useClientStore(
+    () => getOvelink(defaultSlug, profile?.organizationName, wsId),
+    () => getOvelink(defaultSlug, profile?.organizationName, wsId)
+  );
+
+  const readProducts = useCallback(() => {
+    let list = getProducts(wsId);
+    if ((!list || list.length === 0) && profile?.organizationSlug) {
+      list = getProducts(profile.organizationSlug);
+    }
+    if ((!list || list.length === 0) && defaultSlug) {
+      list = getProducts(defaultSlug);
+    }
+    if (!list || list.length === 0) {
+      list = getProducts();
+    }
+    if (!list || list.length === 0) {
+      list = getProducts("demo");
+    }
+    return list;
+  }, [wsId, profile?.organizationSlug, defaultSlug]);
   const products = useClientStore(readProducts, () => INITIAL_PRODUCTS);
 
   const readServices = useCallback(() => getServices(wsId), [wsId]);
@@ -69,12 +91,6 @@ export default function DashboardProductsPage() {
 
   const readCategories = useCallback(() => getCategories(wsId), [wsId]);
   const categories = useClientStore(readCategories, () => []);
-
-  const defaultSlug = profile?.organizationSlug || profile?.organizationId || "my-brand";
-  const activeOvelink = useClientStore(
-    () => getOvelink(defaultSlug, profile?.organizationName, wsId),
-    () => getOvelink(defaultSlug, profile?.organizationName, wsId)
-  );
   const currency = activeOvelink?.currency || DEFAULT_CURRENCY;
   const currencySymbol = getCurrencySymbol(currency);
 
@@ -213,6 +229,182 @@ export default function DashboardProductsPage() {
     setIsShareModalOpen(true);
   };
 
+  // Auto-activate legacy or imported products where isActive is undefined and ensure synced to Ovelink
+  useEffect(() => {
+    if (!products || products.length === 0) return;
+    const hasUnset = products.some((p) => p.isActive === undefined);
+    if (hasUnset) {
+      const fixed = products.map((p) => ({
+        ...p,
+        isActive: p.isActive !== false,
+      }));
+      const currentWs = profile?.organizationId || profile?.organizationSlug || defaultSlug;
+      const targetSlug =
+        activeOvelink?.slug ||
+        profile?.organizationSlug ||
+        defaultSlug ||
+        "my-brand";
+
+      saveProducts(fixed, currentWs);
+      if (targetSlug && targetSlug !== currentWs) saveProducts(fixed, targetSlug);
+      if (profile?.organizationSlug) saveProducts(fixed, profile.organizationSlug);
+      if (profile?.organizationId) saveProducts(fixed, profile.organizationId);
+
+      try {
+        const ovelink = getOvelink(targetSlug, profile?.organizationName, currentWs);
+        const orderOfferings: OvelinkOffering[] = fixed.map((p) => ({
+          id: p.id,
+          type: "order" as const,
+          name: p.name,
+          description: p.description || "Curated physical product.",
+          priceCents: p.priceCents,
+          depositCents: p.depositCents ?? p.priceCents,
+          requiresTimeSlot: false,
+          badge: p.badge,
+          category: p.category || "Products",
+          categoryId: p.categoryId,
+          subCategoryId: p.subCategoryId,
+          subCategories: p.subCategories,
+          imageUrl: p.imageUrl,
+          imageUrls: p.imageUrls,
+          stockCount: p.stockCount,
+          sku: p.sku,
+          slug: p.slug,
+          isActive: p.isActive !== false,
+        }));
+        const nonOrders = (ovelink.offerings || []).filter((o) => o.type !== "order");
+        saveOvelink({
+          ...ovelink,
+          offerings: [...nonOrders, ...orderOfferings],
+        });
+      } catch {
+        // safe
+      }
+    }
+  }, [products, profile, activeOvelink, defaultSlug]);
+
+  const toggleProductActive = (prod: ProductItem) => {
+    playClick();
+    const newActive = prod.isActive === false;
+    const updated = products.map((p) => (p.id === prod.id ? { ...p, isActive: newActive } : p));
+    const currentWs = profile?.organizationId || profile?.organizationSlug || defaultSlug;
+    const targetSlug =
+      activeOvelink?.slug ||
+      profile?.organizationSlug ||
+      defaultSlug ||
+      "my-brand";
+
+    saveProducts(updated, currentWs);
+    if (targetSlug && targetSlug !== currentWs) {
+      saveProducts(updated, targetSlug);
+    }
+    if (profile?.organizationSlug && profile.organizationSlug !== currentWs && profile.organizationSlug !== targetSlug) {
+      saveProducts(updated, profile.organizationSlug);
+    }
+    if (profile?.organizationId && profile.organizationId !== currentWs) {
+      saveProducts(updated, profile.organizationId);
+    }
+
+    try {
+      const ovelink = getOvelink(targetSlug, profile?.organizationName, currentWs);
+      const updatedOfferings = (ovelink.offerings || []).map((o) =>
+        o.id === prod.id ? { ...o, isActive: newActive } : o
+      );
+      if (!updatedOfferings.some((o) => o.id === prod.id) && newActive) {
+        updatedOfferings.push({
+          id: prod.id,
+          type: "order",
+          name: prod.name,
+          description: prod.description || "Curated physical product.",
+          priceCents: prod.priceCents,
+          depositCents: prod.depositCents ?? prod.priceCents,
+          requiresTimeSlot: false,
+          badge: prod.badge,
+          category: prod.category || "Products",
+          categoryId: prod.categoryId,
+          subCategoryId: prod.subCategoryId,
+          subCategories: prod.subCategories,
+          imageUrl: prod.imageUrl,
+          imageUrls: prod.imageUrls,
+          stockCount: prod.stockCount,
+          sku: prod.sku,
+          slug: prod.slug,
+          isActive: true,
+        });
+      }
+      saveOvelink({
+        ...ovelink,
+        offerings: updatedOfferings,
+      });
+    } catch {
+      // safe fallback
+    }
+
+    showToast(newActive ? `Product "${prod.name}" published to Ovelink` : `Product "${prod.name}" hidden from public store`);
+  };
+
+  const publishAllHiddenProducts = () => {
+    playSuccess();
+    const updated = products.map((p) => ({ ...p, isActive: true }));
+    const currentWs = profile?.organizationId || profile?.organizationSlug || defaultSlug;
+    const targetSlug =
+      activeOvelink?.slug ||
+      profile?.organizationSlug ||
+      defaultSlug ||
+      "my-brand";
+
+    saveProducts(updated, currentWs);
+    if (targetSlug && targetSlug !== currentWs) {
+      saveProducts(updated, targetSlug);
+    }
+    if (profile?.organizationSlug && profile.organizationSlug !== currentWs && profile.organizationSlug !== targetSlug) {
+      saveProducts(updated, profile.organizationSlug);
+    }
+    if (profile?.organizationId && profile.organizationId !== currentWs) {
+      saveProducts(updated, profile.organizationId);
+    }
+
+    try {
+      const ovelink = getOvelink(targetSlug, profile?.organizationName, currentWs);
+      const productOrderMap = new Map((ovelink.offerings || []).map((o) => [o.id, o]));
+      const newOfferings: OvelinkOffering[] = updated.map((prod) => {
+        const existing = productOrderMap.get(prod.id);
+        if (existing) {
+          return { ...existing, isActive: true };
+        }
+        return {
+          id: prod.id,
+          type: "order",
+          name: prod.name,
+          description: prod.description || "Curated physical product.",
+          priceCents: prod.priceCents,
+          depositCents: prod.depositCents ?? prod.priceCents,
+          requiresTimeSlot: false,
+          badge: prod.badge,
+          category: prod.category || "Products",
+          categoryId: prod.categoryId,
+          subCategoryId: prod.subCategoryId,
+          subCategories: prod.subCategories,
+          imageUrl: prod.imageUrl,
+          imageUrls: prod.imageUrls,
+          stockCount: prod.stockCount,
+          sku: prod.sku,
+          slug: prod.slug,
+          isActive: true,
+        };
+      });
+      const nonOrders = (ovelink.offerings || []).filter((o) => o.type !== "order");
+      saveOvelink({
+        ...ovelink,
+        offerings: [...nonOrders, ...newOfferings],
+      });
+    } catch {
+      // safe fallback
+    }
+
+    showToast("All products published live to your Ovelink store");
+  };
+
   const handleSaveProduct = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProductId && capacity.isAtCapacity) {
@@ -251,13 +443,14 @@ export default function DashboardProductsPage() {
       seoTitle: seoTitle.trim() || undefined,
       seoDescription: seoDescription.trim() || undefined,
       seoKeywords: seoKeywords.trim() || undefined,
-      isActive: productIsActive,
+      isActive: productIsActive ?? true,
     };
 
-    const currentWs = profile?.organizationId || profile?.organizationSlug;
+    const currentWs = profile?.organizationId || profile?.organizationSlug || defaultSlug;
     const targetSlug =
       activeOvelink?.slug ||
       profile?.organizationSlug ||
+      defaultSlug ||
       (profile?.organizationId ? `biz-${profile.organizationId.replace(/^org_/, "").slice(-6)}` : "my-brand");
     let updatedProducts: ProductItem[];
 
@@ -471,7 +664,7 @@ export default function DashboardProductsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
         <ArcMetricCard
           label="Active Merchandise"
-          value={products.filter((p) => p.isActive).length}
+          value={products.filter((p) => p.isActive !== false).length}
           subValue="Published on public store"
           icon={Package}
           statusDot="live"
@@ -491,6 +684,26 @@ export default function DashboardProductsPage() {
           statusDot="warning"
         />
       </div>
+
+      {/* Hidden Products Alert Banner */}
+      {products.some((p) => p.isActive === false) && (
+        <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+            <span>
+              <strong>{products.filter((p) => p.isActive === false).length} product{products.filter((p) => p.isActive === false).length > 1 ? "s are" : " is"}</strong> currently hidden from your public Ovelink storefront. Click the <strong>&quot;○ Hidden • Click to Publish&quot;</strong> badge or publish all to make {products.filter((p) => p.isActive === false).length > 1 ? "them" : "it"} immediately visible to customers on <strong>/l/{activeOvelink?.slug || defaultSlug}</strong>.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={publishAllHiddenProducts}
+            className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs transition-colors shrink-0 shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>Publish All to Store</span>
+          </button>
+        </div>
+      )}
 
       {/* Filter & Search Toolbar */}
       <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -539,7 +752,6 @@ export default function DashboardProductsPage() {
           return (
             <div className="p-8 rounded-3xl bg-white border border-slate-200/80 shadow-xs">
               <EmptyState
-                icon={<Package className="w-6 h-6 text-[#105F68]" />}
                 title={products.length === 0 ? "No Products in Your Catalog" : "No Products Match Your Search"}
                 description="List your physical retail goods, skincare formulations, apparel, or equipment for immediate online order intake."
                 action={
@@ -619,6 +831,23 @@ export default function DashboardProductsPage() {
                       <span className="text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
                         {row.category || "General"}
                       </span>
+                    ),
+                  },
+                  {
+                    key: "status",
+                    label: "Store Status",
+                    sortable: true,
+                    render: (_v, row) => (
+                      <button
+                        type="button"
+                        onClick={() => toggleProductActive(row as ProductItem)}
+                        className="cursor-pointer transition-all hover:scale-105 active:scale-95"
+                        title={row.isActive !== false ? "Live on Store. Click to hide." : "Hidden from Store. Click to publish live to Ovelink."}
+                      >
+                        <ArcBadge variant={row.isActive !== false ? "emerald" : "amber"} size="xs">
+                          {row.isActive !== false ? "● Live on Store" : "○ Hidden • Click to Publish"}
+                        </ArcBadge>
+                      </button>
                     ),
                   },
                   {
@@ -725,9 +954,21 @@ export default function DashboardProductsPage() {
                 </div>
 
                 <div className="pt-3 border-t border-black/5 flex items-center justify-between text-xs">
-                  <ArcBadge variant={prod.stockCount <= 5 ? "amber" : "neutral"} size="xs">
-                    {prod.stockCount} in stock
-                  </ArcBadge>
+                  <div className="flex items-center gap-2">
+                    <ArcBadge variant={prod.stockCount <= 5 ? "amber" : "neutral"} size="xs">
+                      {prod.stockCount} in stock
+                    </ArcBadge>
+                    <button
+                      type="button"
+                      onClick={() => toggleProductActive(prod)}
+                      className="cursor-pointer transition-all hover:scale-105 active:scale-95"
+                      title={prod.isActive !== false ? "Live on Public Store. Click to hide." : "Hidden from Public Store. Click to publish live to Ovelink."}
+                    >
+                      <ArcBadge variant={prod.isActive !== false ? "emerald" : "amber"} size="xs">
+                        {prod.isActive !== false ? "● Live on Store" : "○ Hidden • Click to Publish"}
+                      </ArcBadge>
+                    </button>
+                  </div>
                   <span className="text-xs font-mono font-semibold text-[#105F68]">
                     {formatCurrency(prod.priceCents, currency)}
                   </span>
@@ -886,6 +1127,31 @@ export default function DashboardProductsPage() {
                       className="w-full px-3.5 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#103438] focus:outline-none focus:border-[#105F68]"
                     />
                   </div>
+
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#F6FAF9] border border-black/5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold block text-[#103438]">Active on Public Store</span>
+                        <ArcBadge variant={productIsActive ? "emerald" : "amber"} size="xs">
+                          {productIsActive ? "● Live" : "○ Hidden"}
+                        </ArcBadge>
+                      </div>
+                      <span className="text-[11px] text-slate-500">
+                        {productIsActive
+                          ? "Visible to customers for online ordering on your public Ovelink storefront."
+                          : "Hidden from your public storefront (draft / private)."}
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={productIsActive}
+                        onChange={(e) => setProductIsActive(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#105F68]"></div>
+                    </label>
+                  </div>
                 </div>
               )}
 
@@ -943,19 +1209,6 @@ export default function DashboardProductsPage() {
                       type="checkbox"
                       checked={productRequiresShipping}
                       onChange={(e) => setProductRequiresShipping(e.target.checked)}
-                      className="w-4 h-4 rounded text-[#105F68] focus:ring-0"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 rounded-2xl bg-[#F6FAF9] border border-black/5">
-                    <div>
-                      <span className="font-semibold block text-[#103438]">Active on Public Store</span>
-                      <span className="text-[10px] text-slate-500">Visible for immediate online customer ordering</span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={productIsActive}
-                      onChange={(e) => setProductIsActive(e.target.checked)}
                       className="w-4 h-4 rounded text-[#105F68] focus:ring-0"
                     />
                   </div>

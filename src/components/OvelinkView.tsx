@@ -25,6 +25,11 @@ import {
   Sparkles,
   Send,
   CheckCircle,
+  Search,
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  ArrowUpDown,
   ThumbsUp
 } from "lucide-react";
 import {
@@ -60,18 +65,24 @@ import { getMerchantSubscription } from "@/lib/subscription-store";
 import { getOvelinkUrl, getOvelinkDisplay, PRIMARY_DOMAIN } from "@/lib/domain";
 import { BottomSheet } from "@/components/arc/bottom-sheet/bottom-sheet";
 
-interface OvelinkViewProps {
+export interface OvelinkViewProps {
   config: OvelinkCustomization;
   isEmbedPreview?: boolean; // When rendered inside the live studio frame
+  previewDevice?: "mobile" | "desktop";
   onOfferingClick?: (offering: OvelinkOffering) => void;
   onBookingCreated?: (bookingId: string) => void;
+  onEditBanner?: () => void;
 }
 
 export default function OvelinkView({
   config,
   isEmbedPreview = false,
+  previewDevice,
   onBookingCreated,
+  onEditBanner,
 }: OvelinkViewProps) {
+  const isMobileOnly = isEmbedPreview && previewDevice !== "desktop";
+  const [searchQuery, setSearchQuery] = useState("");
   const viewContainerRef = useRef<HTMLDivElement>(null);
   const { playClick, playSuccess } = useAudio();
   const [clientSession, setClientSession] = useState<ClientAccount | null>(() => getActiveClientSession());
@@ -118,6 +129,11 @@ export default function OvelinkView({
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedSubCategory, setSelectedSubCategory] = useState<any | null>(null);
   const [copiedOfferingId, setCopiedOfferingId] = useState<string | null>(null);
+
+  // Sorting & Pagination
+  const [sortOption, setSortOption] = useState<"featured" | "price-asc" | "price-desc" | "name-asc" | "name-desc">("featured");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const itemsPerPage = 6;
 
   // Social Proof Reviews
   const reviews = useClientStore(() => getReviews(targetWs), () => INITIAL_REVIEWS);
@@ -203,7 +219,7 @@ export default function OvelinkView({
   const uniqueCategories = useMemo(() => {
     const set = new Set<string>();
     (config.offerings || []).forEach((o) => {
-      if (o.category) set.add(o.category);
+      if (o.category && o.isActive !== false) set.add(o.category);
     });
     (categories || []).forEach((c) => {
       if (c && c.name) set.add(c.name);
@@ -226,9 +242,42 @@ export default function OvelinkView({
         selectedCategory === "all" ||
         (o.category && o.category.toLowerCase() === selectedCategory.toLowerCase()) ||
         (o.categoryId && categories.find((c) => c.id === o.categoryId)?.name.toLowerCase() === selectedCategory.toLowerCase());
-      return matchesType && matchesCategory;
+      const matchesSearch =
+        !searchQuery.trim() ||
+        o.name.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
+        (o.description && o.description.toLowerCase().includes(searchQuery.trim().toLowerCase())) ||
+        (o.category && o.category.toLowerCase().includes(searchQuery.trim().toLowerCase()));
+      return matchesType && matchesCategory && matchesSearch;
     });
-  }, [config.offerings, activeFilter, selectedCategory, categories]);
+  }, [config.offerings, activeFilter, selectedCategory, categories, searchQuery]);
+
+  // Reset to page 1 whenever search, category, type filter, or sort changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, activeFilter, sortOption]);
+
+  const sortedOfferings = useMemo(() => {
+    const list = [...filteredOfferings];
+    switch (sortOption) {
+      case "price-asc":
+        return list.sort((a, b) => (a.priceCents || 0) - (b.priceCents || 0));
+      case "price-desc":
+        return list.sort((a, b) => (b.priceCents || 0) - (a.priceCents || 0));
+      case "name-asc":
+        return list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      case "name-desc":
+        return list.sort((a, b) => (b.name || "").localeCompare(a.name || ""));
+      case "featured":
+      default:
+        return list;
+    }
+  }, [filteredOfferings, sortOption]);
+
+  const totalPages = Math.ceil(sortedOfferings.length / itemsPerPage) || 1;
+  const paginatedOfferings = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return sortedOfferings.slice(start, start + itemsPerPage);
+  }, [sortedOfferings, currentPage, itemsPerPage]);
 
   const handleSelectOffering = (off: OvelinkOffering) => {
     playClick();
@@ -356,8 +405,9 @@ export default function OvelinkView({
 
   return (
     <div
+      id="ovelink-view-root"
       ref={viewContainerRef}
-      className={`min-h-full w-full font-sans antialiased transition-colors duration-300 relative selection:bg-[#105F68] selection:text-white ${!isEmbedPreview ? "min-h-screen" : ""}`}
+      className={`min-h-screen w-full flex flex-col justify-between font-sans antialiased transition-colors duration-300 relative selection:bg-[#105F68] selection:text-white`}
       style={{
         backgroundColor: config.bgColor,
         color: config.textColor,
@@ -365,373 +415,555 @@ export default function OvelinkView({
       }}
     >
       <ThemeFontLoader family={config.fontFamily} />
-      {/* Cover Banner */}
+      {/* Cover Banner with isolated stacking context */}
       <div
-        className={`w-full bg-gradient-to-r ${config.coverGradient} relative ${isEmbedPreview ? "h-32" : "h-44 sm:h-56"} transition-all duration-300 bg-cover bg-center overflow-hidden`}
+        className={`w-full bg-gradient-to-r ${config.coverGradient} relative ${
+          isMobileOnly ? "h-32" : "h-44 sm:h-56 lg:h-64 xl:h-72"
+        } transition-all duration-300 bg-cover bg-center overflow-hidden isolate`}
         style={config.coverImageUrl ? { backgroundImage: `url(${config.coverImageUrl})` } : undefined}
       >
         {/* Ambient luxury light sheen */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent pointer-events-none" />
         <div className="absolute -top-20 -right-20 w-72 h-72 bg-white/10 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Brand Bar Container */}
-        <div className="max-w-xl mx-auto px-4 sm:px-6 h-full flex items-start justify-between pt-4 sm:pt-5 relative z-10">
+        {/* Brand Bar Container - pointer-events-none on wrapper so it never blocks elements beneath */}
+        <div
+          className={`${
+            isMobileOnly
+              ? "max-w-xl px-4 sm:px-6"
+              : "max-w-xl lg:max-w-6xl xl:max-w-7xl px-4 sm:px-6 lg:px-8"
+          } mx-auto flex items-start justify-between pt-4 sm:pt-6 relative z-10 pointer-events-none`}
+        >
           {/* Powered by Ovel Tag */}
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/25 backdrop-blur-md border border-white/20 text-white text-[11px] font-medium hover:bg-black/35 transition-all shadow-sm group"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/25 backdrop-blur-md border border-white/20 text-white text-[11px] font-medium hover:bg-black/35 transition-all shadow-sm group pointer-events-auto"
           >
             <span className="opacity-80">powered by</span>
             <span className="font-['Disolve'] font-bold tracking-wide">Ovel</span>
           </Link>
 
-          {/* Share Button */}
-          <button
-            onClick={() => { playClick(); setIsShareModalOpen(true); }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/25 backdrop-blur-md border border-white/20 text-white text-[11px] font-medium hover:bg-black/35 transition-all shadow-sm"
-            title="Share Ovelink"
-          >
-            <Share2 className="w-3.5 h-3.5" />
-            <span>Share</span>
-          </button>
+          {/* Banner Actions: Edit Banner & Share Button */}
+          <div className="flex items-center gap-2 pointer-events-auto">
+            {onEditBanner && (
+              <button
+                type="button"
+                onClick={() => { playClick(); onEditBanner(); }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/30 text-white text-[11px] font-medium transition-all shadow-sm cursor-pointer hover:scale-105 active:scale-95"
+                title="Edit Cover Banner"
+              >
+                <Camera className="w-3.5 h-3.5 text-[#63C1BB]" />
+                <span>Edit Banner</span>
+              </button>
+            )}
+
+            {/* Share Button */}
+            <button
+              onClick={() => { playClick(); setIsShareModalOpen(true); }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/25 backdrop-blur-md border border-white/20 text-white text-[11px] font-medium hover:bg-black/35 transition-all shadow-sm cursor-pointer"
+              title="Share Ovelink"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Share</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Main Content Container - with balanced mobile padding and max-w-xl */}
-      <div className={`max-w-xl mx-auto px-4 sm:px-6 relative ${isEmbedPreview ? "-mt-12 pb-8" : "-mt-16 sm:-mt-20 pb-24"}`}>
+      {/* Main Content Container - relative z-20 so all interactive elements remain clickable above banner */}
+      <div
+        className={`${
+          isMobileOnly
+            ? "max-w-xl -mt-12 pb-8 px-4 sm:px-6"
+            : "max-w-xl lg:max-w-6xl xl:max-w-7xl -mt-16 sm:-mt-20 lg:-mt-24 xl:-mt-28 pb-16 px-4 sm:px-6 lg:px-8"
+        } mx-auto relative z-20 flex-1 w-full`}
+      >
+        <div className={isMobileOnly ? "space-y-4" : "lg:grid lg:grid-cols-12 lg:gap-8 xl:gap-10 lg:items-start"}>
 
-        {/* Business Profile Header Card */}
-        <div
-          className={`p-5 sm:p-6 shadow-sm border border-black/[0.06] relative transition-all bg-white ${getCardRadius()}`}
-          style={{ backgroundColor: config.surfaceColor }}
-        >
-          {/* Centered Avatar + Verified Shield */}
-          <div className="flex flex-col items-center text-center">
-            <div className="relative -mt-12 sm:-mt-14 mb-3">
-              <div
-                className="w-20 h-20 sm:w-22 sm:h-22 rounded-2xl sm:rounded-3xl flex items-center justify-center text-white text-2xl sm:text-3xl font-bold shadow-md border-4 border-white transition-transform overflow-hidden"
-                style={{ backgroundColor: config.primaryColor }}
-              >
-                {config.avatarUrl || config.logoUrl ? (
-                  <img
-                    src={config.avatarUrl || config.logoUrl}
-                    alt={config.businessName}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  config.avatarInitials
+          {/* Left Column: Business Profile Sidebar (Sticky on Large Screens) */}
+          <div className={isMobileOnly ? "" : "lg:col-span-5 xl:col-span-4 lg:sticky lg:top-8 space-y-4"}>
+            <div
+              className={`p-5 sm:p-6 lg:p-7 shadow-sm border border-black/[0.06] relative transition-all bg-white ${getCardRadius()}`}
+              style={{ backgroundColor: config.surfaceColor }}
+            >
+              {/* Centered Avatar + Verified Shield */}
+              <div className="flex flex-col items-center text-center">
+                <div className="relative -mt-12 sm:-mt-14 lg:-mt-16 mb-3">
+                  <div
+                    className="w-20 h-20 sm:w-22 sm:h-22 lg:w-24 lg:h-24 rounded-2xl sm:rounded-3xl flex items-center justify-center text-white text-2xl sm:text-3xl font-bold shadow-md border-4 border-white transition-transform overflow-hidden"
+                    style={{ backgroundColor: config.primaryColor }}
+                  >
+                    {config.avatarUrl || config.logoUrl ? (
+                      <img
+                        src={config.avatarUrl || config.logoUrl}
+                        alt={config.businessName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      config.avatarInitials
+                    )}
+                  </div>
+                  <div
+                    className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#105F68] border-2 border-white flex items-center justify-center shadow-xs"
+                    title="Verified Merchant"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#63C1BB]" />
+                  </div>
+                </div>
+
+                {/* Badges */}
+                <div className="flex flex-wrap items-center justify-center gap-1.5 mb-2">
+                  <span
+                    className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
+                    style={{ backgroundColor: `${config.accentColor}20`, color: config.primaryColor }}
+                  >
+                    {config.businessCategory}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 rounded-full font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Instant Confirmation
+                  </span>
+                </div>
+
+                {/* Business Title & Tagline */}
+                <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                  <h1
+                    className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 leading-tight"
+                    style={{ fontFamily: config.fontFamily }}
+                  >
+                    {config.businessName}
+                  </h1>
+                  {hasVerificationBadge && (
+                    <span
+                      title="Verified Ovel Merchant"
+                      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#105F68] text-[#63C1BB] shadow-xs"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                    </span>
+                  )}
+                </div>
+
+                {config.businessTagline && (
+                  <p className="text-xs sm:text-sm text-[#105F68] font-medium mt-1 max-w-sm mx-auto leading-snug">
+                    {config.businessTagline}
+                  </p>
+                )}
+
+                {/* Bio */}
+                {config.businessBio && (
+                  <p className="text-xs text-slate-600 leading-relaxed mt-2.5 max-w-md mx-auto font-normal">
+                    {config.businessBio}
+                  </p>
+                )}
+
+                {/* Social & Contact Bar */}
+                <div className="mt-4 pt-3.5 border-t border-slate-100 w-full flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 text-xs">
+                  {config.location && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200/80 text-[11px] text-slate-700 font-medium">
+                      <MapPin className="w-3.5 h-3.5 text-[#105F68] shrink-0" />
+                      <span className="truncate max-w-[180px]">{config.location}</span>
+                    </span>
+                  )}
+
+                  {config.whatsappNumber && (
+                    <a
+                      href={`https://wa.me/${config.whatsappNumber.replace(/[^0-9]/g, "")}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-2xs"
+                    >
+                      <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>WhatsApp</span>
+                    </a>
+                  )}
+
+                  {config.email && (
+                    <a
+                      href={`mailto:${config.email}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium text-slate-700 bg-slate-50 border border-slate-200 hover:bg-white transition-colors"
+                    >
+                      <Mail className="w-3.5 h-3.5 text-[#105F68]" />
+                      <span>Email</span>
+                    </a>
+                  )}
+
+                  {config.instagramHandle && (
+                    <a
+                      href={`https://instagram.com/${config.instagramHandle.replace("@", "")}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition-colors"
+                    >
+                      <span>{config.instagramHandle}</span>
+                    </a>
+                  )}
+
+                  <button
+                    onClick={handleCopyLink}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200/70 border border-slate-200/80 text-[11px] font-medium text-slate-700 transition-colors shadow-2xs cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-[#105F68]" />
+                    <span>{copiedLink ? "Link Copied!" : getOvelinkDisplay(config.slug)}</span>
+                  </button>
+                </div>
+
+                {/* Desktop-only quick action buttons in sidebar */}
+                {!isMobileOnly && (
+                  <div className="hidden lg:grid grid-cols-2 gap-2 mt-4 pt-3.5 border-t border-slate-100 w-full text-xs">
+                    <button
+                      type="button"
+                      onClick={() => { playClick(); setIsShareModalOpen(true); }}
+                      className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                    >
+                      <Share2 className="w-3.5 h-3.5 text-[#105F68]" />
+                      <span>Share Store</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClick();
+                        setReviewSubmitted(false);
+                        setIsWriteReviewOpen(true);
+                      }}
+                      className="px-3 py-2 rounded-xl font-medium text-white shadow-2xs hover:opacity-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      style={{ backgroundColor: config.primaryColor }}
+                    >
+                      <Star className="w-3.5 h-3.5 fill-current" />
+                      <span>Review</span>
+                    </button>
+                  </div>
                 )}
               </div>
+            </div>
+
+            {/* Desktop-only Verified Trust Card */}
+            {!isMobileOnly && (
               <div
-                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#105F68] border-2 border-white flex items-center justify-center shadow-xs"
-                title="Verified Merchant"
+                className={`hidden lg:block p-4 shadow-2xs border border-black/[0.04] text-xs space-y-2 bg-white/90 backdrop-blur-xs ${getCardRadius()}`}
+                style={{ backgroundColor: config.surfaceColor }}
               >
-                <ShieldCheck className="w-3.5 h-3.5 text-[#63C1BB]" />
+                <div className="flex items-center gap-2 text-slate-800 font-semibold">
+                  <ShieldCheck className="w-4 h-4 text-[#105F68]" />
+                  <span>Verified Direct Booking</span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Direct appointment intake, reservations, and retail merchandise orders with instant merchant confirmation.
+                </p>
+                {reviews.length > 0 && (
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500">Reputation Rating</span>
+                    <span className="font-bold text-amber-700 flex items-center gap-1">
+                      <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                      {(reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)} / 5.0
+                    </span>
+                  </div>
+                )}
               </div>
-            </div>
-
-            {/* Badges */}
-            <div className="flex flex-wrap items-center justify-center gap-1.5 mb-2">
-              <span
-                className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
-                style={{ backgroundColor: `${config.accentColor}20`, color: config.primaryColor }}
-              >
-                {config.businessCategory}
-              </span>
-              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 rounded-full font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Instant Confirmation
-              </span>
-            </div>
-
-            {/* Business Title & Tagline */}
-            <div className="flex items-center justify-center gap-1.5 flex-wrap">
-              <h1
-                className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 leading-tight"
-                style={{ fontFamily: config.fontFamily }}
-              >
-                {config.businessName}
-              </h1>
-              {hasVerificationBadge && (
-                <span
-                  title="Verified Ovel Merchant"
-                  className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#105F68] text-[#63C1BB] shadow-xs"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                </span>
-              )}
-            </div>
-
-            {config.businessTagline && (
-              <p className="text-xs sm:text-sm text-[#105F68] font-medium mt-1 max-w-sm mx-auto leading-snug">
-                {config.businessTagline}
-              </p>
             )}
-
-            {/* Bio */}
-            {config.businessBio && (
-              <p className="text-xs text-slate-600 leading-relaxed mt-2.5 max-w-md mx-auto font-normal">
-                {config.businessBio}
-              </p>
-            )}
-
-            {/* Social & Contact Bar */}
-            <div className="mt-4 pt-3.5 border-t border-slate-100 w-full flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 text-xs">
-              {config.location && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200/80 text-[11px] text-slate-700 font-medium">
-                  <MapPin className="w-3.5 h-3.5 text-[#105F68] shrink-0" />
-                  <span className="truncate max-w-[180px]">{config.location}</span>
-                </span>
-              )}
-
-              {config.whatsappNumber && (
-                <a
-                  href={`https://wa.me/${config.whatsappNumber.replace(/[^0-9]/g, "")}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-2xs"
-                >
-                  <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>WhatsApp</span>
-                </a>
-              )}
-
-              {config.email && (
-                <a
-                  href={`mailto:${config.email}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium text-slate-700 bg-slate-50 border border-slate-200 hover:bg-white transition-colors"
-                >
-                  <Mail className="w-3.5 h-3.5 text-[#105F68]" />
-                  <span>Email</span>
-                </a>
-              )}
-
-              {config.instagramHandle && (
-                <a
-                  href={`https://instagram.com/${config.instagramHandle.replace("@", "")}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition-colors"
-                >
-                  <span>{config.instagramHandle}</span>
-                </a>
-              )}
-
-              <button
-                onClick={handleCopyLink}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200/70 border border-slate-200/80 text-[11px] font-medium text-slate-700 transition-colors shadow-2xs"
-              >
-                <Copy className="w-3.5 h-3.5 text-[#105F68]" />
-                <span>{copiedLink ? "Link Copied!" : getOvelinkDisplay(config.slug)}</span>
-              </button>
-            </div>
           </div>
-        </div>
 
-        {/* Offering Type Filter Tabs (Zero Scrollbars) */}
-        {availableOfferingTypes.length > 1 && (
-          <div
-            className="mt-5 flex items-center gap-2 overflow-x-auto pb-1 hide-scrollbar scrollbar-none no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-          >
-            {[
-              { id: "all" as const, label: "All Offerings" },
-              { id: "appointment" as const, label: "Services & Appointments" },
-              { id: "booking" as const, label: "Bookings & Slots" },
-              { id: "order" as const, label: "Products & Orders" },
-            ]
-              .filter((tab) => tab.id === "all" || availableOfferingTypes.includes(tab.id))
-              .map((tab) => {
-                const isActive = activeFilter === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => { playClick(); setActiveFilter(tab.id); }}
-                    className={`px-3.5 py-1.5 text-xs font-medium whitespace-nowrap transition-all rounded-full ${
-                      isActive
-                        ? "text-white shadow-xs"
-                        : "bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 shadow-2xs"
-                    }`}
-                    style={{
-                      backgroundColor: isActive ? config.primaryColor : undefined,
-                      borderColor: isActive ? config.primaryColor : undefined,
-                    }}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
-          </div>
-        )}
+          {/* Right Column: Catalog Feed, Search, Filter Pills & Reviews */}
+          <div className={isMobileOnly ? "mt-5 space-y-5" : "mt-6 lg:mt-0 lg:col-span-7 xl:col-span-8 space-y-6"}>
 
-        {/* Categories Filter Pills */}
-        {uniqueCategories.length > 0 && (
-          <div
-            className="mt-2.5 flex items-center gap-1.5 overflow-x-auto pb-1 hide-scrollbar scrollbar-none no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-          >
-            <button
-              onClick={() => { playClick(); setSelectedCategory("all"); }}
-              className={`px-3 py-1 text-[11px] font-medium whitespace-nowrap rounded-full transition-all ${
-                selectedCategory === "all"
-                  ? "bg-slate-900 text-white shadow-2xs"
-                  : "bg-slate-100 hover:bg-slate-200 text-slate-600"
-              }`}
+            {/* Catalog Toolbar Card */}
+            <div
+              className={`p-4 sm:p-5 shadow-xs border border-black/[0.05] bg-white space-y-3.5 relative z-10 ${getCardRadius()}`}
+              style={{ backgroundColor: config.surfaceColor }}
             >
-              All Categories
-            </button>
-            {uniqueCategories.map((catName) => {
-              const isCatActive = selectedCategory.toLowerCase() === catName.toLowerCase();
-              return (
-                <button
-                  key={catName}
-                  onClick={() => { playClick(); setSelectedCategory(catName); }}
-                  className={`px-3 py-1 text-[11px] font-medium whitespace-nowrap rounded-full transition-all flex items-center gap-1.5 ${
-                    isCatActive
-                      ? "text-white shadow-2xs"
-                      : "bg-slate-100 hover:bg-slate-200 text-slate-600"
-                  }`}
-                  style={{
-                    backgroundColor: isCatActive ? config.primaryColor : undefined,
-                  }}
-                >
-                  <Tag className="w-2.5 h-2.5 opacity-70" />
-                  <span>{catName}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Offerings Grid */}
-        <div className="mt-4 space-y-3.5">
-          {filteredOfferings.length === 0 ? (
-            <div className="py-12 px-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/70 text-center space-y-2.5 shadow-xs">
-              <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto text-slate-500">
-                <Calendar className="w-5 h-5 text-[#105F68]" />
-              </div>
-              <h3 className="text-sm font-semibold text-slate-800">No Items Found</h3>
-              <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                No offerings match the current filter. Try selecting &ldquo;All Offerings&rdquo; or a different category.
-              </p>
-            </div>
-          ) : (
-            filteredOfferings.map((off, idx) => {
-              const isSelected = selectedOffering?.id === off.id;
-              const cardImage = off.imageUrl || (off.imageUrls && off.imageUrls[0]);
-              const isCopied = copiedOfferingId === off.id;
-              const isOutOfStock = off.type === "order" && typeof off.stockCount === "number" && off.stockCount === 0;
-              const isLowStock = off.type === "order" && typeof off.stockCount === "number" && off.stockCount > 0 && off.stockCount <= 5;
-              const isGoodStock = off.type === "order" && typeof off.stockCount === "number" && off.stockCount > 5;
-
-              return (
+              {/* Offering Type Filter Tabs */}
+              {availableOfferingTypes.length > 1 && (
                 <div
-                  key={`${off.id}_${idx}`}
-                  id={`offering-card-${off.id}`}
-                  onClick={() => handleSelectOffering(off)}
-                  className={`p-4 sm:p-5 bg-white border transition-all duration-200 cursor-pointer relative group hover:shadow-[0_12px_30px_rgba(16,95,104,0.08)] hover:-translate-y-0.5 ${getCardRadius()} ${
-                    isSelected ? "ring-2 ring-[#105F68] border-transparent" : "border-slate-200/70 shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
-                  }`}
-                  style={{ backgroundColor: config.surfaceColor }}
+                  className="flex items-center gap-2 overflow-x-auto pb-1 hide-scrollbar scrollbar-none no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                 >
-                  <div className="flex items-start gap-4">
-                    {/* Offering Thumbnail or Branded Monogram */}
-                    {cardImage ? (
-                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden shrink-0 border border-black/[0.06] shadow-2xs relative bg-slate-100">
-                        <img
-                          src={cardImage}
-                          alt={off.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        {off.type === "order" && (
-                          <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-[9px] font-bold text-white uppercase tracking-wider">
-                            Product
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <div
-                        className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex flex-col items-center justify-center shrink-0 border border-black/[0.04] text-white p-2 text-center"
+                  {[
+                    { id: "all" as const, label: "All Offerings" },
+                    { id: "appointment" as const, label: "Services & Appointments" },
+                    { id: "booking" as const, label: "Bookings & Slots" },
+                    { id: "order" as const, label: "Products & Orders" },
+                  ]
+                    .filter((tab) => tab.id === "all" || availableOfferingTypes.includes(tab.id))
+                    .map((tab) => {
+                      const isActive = activeFilter === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => { playClick(); setActiveFilter(tab.id); }}
+                          className={`px-3.5 py-1.5 text-xs font-medium whitespace-nowrap transition-all rounded-full cursor-pointer select-none ${
+                            isActive
+                              ? "text-white shadow-xs"
+                              : "bg-slate-100 hover:bg-slate-200/80 text-slate-600 border border-transparent shadow-2xs"
+                          }`}
+                          style={{
+                            backgroundColor: isActive ? config.primaryColor : undefined,
+                            borderColor: isActive ? config.primaryColor : undefined,
+                          }}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                </div>
+              )}
+
+              {/* Search Bar + Sort Control */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                {/* Search Bar */}
+                <div className="relative flex-1">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search offerings, services, or products..."
+                    className="w-full pl-8 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#105F68] focus:bg-white transition-all cursor-text relative z-10"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-sm cursor-pointer z-20 w-4 h-4 flex items-center justify-center"
+                      title="Clear search"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+
+                {/* Sort Option Control */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200/80 text-slate-700 focus-within:border-[#105F68] transition-all">
+                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <label htmlFor="catalog-sort" className="text-[11px] text-slate-500 font-medium hidden md:inline shrink-0">
+                      Sort:
+                    </label>
+                    <select
+                      id="catalog-sort"
+                      value={sortOption}
+                      onChange={(e) => {
+                        playClick();
+                        setSortOption(e.target.value as any);
+                      }}
+                      className="bg-transparent text-xs text-slate-800 font-medium focus:outline-none cursor-pointer pr-1"
+                    >
+                      <option value="featured">Featured / Default</option>
+                      <option value="price-asc">Price: Low to High</option>
+                      <option value="price-desc">Price: High to Low</option>
+                      <option value="name-asc">Name: A to Z</option>
+                      <option value="name-desc">Name: Z to A</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Categories Navigation Pills */}
+              {uniqueCategories.length > 0 && (
+                <div
+                  className="flex items-center gap-1.5 overflow-x-auto pb-0.5 pt-0.5 hide-scrollbar scrollbar-none no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => { playClick(); setSelectedCategory("all"); }}
+                    className={`px-3 py-1.5 text-[11px] font-medium whitespace-nowrap rounded-xl transition-all cursor-pointer select-none ${
+                      selectedCategory === "all"
+                        ? "bg-slate-900 text-white shadow-2xs font-semibold"
+                        : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                    }`}
+                  >
+                    All Categories
+                  </button>
+                  {uniqueCategories.map((catName) => {
+                    const isCatActive = selectedCategory.toLowerCase() === catName.toLowerCase();
+                    return (
+                      <button
+                        key={catName}
+                        type="button"
+                        onClick={() => { playClick(); setSelectedCategory(catName); }}
+                        className={`px-3 py-1.5 text-[11px] font-medium whitespace-nowrap rounded-xl transition-all flex items-center gap-1.5 cursor-pointer select-none ${
+                          isCatActive
+                            ? "text-white shadow-2xs font-semibold"
+                            : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                        }`}
                         style={{
-                          background: `linear-gradient(135deg, ${config.primaryColor}, ${config.accentColor || "#63C1BB"})`
+                          backgroundColor: isCatActive ? config.primaryColor : undefined,
                         }}
                       >
-                        <span className="font-bold text-base sm:text-lg uppercase tracking-tight">
-                          {off.name.substring(0, 2)}
-                        </span>
-                        <span className="text-[9px] uppercase tracking-wider font-semibold opacity-85 mt-0.5">
-                          {off.type === "order" ? "Item" : "Service"}
-                        </span>
-                      </div>
-                    )}
+                        <Tag className="w-2.5 h-2.5 opacity-70" />
+                        <span>{catName}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
-                    {/* Offering Details */}
-                    <div className="flex-1 min-w-0">
-                      {/* Header Row: Badges, Category, Direct Link Share, and Price */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {off.badge && (
-                            <span
-                              className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
-                              style={{ backgroundColor: `${config.accentColor}25`, color: config.primaryColor }}
+            {/* Catalog Results Header (Count & Active Filters Indicator) */}
+            <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+              <span>
+                Showing{" "}
+                <span className="font-semibold text-slate-800">
+                  {sortedOfferings.length === 0
+                    ? 0
+                    : `${(currentPage - 1) * itemsPerPage + 1}–${Math.min(
+                        currentPage * itemsPerPage,
+                        sortedOfferings.length
+                      )}`}
+                </span>{" "}
+                of <span className="font-semibold text-slate-800">{sortedOfferings.length}</span>{" "}
+                {sortedOfferings.length === 1 ? "offering" : "offerings"}
+              </span>
+
+              {(searchQuery || selectedCategory !== "all" || activeFilter !== "all") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClick();
+                    setSearchQuery("");
+                    setSelectedCategory("all");
+                    setActiveFilter("all");
+                  }}
+                  className="text-[11px] text-[#105F68] hover:underline font-medium cursor-pointer"
+                >
+                  Reset all filters
+                </button>
+              )}
+            </div>
+
+            {/* Offerings Grid: Single column on small screens, 2-column grid on large screens */}
+            <div className={isMobileOnly ? "space-y-3.5" : "grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-4.5"}>
+              {sortedOfferings.length === 0 ? (
+                <div className={`py-10 px-6 bg-white border border-slate-200/70 text-center space-y-2.5 shadow-xs select-none ${isMobileOnly ? "" : "sm:col-span-2"} ${getCardRadius()}`}>
+                  <img
+                    src="/animations/emptyfiles.svg"
+                    alt="No results"
+                    className="w-28 h-28 mx-auto object-contain pointer-events-none mb-1"
+                  />
+                  <h3 className="text-sm font-semibold text-slate-800">No Items Found</h3>
+                  <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                    No offerings match the current search or filter. Try clearing your search or selecting a different category.
+                  </p>
+                </div>
+              ) : (
+                paginatedOfferings.map((off, idx) => {
+                  const isSelected = selectedOffering?.id === off.id;
+                  const cardImage = off.imageUrl || (off.imageUrls && off.imageUrls[0]);
+                  const isCopied = copiedOfferingId === off.id;
+                  const isOutOfStock = off.type === "order" && typeof off.stockCount === "number" && off.stockCount === 0;
+                  const isLowStock = off.type === "order" && typeof off.stockCount === "number" && off.stockCount > 0 && off.stockCount <= 5;
+                  const isGoodStock = off.type === "order" && typeof off.stockCount === "number" && off.stockCount > 5;
+
+                  return (
+                    <div
+                      key={`${off.id}_${idx}`}
+                      id={`offering-card-${off.id}`}
+                      onClick={() => handleSelectOffering(off)}
+                      className={`p-4 sm:p-5 bg-white border transition-all duration-200 cursor-pointer relative group hover:shadow-[0_12px_30px_rgba(16,95,104,0.08)] hover:-translate-y-0.5 flex flex-col justify-between ${getCardRadius()} ${
+                        isSelected ? "ring-2 ring-[#105F68] border-transparent" : "border-slate-200/70 shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
+                      }`}
+                      style={{ backgroundColor: config.surfaceColor }}
+                    >
+                      <div className="flex items-start gap-3.5 sm:gap-4">
+                        {/* Offering Thumbnail or Branded Monogram */}
+                        {cardImage ? (
+                          <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-2xl overflow-hidden shrink-0 border border-black/[0.06] shadow-2xs relative bg-slate-100">
+                            <img
+                              src={cardImage}
+                              alt={off.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                            {off.type === "order" && (
+                              <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-[9px] font-bold text-white uppercase tracking-wider">
+                                Product
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div
+                            className="w-20 h-20 sm:w-22 sm:h-22 rounded-2xl flex flex-col items-center justify-center shrink-0 border border-black/[0.04] text-white p-2 text-center"
+                            style={{
+                              background: `linear-gradient(135deg, ${config.primaryColor}, ${config.accentColor || "#63C1BB"})`
+                            }}
+                          >
+                            <span className="font-bold text-base sm:text-lg uppercase tracking-tight">
+                              {off.name.substring(0, 2)}
+                            </span>
+                            <span className="text-[9px] uppercase tracking-wider font-semibold opacity-85 mt-0.5">
+                              {off.type === "order" ? "Item" : "Service"}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Offering Details */}
+                        <div className="flex-1 min-w-0">
+                          {/* Header Row: Badges, Category, Direct Link Share */}
+                          <div className="flex items-start justify-between gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {off.badge && (
+                                <span
+                                  className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
+                                  style={{ backgroundColor: `${config.accentColor}25`, color: config.primaryColor }}
+                                >
+                                  {off.badge}
+                                </span>
+                              )}
+                              {off.category && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-full">
+                                  <Tag className="w-2.5 h-2.5 text-[#105F68]" />
+                                  <span>{off.category}</span>
+                                </span>
+                              )}
+                              {isOutOfStock && (
+                                <span className="text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                                  Out of Stock
+                                </span>
+                              )}
+                              {isLowStock && (
+                                <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                  Only {off.stockCount} left
+                                </span>
+                              )}
+                              {isGoodStock && (
+                                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                  In Stock
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Direct Product Link Share Button */}
+                            <button
+                              type="button"
+                              onClick={(e) => handleCopyOfferingLink(e, off)}
+                              title={isCopied ? "Link Copied!" : "Copy Direct Link"}
+                              className={`p-1.5 rounded-full border transition-all shrink-0 cursor-pointer ${
+                                isCopied
+                                  ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-2xs"
+                                  : "bg-slate-50 hover:bg-slate-100 border-slate-200/80 text-slate-500 hover:text-slate-800"
+                              }`}
                             >
-                              {off.badge}
-                            </span>
-                          )}
-                          {off.category && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-full">
-                              <Tag className="w-2.5 h-2.5 text-[#105F68]" />
-                              <span>{off.category}</span>
-                            </span>
-                          )}
-                          {isOutOfStock && (
-                            <span className="text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                              Out of Stock
-                            </span>
-                          )}
-                          {isLowStock && (
-                            <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                              Only {off.stockCount} left
-                            </span>
-                          )}
-                          {isGoodStock && (
-                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                              In Stock
-                            </span>
-                          )}
+                              {isCopied ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              ) : (
+                                <Share2 className="w-3.5 h-3.5 text-[#105F68]" />
+                              )}
+                            </button>
+                          </div>
+
+                          {/* Name & Description */}
+                          <div className="mt-1">
+                            <h3 className="text-sm sm:text-base font-bold text-[#103438] group-hover:text-[#105F68] transition-colors leading-snug">
+                              {off.name}
+                            </h3>
+                            <p className="text-xs text-slate-600 font-normal mt-1 line-clamp-2 leading-relaxed">
+                              {off.description}
+                            </p>
+                          </div>
                         </div>
-
-                        {/* Direct Product Link Share Button */}
-                        <button
-                          type="button"
-                          onClick={(e) => handleCopyOfferingLink(e, off)}
-                          title={isCopied ? "Link Copied!" : "Copy Direct Link"}
-                          className={`p-1.5 rounded-full border transition-all shrink-0 ${
-                            isCopied
-                              ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-2xs"
-                              : "bg-slate-50 hover:bg-slate-100 border-slate-200/80 text-slate-500 hover:text-slate-800"
-                          }`}
-                        >
-                          {isCopied ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-600" />
-                          ) : (
-                            <Share2 className="w-3.5 h-3.5 text-[#105F68]" />
-                          )}
-                        </button>
-                      </div>
-
-                      {/* Name & Description */}
-                      <div className="mt-1">
-                        <h3 className="text-sm sm:text-base font-bold text-[#103438] group-hover:text-[#105F68] transition-colors leading-snug">
-                          {off.name}
-                        </h3>
-                        <p className="text-xs text-slate-600 font-normal mt-1 line-clamp-2 leading-relaxed">
-                          {off.description}
-                        </p>
                       </div>
 
                       {/* Pricing & CTA */}
-                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                      <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm sm:text-base font-bold tracking-tight text-[#103438]">
                             {off.pricingType === "range" && off.priceMaxCents && off.priceMaxCents > off.priceCents
@@ -760,7 +992,7 @@ export default function OvelinkView({
                             e.stopPropagation();
                             handleSelectOffering(off);
                           }}
-                          className={`px-4 py-1.5 rounded-full text-xs font-semibold text-white shadow-sm flex items-center gap-1 active:scale-95 transition-all shrink-0 ${
+                          className={`px-4 py-1.5 rounded-full text-xs font-semibold text-white shadow-sm flex items-center gap-1 active:scale-95 transition-all shrink-0 cursor-pointer ${
                             isOutOfStock ? "bg-slate-300 cursor-not-allowed text-slate-500" : "hover:opacity-95"
                           }`}
                           style={{ backgroundColor: !isOutOfStock ? config.primaryColor : undefined }}
@@ -770,143 +1002,208 @@ export default function OvelinkView({
                         </button>
                       </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* Verified Customer Reviews & Social Proof Module */}
-        <div className="mt-10 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                Verified Social Proof
-              </span>
-              <h2 className="text-base sm:text-lg font-bold text-[#103438]">
-                Client Experiences &amp; Ratings
-              </h2>
-            </div>
-            <div className="flex items-center gap-2">
-              {reviews.length > 0 && (
-                <div className="flex items-center gap-1.5 text-xs bg-amber-50 border border-amber-200/80 px-3 py-1 rounded-full">
-                  <span className="font-bold text-amber-700 flex items-center gap-1">
-                    <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                    {(reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)}
-                  </span>
-                  <span className="text-[11px] text-amber-800/80 font-medium">
-                    ({reviews.length} verified)
-                  </span>
-                </div>
+                  );
+                })
               )}
-              <button
-                type="button"
-                onClick={() => {
-                  playClick();
-                  setReviewSubmitted(false);
-                  setIsWriteReviewOpen(true);
-                }}
-                className="px-3 py-1 rounded-full text-xs font-semibold text-white shadow-2xs hover:opacity-95 transition-all flex items-center gap-1"
-                style={{ backgroundColor: config.primaryColor }}
-              >
-                <Star className="w-3 h-3 fill-current" />
-                <span>Write a Review</span>
-              </button>
             </div>
-          </div>
 
-          {reviews.length === 0 ? (
-            <div
-              className={`p-6 bg-white border border-slate-200/70 text-center space-y-2.5 shadow-2xs ${getCardRadius()}`}
-              style={{ backgroundColor: config.surfaceColor }}
-            >
-              <div className="flex items-center justify-center gap-1 text-amber-400">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-amber-400" />
-                ))}
-              </div>
-              <h3 className="text-xs sm:text-sm font-semibold text-[#103438]">
-                Be the first to leave a review for {config.businessName}!
-              </h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Share your client experience to help others discover this business.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  playClick();
-                  setReviewSubmitted(false);
-                  setIsWriteReviewOpen(true);
-                }}
-                className="mt-1 px-4 py-2 rounded-full text-xs font-semibold text-white inline-flex items-center gap-1.5 shadow-xs"
-                style={{ backgroundColor: config.primaryColor }}
-              >
-                <Star className="w-3.5 h-3.5 fill-current" />
-                <span>Submit Experience Review</span>
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3">
-              {reviews.slice(0, 4).map((rev) => (
-                <div
-                  key={rev.id}
-                  className={`p-4 sm:p-5 bg-white border border-slate-200/70 shadow-sm transition-all ${getCardRadius()}`}
-                  style={{ backgroundColor: config.surfaceColor }}
-                >
-                  <div className="flex items-center justify-between mb-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white shadow-sm"
-                        style={{ backgroundColor: config.primaryColor }}
-                      >
-                        {rev.clientAvatar || rev.clientName.substring(0, 2).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs sm:text-sm font-semibold text-[#103438]">{rev.clientName}</span>
-                          <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold">
-                            Verified Client
-                          </span>
-                        </div>
-                        <span className="text-[11px] text-slate-400 font-medium">{rev.serviceName}</span>
-                      </div>
-                    </div>
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-black/[0.06] select-none">
+                <p className="text-xs text-slate-500">
+                  Page <span className="font-semibold text-slate-800">{currentPage}</span> of{" "}
+                  <span className="font-semibold text-slate-800">{totalPages}</span>
+                </p>
 
-                    <div className="flex text-amber-400">
-                      {[...Array(rev.rating)].map((_, i) => (
-                        <Star key={i} className="w-3.5 h-3.5 fill-current" />
-                      ))}
-                    </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClick();
+                      setCurrentPage((p) => Math.max(1, p - 1));
+                    }}
+                    disabled={currentPage <= 1}
+                    className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Previous</span>
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+                      const isCurrent = pageNum === currentPage;
+                      return (
+                        <button
+                          key={pageNum}
+                          type="button"
+                          onClick={() => {
+                            playClick();
+                            setCurrentPage(pageNum);
+                          }}
+                          className={`w-7 h-7 rounded-xl text-xs font-medium transition-all flex items-center justify-center cursor-pointer ${
+                            isCurrent
+                              ? "bg-[#105F68] text-white shadow-xs font-bold"
+                              : "text-slate-600 hover:bg-slate-100"
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed italic">
-                    &ldquo;{rev.comment}&rdquo;
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClick();
+                      setCurrentPage((p) => Math.min(totalPages, p + 1));
+                    }}
+                    disabled={currentPage >= totalPages}
+                    className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
 
-                  {rev.merchantReply && (
-                    <div className="mt-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-700">
-                      <span className="font-semibold text-[#105F68] block mb-0.5">Response from {config.businessName}:</span>
-                      {rev.merchantReply}
+            {/* Verified Customer Reviews & Social Proof Module */}
+            <div className="mt-8 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                    Verified Social Proof
+                  </span>
+                  <h2 className="text-base sm:text-lg font-bold text-[#103438]">
+                    Client Experiences &amp; Ratings
+                  </h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  {reviews.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-xs bg-amber-50 border border-amber-200/80 px-3 py-1 rounded-full">
+                      <span className="font-bold text-amber-700 flex items-center gap-1">
+                        <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                        {(reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)}
+                      </span>
+                      <span className="text-[11px] text-amber-800/80 font-medium">
+                        ({reviews.length} verified)
+                      </span>
                     </div>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClick();
+                      setReviewSubmitted(false);
+                      setIsWriteReviewOpen(true);
+                    }}
+                    className="px-3 py-1 rounded-full text-xs font-semibold text-white shadow-2xs hover:opacity-95 transition-all flex items-center gap-1 cursor-pointer"
+                    style={{ backgroundColor: config.primaryColor }}
+                  >
+                    <Star className="w-3 h-3 fill-current" />
+                    <span>Write a Review</span>
+                  </button>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              </div>
 
-        {/* Footer info */}
-        <div className="mt-12 text-center text-xs text-slate-400 space-y-1.5">
-          <p className="font-medium">Direct bookings &amp; orders • 0% platform transaction take-rate</p>
-          <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500">
+              {reviews.length === 0 ? (
+                <div
+                  className={`p-6 bg-white border border-slate-200/70 text-center space-y-2.5 shadow-2xs ${getCardRadius()}`}
+                  style={{ backgroundColor: config.surfaceColor }}
+                >
+                  <div className="flex items-center justify-center gap-1 text-amber-400">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="w-4 h-4 fill-amber-400" />
+                    ))}
+                  </div>
+                  <h3 className="text-xs sm:text-sm font-semibold text-[#103438]">
+                    Be the first to leave a review for {config.businessName}!
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Share your client experience to help others discover this business.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClick();
+                      setReviewSubmitted(false);
+                      setIsWriteReviewOpen(true);
+                    }}
+                    className="mt-1 px-4 py-2 rounded-full text-xs font-semibold text-white inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    style={{ backgroundColor: config.primaryColor }}
+                  >
+                    <Star className="w-3.5 h-3.5 fill-current" />
+                    <span>Submit Experience Review</span>
+                  </button>
+                </div>
+              ) : (
+                <div className={isMobileOnly ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 sm:grid-cols-2 gap-3.5"}>
+                  {reviews.slice(0, 4).map((rev) => (
+                    <div
+                      key={rev.id}
+                      className={`p-4 sm:p-5 bg-white border border-slate-200/70 shadow-sm transition-all ${getCardRadius()}`}
+                      style={{ backgroundColor: config.surfaceColor }}
+                    >
+                      <div className="flex items-center justify-between mb-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white shadow-sm"
+                            style={{ backgroundColor: config.primaryColor }}
+                          >
+                            {rev.clientAvatar || rev.clientName.substring(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs sm:text-sm font-semibold text-[#103438]">{rev.clientName}</span>
+                              <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold">
+                                Verified Client
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-slate-400 font-medium">{rev.serviceName}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex text-amber-400">
+                          {[...Array(rev.rating)].map((_, i) => (
+                            <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                          ))}
+                        </div>
+                      </div>
+
+                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed italic">
+                        &ldquo;{rev.comment}&rdquo;
+                      </p>
+
+                      {rev.merchantReply && (
+                        <div className="mt-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-700">
+                          <span className="font-semibold text-[#105F68] block mb-0.5">Response from {config.businessName}:</span>
+                          {rev.merchantReply}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer Info anchored to bottom of page */}
+      <footer className="mt-auto w-full py-8 text-center text-xs text-slate-400 space-y-1.5 border-t border-black/[0.04] bg-white/40 backdrop-blur-xs relative z-20">
+        <div className="max-w-xl lg:max-w-6xl xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <p className="font-medium text-slate-500">
+            Direct bookings &amp; orders • 0% platform transaction take-rate
+          </p>
+          <div className="flex items-center justify-center gap-1.5 text-xs text-slate-400 mt-1">
             <span>Powered by</span>
             <Link href="/" className="font-['Disolve'] font-bold text-[#105F68] hover:underline">
               Ovel
             </Link>
           </div>
         </div>
-      </div>
+      </footer>
 
       {/* Booking / Ordering Checkout Bottom Sheet */}
       <BottomSheet

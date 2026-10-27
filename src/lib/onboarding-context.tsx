@@ -147,7 +147,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       1: "Question 2: Business Bio",
       2: "Question 3: Offering Type",
       3: "Question 4: Brand Logo",
-      4: "Question 5: Client Greetings",
+      4: "Welcome to Ovel",
       5: "Completing Workspace",
     };
     setStepLabel(labels[stepNumber] || `Step ${stepNumber + 1}`);
@@ -164,7 +164,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       1: "Question 2: Business Bio",
       2: "Question 3: Offering Type",
       3: "Question 4: Brand Logo",
-      4: "Question 5: Client Greetings",
+      4: "Welcome to Ovel",
       5: "Finalizing Workspace",
     };
     setStepLabel(labels[stepNumber] || `Step ${stepNumber + 1}`);

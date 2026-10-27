@@ -7,7 +7,7 @@ import { DEFAULT_CURRENCY } from "@/lib/currency";
  * for ALL businesses taking Appointments, Bookings, or Orders.
  */
 
-import { getServices, saveServices, ServiceItem, getProducts, saveProducts, ProductItem, getCategories, purgeWorkspaceStorage } from "@/lib/platform-store";
+import { getServices, saveServices, ServiceItem, getProducts, saveProducts, ProductItem, getCategories, purgeWorkspaceStorage, getActiveWorkspaceId } from "@/lib/platform-store";
 
 export type OfferingType = "appointment" | "booking" | "order";
 
@@ -792,7 +792,7 @@ export function getOvelink(
     try {
       const beforeCount = item.offerings?.length || 0;
       item = syncCatalogOfferingsToOvelink(item, wsId);
-      if (item.offerings.length !== beforeCount || wsId) {
+      if (item.offerings.length !== beforeCount) {
         modified = true;
       }
     } catch {
@@ -843,6 +843,51 @@ export function syncCatalogOfferingsToOvelink(
     if ((!wsProducts || wsProducts.length === 0) && item.slug && item.slug !== wsId) {
       const bySlug = getProducts(item.slug);
       if (bySlug && bySlug.length > 0) wsProducts = bySlug;
+    }
+    if (!wsProducts || wsProducts.length === 0) {
+      const activeWs = getActiveWorkspaceId();
+      if (activeWs && activeWs !== wsId) {
+        const byActive = getProducts(activeWs);
+        if (byActive && byActive.length > 0) wsProducts = byActive;
+      }
+    }
+    if (!wsProducts || wsProducts.length === 0) {
+      const byGlobal = getProducts();
+      if (byGlobal && byGlobal.length > 0) wsProducts = byGlobal;
+    }
+    if (!wsProducts || wsProducts.length === 0) {
+      const byDemo = getProducts("demo");
+      if (byDemo && byDemo.length > 0) wsProducts = byDemo;
+    }
+
+    // Also collect any order offerings already present in item.offerings that might not be in catalog table
+    const existingOrderOfferings = (item.offerings || []).filter((o) => o.type === "order");
+    if (existingOrderOfferings.length > 0) {
+      const knownIds = new Set((wsProducts || []).map((p) => p.id));
+      const missingFromWsProducts: ProductItem[] = existingOrderOfferings
+        .filter((o) => !knownIds.has(o.id))
+        .map((o) => ({
+          id: o.id,
+          name: o.name,
+          description: o.description || "Retail product item.",
+          priceCents: typeof o.priceCents === "number" ? o.priceCents : 0,
+          depositCents: typeof o.depositCents === "number" ? o.depositCents : 0,
+          stockCount: typeof o.stockCount === "number" ? o.stockCount : 25,
+          sku: o.sku,
+          category: o.category || "Products",
+          categoryId: o.categoryId,
+          subCategoryId: o.subCategoryId,
+          subCategories: o.subCategories,
+          imageUrl: o.imageUrl,
+          imageUrls: o.imageUrls,
+          badge: o.badge,
+          slug: o.slug,
+          requiresShipping: true,
+          isActive: o.isActive !== false,
+        }));
+      if (missingFromWsProducts.length > 0) {
+        wsProducts = [...(wsProducts || []), ...missingFromWsProducts];
+      }
     }
 
     let wsCategories = getCategories(wsId);
@@ -914,14 +959,17 @@ export function syncCatalogOfferingsToOvelink(
           sku: prod.sku,
           badge: prod.badge,
           slug: prod.slug,
-          isActive: true,
+          isActive: prod.isActive !== false,
         }));
 
       // Retain any custom offerings manually added in studio that are not in catalog and not default mocks
       const catalogIds = new Set([...syncedServices.map((s) => s.id), ...syncedProducts.map((p) => p.id)]);
       const retainedCustom = (item.offerings || []).filter(
         (o) => !o.id.startsWith("off_def_") && !catalogIds.has(o.id)
-      );
+      ).map((o) => ({
+        ...o,
+        isActive: o.isActive !== false,
+      }));
 
       return {
         ...item,

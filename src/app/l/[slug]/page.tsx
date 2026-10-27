@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getOvelink, getSlugRedirect, sanitizeSlug, OvelinkCustomization } from "@/lib/ovelink-store";
+import { STORE_EVENT } from "@/lib/store-events";
 import OvelinkView from "@/components/OvelinkView";
 
 export default function DynamicOvelinkPage() {
@@ -27,9 +28,13 @@ export default function DynamicOvelinkPage() {
 
     const handleUpdate = () => load();
     window.addEventListener("ovel:brand_updated", handleUpdate);
+    window.addEventListener("ovel:data_updated", handleUpdate);
+    window.addEventListener(STORE_EVENT, handleUpdate);
     window.addEventListener("storage", handleUpdate);
     return () => {
       window.removeEventListener("ovel:brand_updated", handleUpdate);
+      window.removeEventListener("ovel:data_updated", handleUpdate);
+      window.removeEventListener(STORE_EVENT, handleUpdate);
       window.removeEventListener("storage", handleUpdate);
     };
   }, [cleanSlug, router]);

@@ -1,20 +1,20 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { 
-  ShieldCheck, 
-  Users, 
-  Sliders, 
-  KeyRound, 
-  Plus, 
-  Search, 
-  ExternalLink, 
-  Check, 
-  Lock, 
-  TrendingUp, 
-  Terminal, 
+import {
+  ShieldCheck,
+  Users,
+  Sliders,
+  KeyRound,
+  Plus,
+  Search,
+  ExternalLink,
+  Check,
+  Lock,
+  TrendingUp,
+  Terminal,
   ArrowLeft,
   Sparkles,
   ToggleLeft,
@@ -32,757 +32,682 @@ import {
   Eye,
   Trash2,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  FileText,
+  Clock,
+  Layers,
+  Zap,
+  Tag,
+  CheckCircle2,
+  XCircle,
+  Filter,
+  MoreVertical,
+  ChevronRight,
+  UserX,
+  UserPlus,
+  Settings,
+  FolderTree,
+  FileCheck,
+  Receipt,
+  Phone,
+  DollarSign,
+  Copy,
 } from "lucide-react";
-import { 
-  TenantUser, 
-  AdminAuditLog, 
-  getAdminUsers, 
-  saveAdminUsers, 
-  getAdminLogs, 
-  addAdminLog 
+import {
+  TenantUser,
+  TenantFeatures,
+  SubscriptionPlanId,
+  ADMIN_PLAN_TIERS,
+  ALL_PLATFORM_FEATURES,
+  AdminAuditLog,
+  getAdminUsers,
+  saveAdminUsers,
+  addAdminUser,
+  updateAdminUser,
+  deleteAdminUser,
+  toggleUserFeature,
+  enableAllUserFeatures,
+  disableAllUserFeatures,
+  resetUserFeaturesToPlan,
+  updateUserPlan,
+  getAdminLogs,
+  addAdminLog,
+  clearAdminLogs,
 } from "@/lib/admin-store";
-import { useAuth, UserRole, UserProfile } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth-context";
 import { useAudio } from "@/components/AudioController";
-import { useChannelTransition } from "@/components/ChannelTransition";
-import ProgressiveBlur from "@/components/ProgressiveBlur";
-import UserAuthNav from "@/components/UserAuthNav";
 
-type AdminTab = "tenants" | "auth_identities" | "agency_reseller" | "audit_logs";
+type AdminTab = "users" | "features" | "plans" | "audit_logs" | "credentials";
 
 export default function SuperAdminDashboard() {
   const router = useRouter();
-  const [currentTab, setCurrentTab] = useState<AdminTab>("tenants");
+  const [currentTab, setCurrentTab] = useState<AdminTab>("users");
 
-  // Store slices
+  // Store data
   const [users, setUsers] = useState<TenantUser[]>(() => getAdminUsers());
   const [logs, setLogs] = useState<AdminAuditLog[]>(() => getAdminLogs());
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [planFilter, setPlanFilter] = useState<string>("all");
+
+  // Selected User for feature management / details drawer
   const [selectedUser, setSelectedUser] = useState<TenantUser | null>(() => getAdminUsers()[0] || null);
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
+
+  // Modals state
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
+  const [isChangePlanModalOpen, setIsChangePlanModalOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<TenantUser | null>(null);
+
+  // Form states
+  const [newPassword, setNewPassword] = useState("");
   const [notification, setNotification] = useState<string | null>(null);
 
-  // Auth Context integration
-  const { 
-    allSystemUsers, 
-    impersonateUser, 
-    updateTeamMember, 
-    sendMagicLinkToUser, 
-    resetPasswordForEmail, 
-    inviteTeamMember,
-    removeTeamMember
-  } = useAuth();
+  // New Tenant Form
+  const [formBusinessName, setFormBusinessName] = useState("");
+  const [formOwnerName, setFormOwnerName] = useState("");
+  const [formEmail, setFormEmail] = useState("");
+  const [formPhone, setFormPhone] = useState("");
+  const [formSlug, setFormSlug] = useState("");
+  const [formCategory, setFormCategory] = useState<TenantUser["category"]>("Aesthetic Clinic");
+  const [formPlan, setFormPlan] = useState<SubscriptionPlanId>("growth");
 
-  // Create Identity Modal
-  const [isCreateIdentityOpen, setIsCreateIdentityOpen] = useState(false);
-  const [identityName, setIdentityName] = useState("");
-  const [identityEmail, setIdentityEmail] = useState("");
-  const [identityRole, setIdentityRole] = useState<UserRole>("business_owner");
-  const [identityBusiness, setIdentityBusiness] = useState("");
+  // Edit Tenant Form
+  const [editBusinessName, setEditBusinessName] = useState("");
+  const [editOwnerName, setEditOwnerName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editSlug, setEditSlug] = useState("");
+  const [editCategory, setEditCategory] = useState<TenantUser["category"]>("Aesthetic Clinic");
+  const [editStatus, setEditStatus] = useState<TenantUser["status"]>("active");
+  const [editRole, setEditRole] = useState<TenantUser["role"]>("business_owner");
 
-  // New Tenant Form State
-  const [newBusinessName, setNewBusinessName] = useState("");
-  const [newOwnerName, setNewOwnerName] = useState("");
-  const [newEmail, setNewEmail] = useState("");
-  const [newCategory, setNewCategory] = useState<TenantUser["category"]>("Salon & Spa");
-  const [newPlan, setNewPlan] = useState<TenantUser["plan"]>("Growth ($79/mo)");
-
+  const { impersonateUser } = useAuth();
   const { playClick, playSuccess } = useAudio();
-  const { triggerTransition } = useChannelTransition();
 
   const showToast = (msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3500);
   };
 
-  const handleToggleFeature = (userId: string, featureKey: keyof TenantUser["features"]) => {
-    playClick();
-    const updatedUsers = users.map((u) => {
-      if (u.id === userId) {
-        const currentVal = u.features[featureKey];
-        const nextFeatures = { ...u.features, [featureKey]: !currentVal };
-        return { ...u, features: nextFeatures };
-      }
-      return u;
-    });
-
-    setUsers(updatedUsers);
-    saveAdminUsers(updatedUsers);
-
-    const target = updatedUsers.find((u) => u.id === userId);
-    if (target) {
-      setSelectedUser(target);
-      addAdminLog(
-        `TOGGLE_${featureKey.toUpperCase()}`,
-        target.businessName,
-        `Status set to ${!target.features[featureKey] ? "DISABLED" : "ENABLED"}`
-      );
-      setLogs(getAdminLogs());
-      showToast(`Updated ${featureKey} for ${target.businessName}`);
+  const refreshState = () => {
+    const freshUsers = getAdminUsers();
+    setUsers(freshUsers);
+    setLogs(getAdminLogs());
+    if (selectedUser) {
+      const refreshed = freshUsers.find((u) => u.id === selectedUser.id);
+      if (refreshed) setSelectedUser(refreshed);
     }
   };
 
+  // Filtered users
+  const filteredUsers = useMemo(() => {
+    return users.filter((u) => {
+      const matchesSearch =
+        u.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.slug.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesStatus = statusFilter === "all" || u.status === statusFilter;
+      const matchesPlan = planFilter === "all" || u.planId === planFilter;
+
+      return matchesSearch && matchesStatus && matchesPlan;
+    });
+  }, [users, searchTerm, statusFilter, planFilter]);
+
+  // Financial & Stats calculations
+  const totalMRR = useMemo(() => {
+    return users.reduce((acc, u) => acc + (u.status === "active" ? u.monthlyFeeLkr : 0), 0);
+  }, [users]);
+
+  const activeTenantsCount = useMemo(() => {
+    return users.filter((u) => u.status === "active").length;
+  }, [users]);
+
+  // Feature Toggle Handlers
+  const handleFeatureToggle = (featureKey: keyof TenantFeatures) => {
+    if (!selectedUser) return;
+    playClick();
+    const nextState = toggleUserFeature(selectedUser.id, featureKey);
+    refreshState();
+    showToast(`Feature '${featureKey}' is now ${nextState ? "ENABLED" : "DISABLED"} for ${selectedUser.businessName}`);
+  };
+
+  const handleEnableAllFeatures = () => {
+    if (!selectedUser) return;
+    playSuccess();
+    enableAllUserFeatures(selectedUser.id);
+    refreshState();
+    showToast(`All 14 platform features ENABLED for ${selectedUser.businessName}`);
+  };
+
+  const handleDisableAllFeatures = () => {
+    if (!selectedUser) return;
+    playClick();
+    disableAllUserFeatures(selectedUser.id);
+    refreshState();
+    showToast(`All optional features DISABLED for ${selectedUser.businessName}`);
+  };
+
+  const handleResetFeaturesToPlan = () => {
+    if (!selectedUser) return;
+    playClick();
+    resetUserFeaturesToPlan(selectedUser.id);
+    refreshState();
+    showToast(`Restored default ${selectedUser.planName} feature bundle for ${selectedUser.businessName}`);
+  };
+
+  // Plan Switch Handler
+  const handlePlanChange = (targetPlanId: SubscriptionPlanId) => {
+    if (!selectedUser) return;
+    playSuccess();
+    updateUserPlan(selectedUser.id, targetPlanId);
+    refreshState();
+    setIsChangePlanModalOpen(false);
+    showToast(`Upgraded ${selectedUser.businessName} to ${ADMIN_PLAN_TIERS[targetPlanId].name} tier.`);
+  };
+
+  // Status Change Handler
   const handleStatusChange = (userId: string, newStatus: TenantUser["status"]) => {
     playClick();
-    const updatedUsers = users.map((u) => (u.id === userId ? { ...u, status: newStatus } : u));
-    setUsers(updatedUsers);
-    saveAdminUsers(updatedUsers);
-    const target = updatedUsers.find((u) => u.id === userId);
-    if (target) {
-      setSelectedUser(target);
-      addAdminLog("CHANGE_STATUS", target.businessName, `Status modified to ${newStatus}`);
-      setLogs(getAdminLogs());
-      showToast(`Status changed to ${newStatus}`);
-    }
+    updateAdminUser(userId, { status: newStatus });
+    refreshState();
+    showToast(`Tenant status updated to ${newStatus.toUpperCase()}`);
   };
 
-  const handlePasswordReset = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedUser || !newPassword) return;
-    playSuccess();
-    addAdminLog(
-      "RESET_PASSWORD",
-      selectedUser.businessName,
-      `SuperAdmin updated credentials for user ${selectedUser.email}`
-    );
-    setLogs(getAdminLogs());
-    setIsPasswordModalOpen(false);
-    setNewPassword("");
-    showToast(`Credentials successfully updated for ${selectedUser.email}`);
-  };
-
-  const handleCreateTenant = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newBusinessName || !newEmail) return;
-    playSuccess();
-
-    const slug = newBusinessName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-    const newTenant: TenantUser = {
-      id: "usr_" + Date.now(),
-      businessName: newBusinessName,
-      ownerName: newOwnerName || newBusinessName + " Owner",
-      email: newEmail,
-      slug,
-      category: newCategory,
-      plan: newPlan,
-      status: "active",
-      joinedDate: new Date().toISOString().split("T")[0],
-      totalBookings: 0,
-      grossRevenue: 0,
-      stripeConnected: true,
-      features: {
-        whatsappReminders: true,
-        zeroCommissionStripe: true,
-        automatedInvoicing: true,
-        aiReceptionist: true,
-        calendarSync: true,
-        customDomain: false,
-        interactiveQuotes: true,
-      },
-      notes: "Newly onboarded via SuperAdmin console.",
-    };
-
-    const updated = [newTenant, ...users];
-    setUsers(updated);
-    saveAdminUsers(updated);
-    setSelectedUser(newTenant);
-    addAdminLog("ONBOARD_TENANT", newTenant.businessName, `Created tenant with slug /${slug}`);
-    setLogs(getAdminLogs());
-
-    // Also register in system users
-    inviteTeamMember({
-      fullName: newOwnerName || newBusinessName + " Owner",
-      email: newEmail,
-      role: "business_owner",
-      permissions: ["bookings:manage", "invoicing:manage", "staff:manage"],
-    });
-
-    setIsAddUserModalOpen(false);
-    setNewBusinessName("");
-    setNewOwnerName("");
-    setNewEmail("");
-    showToast(`Tenant "${newTenant.businessName}" onboarded!`);
-  };
-
-  const handleImpersonate = (user: UserProfile) => {
+  // Impersonate Tenant
+  const handleImpersonate = (user: TenantUser) => {
     playSuccess();
     impersonateUser(user.id);
-    addAdminLog("IMPERSONATE_USER", user.fullName, `SuperAdmin impersonated identity ${user.email}`);
-    setLogs(getAdminLogs());
-    showToast(`Now impersonating ${user.fullName} (${user.role})`);
-    
-    // Redirect appropriately
-    triggerTransition(() => {
-      if (user.role === "client") {
-        router.push("/portal/tok_davenport_99a");
-      } else {
-        router.push("/dashboard");
-      }
-    });
+    addAdminLog("IMPERSONATE", user.businessName, `Administrator impersonated session as ${user.email}`);
+    router.push("/dashboard");
   };
 
-  const handleSendIdentityMagicLink = async (email: string) => {
-    playClick();
-    await sendMagicLinkToUser(email);
-    addAdminLog("MAGIC_LINK_DISPATCH", email, "Dispatched Supabase passwordless OTP link");
-    setLogs(getAdminLogs());
-    showToast(`Passwordless magic link dispatched to ${email}`);
-  };
-
-  const handleSendIdentityPasswordReset = async (email: string) => {
-    playClick();
-    await resetPasswordForEmail(email);
-    addAdminLog("PASSWORD_RESET_DISPATCH", email, "Dispatched password reset email via Supabase");
-    setLogs(getAdminLogs());
-    showToast(`Password reset instructions sent to ${email}`);
-  };
-
-  const handleUpdateIdentityRole = (userId: string, newRole: UserRole) => {
-    playClick();
-    updateTeamMember(userId, { role: newRole });
-    addAdminLog("ROLE_ASSIGNMENT", userId, `Role changed to ${newRole}`);
-    setLogs(getAdminLogs());
-    showToast(`Role updated to ${newRole.toUpperCase()}`);
-  };
-
-  const handleCreateNewIdentity = async (e: React.FormEvent) => {
+  // Add User Submission
+  const handleAddUserSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!identityName || !identityEmail) return;
-    playSuccess();
+    if (!formBusinessName || !formEmail) return;
 
-    await inviteTeamMember({
-      fullName: identityName,
-      email: identityEmail,
-      role: identityRole,
-      permissions: identityRole === "super_admin" ? ["all:super_admin"] : ["bookings:manage", "invoicing:manage"],
+    playSuccess();
+    const newUser = addAdminUser({
+      businessName: formBusinessName,
+      ownerName: formOwnerName || "Merchant Owner",
+      email: formEmail,
+      phone: formPhone || "+94 (77) 000-0000",
+      slug: formSlug || formBusinessName.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+      category: formCategory,
+      planId: formPlan,
     });
 
-    addAdminLog("CREATE_AUTH_IDENTITY", identityName, `Created Supabase identity for ${identityEmail}`);
-    setLogs(getAdminLogs());
-    setIsCreateIdentityOpen(false);
-    setIdentityName("");
-    setIdentityEmail("");
-    showToast(`Auth user ${identityEmail} successfully created & invited`);
+    refreshState();
+    setSelectedUser(newUser);
+    setIsAddUserModalOpen(false);
+
+    // reset fields
+    setFormBusinessName("");
+    setFormOwnerName("");
+    setFormEmail("");
+    setFormPhone("");
+    setFormSlug("");
+    showToast(`New tenant ${newUser.businessName} successfully created!`);
   };
 
-  const filteredUsers = users.filter(
-    (u) =>
-      u.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Open Edit User Modal
+  const openEditModal = (u: TenantUser) => {
+    setSelectedUser(u);
+    setEditBusinessName(u.businessName);
+    setEditOwnerName(u.ownerName);
+    setEditEmail(u.email);
+    setEditPhone(u.phone || "");
+    setEditSlug(u.slug);
+    setEditCategory(u.category);
+    setEditStatus(u.status);
+    setEditRole(u.role);
+    setIsEditUserModalOpen(true);
+  };
+
+  // Edit User Submission
+  const handleEditUserSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+
+    playSuccess();
+    updateAdminUser(selectedUser.id, {
+      businessName: editBusinessName,
+      ownerName: editOwnerName,
+      email: editEmail,
+      phone: editPhone,
+      slug: editSlug,
+      category: editCategory,
+      status: editStatus,
+      role: editRole,
+    });
+
+    refreshState();
+    setIsEditUserModalOpen(false);
+    showToast(`Saved modifications for ${editBusinessName}`);
+  };
+
+  // Delete User Confirmation
+  const confirmDeleteUser = () => {
+    if (!userToDelete) return;
+    playClick();
+    deleteAdminUser(userToDelete.id);
+    refreshState();
+    setIsDeleteConfirmOpen(false);
+    if (selectedUser?.id === userToDelete.id) {
+      setSelectedUser(users.find((u) => u.id !== userToDelete.id) || null);
+    }
+    showToast(`Tenant ${userToDelete.businessName} permanently purged.`);
+    setUserToDelete(null);
+  };
+
+  // Password Reset simulation
+  const handleGeneratePassword = () => {
+    if (!selectedUser) return;
+    playSuccess();
+    const tempPass = "OvelPass-" + Math.random().toString(36).substring(2, 8).toUpperCase() + "!";
+    setNewPassword(tempPass);
+    addAdminLog("RESET_PASSWORD", selectedUser.businessName, `Generated temporary access credentials for ${selectedUser.email}`);
+  };
 
   return (
-    <div className="min-h-screen bg-[#F6FAF9] text-[#103438] antialiased selection:bg-[#105F68] selection:text-white font-['Kaleko_105',sans-serif] flex flex-col">
-      <ProgressiveBlur position="top" height="h-20" />
+    <div className="min-h-screen bg-[#F6FAF9] text-[#103438] antialiased selection:bg-[#105F68] selection:text-white font-['Kaleko_105',sans-serif]">
+      {/* Toast Notification */}
+      {notification && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#105F68] text-white text-xs font-light shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+          <CheckCircle2 className="w-4 h-4 text-[#63C1BB]" />
+          <span>{notification}</span>
+        </div>
+      )}
 
-      {/* Super Admin Top Header */}
-      <header className="sticky top-0 z-40 bg-[#105F68] text-white px-4 sm:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4 shadow-md">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/"
-            onClick={(e) => {
-              e.preventDefault();
+      {/* Super Admin Architectural Header */}
+      <header className="sticky top-0 z-40 bg-[#F6FAF9]/90 backdrop-blur-md border-b border-[#105F68]/15 px-4 sm:px-8 py-4">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center gap-2 group">
+              <span className="font-['Disolve'] text-2xl text-[#105F68] tracking-tight">Ovel</span>
+              <span className="text-[10px] font-mono tracking-widest uppercase px-2 py-0.5 rounded bg-[#105F68]/10 text-[#105F68] border border-[#105F68]/20">
+                Root Kernel
+              </span>
+            </Link>
+
+            <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-[#3A9295] pl-3 border-l border-[#105F68]/15">
+              <span className="w-2 h-2 rounded-full bg-[#105F68] animate-pulse" />
+              <span>Zero-Take Engine Online</span>
+              <span className="opacity-40">•</span>
+              <span>14 Feature Flags</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                playClick();
+                setIsAddUserModalOpen(true);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-light tracking-tight transition-all shadow-sm"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>New Merchant</span>
+            </button>
+
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-[#105F68]/20 hover:border-[#105F68]/40 text-[#105F68] text-xs font-light transition-all shadow-sm"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-[#3A9295]" />
+              <span>Dashboard View</span>
+            </Link>
+
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-full text-xs text-[#3A9295] hover:text-[#105F68] transition-colors"
+            >
+              <span>Sign Out</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* Navigation Tabs */}
+        <div className="max-w-7xl mx-auto mt-4 flex items-center gap-2 overflow-x-auto pb-1 text-xs font-mono uppercase tracking-wider">
+          <button
+            onClick={() => {
               playClick();
-              triggerTransition(() => router.push("/"));
+              setCurrentTab("users");
             }}
-            className="flex items-center gap-2 text-xs text-[#C8E6E2] hover:text-white transition-colors bg-white/10 hover:bg-white/15 px-3 py-1.5 rounded-full"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Public Site</span>
-          </Link>
-          <div className="h-4 w-px bg-white/20"></div>
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-[#63C1BB]" />
-            <span className="text-xs uppercase tracking-widest font-semibold text-[#C8E6E2]">
-              Root Developer &amp; Super Admin Console
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 text-xs font-light">
-          <div className="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/10">
-            <Database className="w-3.5 h-3.5 text-[#63C1BB]" />
-            <span>Supabase: dqfthhflydpnltsfbrvc (Live RLS)</span>
-          </div>
-
-          <Link
-            href="/dashboard"
-            className="px-3.5 py-1.5 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs transition-all flex items-center gap-1.5"
-          >
-            <Building2 className="w-3.5 h-3.5 text-[#63C1BB]" />
-            <span>Merchant Hub</span>
-          </Link>
-
-          {/* User Auth Dropdown */}
-          <UserAuthNav />
-        </div>
-      </header>
-
-      {/* Main Container */}
-      <main className="flex-1 w-full max-w-[1550px] mx-auto px-4 sm:px-8 py-8 space-y-8">
-        {/* KPI Metric Overview */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-5 rounded-3xl bg-white border border-[#105F68]/10 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[#3A9295] text-xs">
-              <span className="uppercase tracking-wider">Active Tenants</span>
-              <Building2 className="w-4 h-4" />
-            </div>
-            <div className="mt-3">
-              <h3 className="text-3xl font-light text-[#105F68]">{users.length}</h3>
-              <p className="text-[11px] text-[#3A9295] mt-1">Multi-tenant RLS Isolated</p>
-            </div>
-          </div>
-
-          <div className="p-5 rounded-3xl bg-white border border-[#105F68]/10 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[#3A9295] text-xs">
-              <span className="uppercase tracking-wider">Auth Identities</span>
-              <Users className="w-4 h-4 text-[#105F68]" />
-            </div>
-            <div className="mt-3">
-              <h3 className="text-3xl font-light text-[#105F68]">{allSystemUsers.length}</h3>
-              <p className="text-[11px] text-[#63C1BB] font-medium mt-1">Supabase Auth Users</p>
-            </div>
-          </div>
-
-          <div className="p-5 rounded-3xl bg-white border border-[#105F68]/10 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[#3A9295] text-xs">
-              <span className="uppercase tracking-wider">Completed Bookings</span>
-              <Calendar className="w-4 h-4" />
-            </div>
-            <div className="mt-3">
-              <h3 className="text-3xl font-light text-[#105F68]">
-                {users.reduce((acc, u) => acc + u.totalBookings, 0).toLocaleString()}
-              </h3>
-              <p className="text-[11px] text-[#3A9295] mt-1">100% WhatsApp Reminders Dispatched</p>
-            </div>
-          </div>
-
-          <div className="p-5 rounded-3xl bg-[#105F68] text-white border border-[#105F68] shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[#C8E6E2] text-xs">
-              <span className="uppercase tracking-wider">Saved For Merchants</span>
-              <TrendingUp className="w-4 h-4 text-[#63C1BB]" />
-            </div>
-            <div className="mt-3">
-              <h3 className="text-3xl font-light text-white">
-                ${Math.round(users.reduce((acc, u) => acc + u.grossRevenue, 0) * 0.2).toLocaleString()}
-              </h3>
-              <p className="text-[11px] text-[#C8E6E2] mt-1">vs Fresha 20% Marketplace Take</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Tab Switcher */}
-        <div className="flex items-center gap-2 border-b border-black/5 pb-2">
-          <button
-            onClick={() => { playClick(); setCurrentTab("tenants"); }}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-light transition-all ${
-              currentTab === "tenants"
-                ? "bg-[#105F68] text-white shadow-sm"
-                : "bg-white text-[#3A9295] hover:text-[#105F68] border border-black/5"
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
+              currentTab === "users"
+                ? "bg-[#105F68] text-white font-medium shadow-sm"
+                : "bg-white/60 text-[#3A9295] hover:bg-white hover:text-[#105F68]"
             }`}
           >
-            <Building2 className="w-3.5 h-3.5" />
-            <span>Tenant Businesses &amp; Feature Flags</span>
+            <Users className="w-3.5 h-3.5" />
+            <span>User Management ({users.length})</span>
           </button>
 
           <button
-            onClick={() => { playClick(); setCurrentTab("auth_identities"); }}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-light transition-all ${
-              currentTab === "auth_identities"
-                ? "bg-[#105F68] text-white shadow-sm"
-                : "bg-white text-[#3A9295] hover:text-[#105F68] border border-black/5"
+            onClick={() => {
+              playClick();
+              setCurrentTab("features");
+            }}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
+              currentTab === "features"
+                ? "bg-[#105F68] text-white font-medium shadow-sm"
+                : "bg-white/60 text-[#3A9295] hover:bg-white hover:text-[#105F68]"
             }`}
           >
-            <Fingerprint className="w-3.5 h-3.5" />
-            <span>Supabase Auth &amp; User Identities</span>
-            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <Sliders className="w-3.5 h-3.5" />
+            <span>Feature Flag Matrix (14)</span>
           </button>
 
           <button
-            onClick={() => { playClick(); setCurrentTab("agency_reseller"); }}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-light transition-all ${
-              currentTab === "agency_reseller"
-                ? "bg-[#105F68] text-white shadow-sm"
-                : "bg-white text-[#3A9295] hover:text-[#105F68] border border-black/5"
+            onClick={() => {
+              playClick();
+              setCurrentTab("plans");
+            }}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
+              currentTab === "plans"
+                ? "bg-[#105F68] text-white font-medium shadow-sm"
+                : "bg-white/60 text-[#3A9295] hover:bg-white hover:text-[#105F68]"
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-[#63C1BB]" />
-            <span>Agency Reseller &amp; Multi-Gateway Hub</span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#63C1BB]/20 text-[#105F68] font-medium">Unfair Moat</span>
+            <Layers className="w-3.5 h-3.5" />
+            <span>Plan Management</span>
           </button>
 
           <button
-            onClick={() => { playClick(); setCurrentTab("audit_logs"); }}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-light transition-all ${
+            onClick={() => {
+              playClick();
+              setCurrentTab("audit_logs");
+            }}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
               currentTab === "audit_logs"
-                ? "bg-[#105F68] text-white shadow-sm"
-                : "bg-white text-[#3A9295] hover:text-[#105F68] border border-black/5"
+                ? "bg-[#105F68] text-white font-medium shadow-sm"
+                : "bg-white/60 text-[#3A9295] hover:bg-white hover:text-[#105F68]"
             }`}
           >
             <Terminal className="w-3.5 h-3.5" />
-            <span>Security Audit Logs</span>
+            <span>Audit Logs ({logs.length})</span>
+          </button>
+
+          <button
+            onClick={() => {
+              playClick();
+              setCurrentTab("credentials");
+            }}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
+              currentTab === "credentials"
+                ? "bg-[#105F68] text-white font-medium shadow-sm"
+                : "bg-white/60 text-[#3A9295] hover:bg-white hover:text-[#105F68]"
+            }`}
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>Credentials.txt</span>
           </button>
         </div>
+      </header>
 
-        {/* TAB 1: TENANTS & FEATURE FLAGS */}
-        {currentTab === "tenants" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* User List Panel (5 cols) */}
-            <div className="lg:col-span-5 bg-white rounded-3xl border border-[#105F68]/10 shadow-sm p-6 space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-light text-[#105F68] tracking-tight">Businesses &amp; Tenants</h2>
-                  <p className="text-xs text-[#3A9295]">Manage credentials, tiers &amp; status</p>
-                </div>
-                <button
-                  onClick={() => {
-                    playClick();
-                    setIsAddUserModalOpen(true);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#105F68] text-white text-xs font-light hover:bg-[#0D4F57] transition-all shadow-sm"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Tenant</span>
-                </button>
-              </div>
+      {/* Main Content Area */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-8">
+        {/* Metric Overview Strip */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-6 rounded-3xl bg-white border border-[#105F68]/15 shadow-sm space-y-2">
+            <div className="flex items-center justify-between text-xs text-[#3A9295] font-mono uppercase">
+              <span>Total Tenants</span>
+              <Users className="w-4 h-4 text-[#105F68]" />
+            </div>
+            <div className="text-3xl font-light text-[#105F68]">{users.length}</div>
+            <div className="text-[11px] text-[#3A9295]">
+              {activeTenantsCount} active • {users.length - activeTenantsCount} suspended/pending
+            </div>
+          </div>
 
-              {/* Search */}
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3.5 top-3 text-[#3A9295]" />
+          <div className="p-6 rounded-3xl bg-white border border-[#105F68]/15 shadow-sm space-y-2">
+            <div className="flex items-center justify-between text-xs text-[#3A9295] font-mono uppercase">
+              <span>Active Platform MRR</span>
+              <DollarSign className="w-4 h-4 text-[#63C1BB]" />
+            </div>
+            <div className="text-3xl font-light text-[#105F68]">LKR {totalMRR.toLocaleString()}</div>
+            <div className="text-[11px] text-[#3A9295]">Flat software recurring revenue</div>
+          </div>
+
+          <div className="p-6 rounded-3xl bg-white border border-[#105F68]/15 shadow-sm space-y-2">
+            <div className="flex items-center justify-between text-xs text-[#3A9295] font-mono uppercase">
+              <span>Commission Take-Rate</span>
+              <ShieldCheck className="w-4 h-4 text-[#105F68]" />
+            </div>
+            <div className="text-3xl font-light text-[#105F68]">0.0%</div>
+            <div className="text-[11px] text-[#3A9295]">100% merchant settlement guaranteed</div>
+          </div>
+
+          <div className="p-6 rounded-3xl bg-white border border-[#105F68]/15 shadow-sm space-y-2">
+            <div className="flex items-center justify-between text-xs text-[#3A9295] font-mono uppercase">
+              <span>Platform Feature Flags</span>
+              <Sliders className="w-4 h-4 text-[#105F68]" />
+            </div>
+            <div className="text-3xl font-light text-[#105F68]">14 / 14</div>
+            <div className="text-[11px] text-[#3A9295]">Granular per-user override enabled</div>
+          </div>
+        </div>
+
+        {/* TAB 1: USER MANAGEMENT */}
+        {currentTab === "users" && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            {/* Filter & Search Bar */}
+            <div className="p-4 sm:p-6 rounded-3xl bg-white border border-[#105F68]/15 shadow-sm flex flex-col sm:flex-row gap-4 items-center justify-between">
+              <div className="relative w-full sm:w-96">
+                <Search className="w-4 h-4 text-[#3A9295] absolute left-3.5 top-3.5" />
                 <input
                   type="text"
-                  placeholder="Search by business name, email, niche..."
+                  placeholder="Search by business, owner, email, or slug..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-full bg-[#F6FAF9] border border-black/5 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                 />
               </div>
 
-              {/* User Cards List */}
-              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
-                {filteredUsers.length === 0 ? (
-                  <div className="py-12 text-center text-xs text-[#3A9295] bg-[#F6FAF9] rounded-2xl border border-black/5 p-4">
-                    <p className="font-medium text-[#105F68]">No merchant tenants provisioned</p>
-                    <p className="text-[11px] mt-1">Click &quot;Add Merchant Tenant&quot; above to provision a business account.</p>
-                  </div>
-                ) : (
-                  filteredUsers.map((user) => {
-                    const isSelected = selectedUser?.id === user.id;
-                    return (
-                      <div
-                        key={user.id}
-                        onClick={() => {
-                          playClick();
-                          setSelectedUser(user);
-                        }}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-                          isSelected
-                            ? "bg-[#C8E6E2]/25 border-[#105F68] shadow-sm"
-                            : "bg-[#FBFDFD] border-black/5 hover:border-[#105F68]/30"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="text-sm font-medium text-[#105F68]">{user.businessName}</h4>
-                            <p className="text-xs text-[#3A9295] font-light">{user.email}</p>
-                          </div>
-                          <span
-                            className={`text-[10px] px-2.5 py-0.5 rounded-full font-medium ${
-                              user.status === "active"
-                                ? "bg-[#63C1BB]/20 text-[#105F68]"
-                                : user.status === "suspended"
-                                ? "bg-red-100 text-red-700"
-                                : "bg-amber-100 text-amber-700"
-                            }`}
-                          >
-                            {user.status}
-                          </span>
-                        </div>
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto text-xs font-mono">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[#3A9295]">Status:</span>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="bg-[#F6FAF9] border border-black/10 rounded-xl px-2.5 py-1.5 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                    <option value="pending_setup">Pending</option>
+                  </select>
+                </div>
 
-                        <div className="mt-3 flex items-center justify-between text-[11px] text-[#3A9295]">
-                          <span className="font-mono">ovel.lk/l/{user.slug}</span>
-                          <span className="font-semibold text-[#105F68]">${user.grossRevenue.toLocaleString()} GMV</span>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[#3A9295]">Plan:</span>
+                  <select
+                    value={planFilter}
+                    onChange={(e) => setPlanFilter(e.target.value)}
+                    className="bg-[#F6FAF9] border border-black/10 rounded-xl px-2.5 py-1.5 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  >
+                    <option value="all">All Plans</option>
+                    <option value="free">Starter (Free)</option>
+                    <option value="growth">Growth (500)</option>
+                    <option value="scale">Scale (1500)</option>
+                    <option value="enterprise">Enterprise</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            {/* Selected User Management & Feature Matrix (7 cols) */}
-            <div className="lg:col-span-7 space-y-6">
-              {selectedUser ? (
-                <>
-                  {/* Account Overview Box */}
-                  <div className="bg-white rounded-3xl border border-[#105F68]/10 shadow-sm p-6 sm:p-8 space-y-6">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#C8E6E2]/40 text-[#105F68] font-medium uppercase">
-                            {selectedUser.category}
-                          </span>
-                          <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#105F68] text-white font-medium">
-                            {selectedUser.plan}
-                          </span>
-                        </div>
-                        <h3 className="text-2xl font-light text-[#105F68] tracking-tight">
-                          {selectedUser.businessName}
-                        </h3>
-                        <p className="text-xs text-[#3A9295] mt-0.5">
-                          Owner: <b>{selectedUser.ownerName}</b> • {selectedUser.email}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            playClick();
-                            setIsPasswordModalOpen(true);
-                          }}
-                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-[#105F68]/20 hover:bg-[#105F68]/5 text-xs text-[#105F68] transition-all"
-                        >
-                          <KeyRound className="w-3.5 h-3.5" />
-                          <span>Credentials</span>
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            const next = selectedUser.status === "active" ? "suspended" : "active";
-                            handleStatusChange(selectedUser.id, next);
-                          }}
-                          className={`px-3.5 py-2 rounded-full text-xs font-light transition-all ${
-                            selectedUser.status === "active"
-                              ? "bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
-                              : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                          }`}
-                        >
-                          {selectedUser.status === "active" ? "Suspend Account" : "Activate Account"}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Operational Metrics */}
-                    <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-[#F6FAF9] border border-black/5 text-xs">
-                      <div>
-                        <span className="text-[#3A9295] block text-[11px]">Direct Stripe Link</span>
-                        <span className="font-semibold text-[#105F68] flex items-center gap-1 mt-0.5">
-                          <Check className="w-3 h-3 text-[#63C1BB]" />
-                          Connected (0% Cut)
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[#3A9295] block text-[11px]">Total Appointments</span>
-                        <span className="font-semibold text-[#105F68] mt-0.5 block">
-                          {selectedUser.totalBookings} Completed
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[#3A9295] block text-[11px]">Public Booking URL</span>
-                        <Link
-                          href={`/book/${selectedUser.slug}`}
-                          target="_blank"
-                          className="font-mono text-[#105F68] hover:underline flex items-center gap-1 mt-0.5 text-[11px]"
-                        >
-                          <span>/{selectedUser.slug}</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </Link>
-                      </div>
-                    </div>
-
-                    {/* Feature Toggles (SuperAdmin Instant Override) */}
-                    <div className="space-y-4 pt-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Sliders className="w-4 h-4 text-[#105F68]" />
-                          <h4 className="text-sm font-semibold uppercase tracking-wider text-[#3A9295]">
-                            Instant Feature Toggles
-                          </h4>
-                        </div>
-                        <span className="text-[11px] text-[#3A9295]">Immediate live DB sync</span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {Object.entries(selectedUser.features).map(([key, enabled]) => {
-                          const featureKey = key as keyof TenantUser["features"];
-                          return (
-                            <div
-                              key={featureKey}
-                              onClick={() => handleToggleFeature(selectedUser.id, featureKey)}
-                              className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
-                                enabled
-                                  ? "bg-[#C8E6E2]/20 border-[#105F68]/30"
-                                  : "bg-[#FBFDFD] border-black/5 opacity-70"
-                              }`}
-                            >
-                              <div>
-                                <span className="text-xs font-medium text-[#105F68] block capitalize">
-                                  {key.replace(/([A-Z])/g, " $1")}
-                                </span>
-                                <span className="text-[10px] text-[#3A9295]">
-                                  {enabled ? "Active for Tenant" : "Disabled"}
-                                </span>
-                              </div>
-                              <div>
-                                {enabled ? (
-                                  <ToggleRight className="w-7 h-7 text-[#105F68]" />
-                                ) : (
-                                  <ToggleLeft className="w-7 h-7 text-gray-300" />
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="p-12 text-center bg-white rounded-3xl border border-[#105F68]/10">
-                  <Building2 className="w-12 h-12 text-[#3A9295] mx-auto mb-3 opacity-60" />
-                  <p className="text-sm text-[#105F68]">Select a business to view details and features</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* TAB 2: SUPABASE AUTH & USER IDENTITIES */}
-        {currentTab === "auth_identities" && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-3xl border border-[#105F68]/10 shadow-sm p-6 sm:p-8 space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold uppercase">
-                      Supabase Auth Cloud
-                    </span>
-                    <span className="text-xs text-[#3A9295] font-mono">
-                      https://dqfthhflydpnltsfbrvc.supabase.co
-                    </span>
-                  </div>
-                  <h3 className="text-2xl font-light text-[#105F68] tracking-tight">
-                    Global User &amp; Authentication Control
-                  </h3>
-                  <p className="text-xs text-[#3A9295] mt-0.5">
-                    Live directory of identity accounts across all tenants. 1-click impersonation &amp; passwordless dispatch.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => {
-                    playClick();
-                    setIsCreateIdentityOpen(true);
-                  }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#105F68] text-white text-xs font-light hover:bg-[#0D4F57] transition-all shadow-sm"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Create User Identity</span>
-                </button>
-              </div>
-
+            {/* Users Table */}
+            <div className="rounded-3xl bg-white border border-[#105F68]/15 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-black/5 text-[#3A9295] uppercase tracking-wider">
-                      <th className="pb-3 font-medium">User Identity</th>
-                      <th className="pb-3 font-medium">Tenant Organization</th>
-                      <th className="pb-3 font-medium">System Role</th>
-                      <th className="pb-3 font-medium">Status</th>
-                      <th className="pb-3 font-medium">Last Login</th>
-                      <th className="pb-3 font-medium text-right">SuperAdmin Auth Actions</th>
+                    <tr className="border-b border-black/5 bg-[#F6FAF9]/50 text-[#3A9295] font-mono uppercase tracking-wider text-[11px]">
+                      <th className="py-4 px-6 font-medium">Merchant &amp; Studio</th>
+                      <th className="py-4 px-6 font-medium">Tier &amp; Quota</th>
+                      <th className="py-4 px-6 font-medium">Status</th>
+                      <th className="py-4 px-6 font-medium">Feature Flags</th>
+                      <th className="py-4 px-6 font-medium">Public Storefront</th>
+                      <th className="py-4 px-6 font-medium text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-black/5">
-                    {allSystemUsers.map((u) => {
-                      const initials = u.fullName.split(" ").map(n => n[0]).join("").slice(0, 2);
+                  <tbody className="divide-y divide-black/5 font-light text-[#103438]">
+                    {filteredUsers.map((u) => {
+                      const enabledCount = Object.values(u.features).filter(Boolean).length;
                       return (
-                        <tr key={u.id} className="hover:bg-[#F6FAF9]/50 transition-colors">
-                          <td className="py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-full bg-[#105F68] text-white flex items-center justify-center font-medium text-xs">
-                                {initials}
+                        <tr
+                          key={u.id}
+                          className={`hover:bg-[#F6FAF9]/50 transition-colors ${
+                            selectedUser?.id === u.id ? "bg-[#C8E6E2]/15" : ""
+                          }`}
+                        >
+                          {/* Business Info */}
+                          <td className="py-4 px-6">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm text-[#105F68]">{u.businessName}</span>
+                                {u.role === "super_admin" && (
+                                  <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-semibold uppercase">
+                                    Root
+                                  </span>
+                                )}
                               </div>
-                              <div>
-                                <span className="font-medium text-[#105F68] block">{u.fullName}</span>
-                                <span className="text-[11px] text-[#3A9295] font-mono">{u.email}</span>
+                              <div className="text-xs text-[#3A9295]">
+                                {u.ownerName} • <span className="font-mono">{u.email}</span>
+                              </div>
+                              <div className="text-[10px] text-[#3A9295]/70 font-mono">
+                                Cat: {u.category} • Tel: {u.phone || "N/A"}
                               </div>
                             </div>
                           </td>
 
-                          <td className="py-4">
-                            <span className="text-[#105F68] font-medium block">
-                              {u.organizationName || "Global Root"}
-                            </span>
-                            <span className="text-[10px] text-[#3A9295] font-mono">
-                              {u.organizationSlug ? `/${u.organizationSlug}` : "root"}
-                            </span>
-                          </td>
-
-                          <td className="py-4">
-                            <select
-                              value={u.role}
-                              onChange={(e) => handleUpdateIdentityRole(u.id, e.target.value as UserRole)}
-                              className="px-2.5 py-1 rounded-lg bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] font-medium focus:outline-none"
+                          {/* Tier */}
+                          <td className="py-4 px-6">
+                            <span
+                              className={`text-[10px] font-mono uppercase px-2.5 py-1 rounded-full font-medium ${
+                                u.planId === "scale"
+                                  ? "bg-[#105F68]/10 text-[#105F68] border border-[#105F68]/30"
+                                  : u.planId === "growth"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : u.planId === "enterprise"
+                                  ? "bg-purple-100 text-purple-800 font-bold"
+                                  : "bg-slate-100 text-slate-700"
+                              }`}
                             >
-                              <option value="super_admin">Super Admin</option>
-                              <option value="business_owner">Business Owner</option>
-                              <option value="staff">Specialist Staff</option>
-                              <option value="client">Client</option>
-                            </select>
-                          </td>
-
-                          <td className="py-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium ${
-                              u.status === "active"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                : u.status === "invited"
-                                ? "bg-amber-50 text-amber-700 border border-amber-200"
-                                : "bg-red-50 text-red-700 border border-red-200"
-                            }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${
-                                u.status === "active" ? "bg-emerald-500" : u.status === "invited" ? "bg-amber-500" : "bg-red-500"
-                              }`}></span>
-                              {u.status?.toUpperCase() || "ACTIVE"}
+                              {u.planName} (LKR {u.monthlyFeeLkr}/mo)
                             </span>
                           </td>
 
-                          <td className="py-4 text-[#3A9295] font-mono text-[11px]">
-                            {u.lastLogin || "Active Session"}
+                          {/* Status */}
+                          <td className="py-4 px-6">
+                            <button
+                              onClick={() => {
+                                const nextStatus =
+                                  u.status === "active"
+                                    ? "suspended"
+                                    : u.status === "suspended"
+                                    ? "active"
+                                    : "active";
+                                handleStatusChange(u.id, nextStatus);
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider transition-all ${
+                                u.status === "active"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                                  : u.status === "suspended"
+                                  ? "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
+                                  : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+                              }`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  u.status === "active"
+                                    ? "bg-emerald-600"
+                                    : u.status === "suspended"
+                                    ? "bg-rose-600"
+                                    : "bg-amber-600"
+                                }`}
+                              />
+                              <span>{u.status}</span>
+                            </button>
                           </td>
 
-                          <td className="py-4 text-right">
-                            <div className="inline-flex items-center gap-2">
-                              {/* 1-Click Impersonate Button */}
+                          {/* Feature Count */}
+                          <td className="py-4 px-6">
+                            <button
+                              onClick={() => {
+                                setSelectedUser(u);
+                                setCurrentTab("features");
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#105F68]/20 hover:border-[#105F68] text-[#105F68] font-mono text-xs transition-all shadow-sm"
+                            >
+                              <Sliders className="w-3 h-3 text-[#3A9295]" />
+                              <span>{enabledCount} / 14 Active</span>
+                            </button>
+                          </td>
+
+                          {/* Storefront Link */}
+                          <td className="py-4 px-6">
+                            <Link
+                              href={`/l/${u.slug}`}
+                              target="_blank"
+                              className="inline-flex items-center gap-1 font-mono text-xs text-[#105F68] hover:underline"
+                            >
+                              <span>/l/{u.slug}</span>
+                              <ExternalLink className="w-3 h-3 text-[#3A9295]" />
+                            </Link>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-4 px-6 text-right">
+                            <div className="inline-flex items-center gap-1.5">
+                              {/* Manage Features */}
+                              <button
+                                onClick={() => {
+                                  setSelectedUser(u);
+                                  setCurrentTab("features");
+                                }}
+                                title="Manage Features"
+                                className="p-2 rounded-xl bg-[#F6FAF9] hover:bg-[#C8E6E2]/40 text-[#105F68] border border-black/5 transition-all"
+                              >
+                                <Sliders className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Edit Profile */}
+                              <button
+                                onClick={() => openEditModal(u)}
+                                title="Edit User Details"
+                                className="p-2 rounded-xl bg-[#F6FAF9] hover:bg-[#C8E6E2]/40 text-[#105F68] border border-black/5 transition-all"
+                              >
+                                <Settings className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Impersonate */}
                               <button
                                 onClick={() => handleImpersonate(u)}
-                                title="1-Click Impersonate User View"
-                                className="px-3 py-1 rounded-full bg-[#105F68] text-white text-[11px] font-light hover:bg-[#0D4F57] transition-all flex items-center gap-1 shadow-sm"
+                                title="Log In As User (Impersonate)"
+                                className="p-2 rounded-xl bg-[#105F68] hover:bg-[#0D4F57] text-white transition-all shadow-sm"
                               >
-                                <Eye className="w-3 h-3" />
-                                <span>Impersonate</span>
+                                <ExternalLink className="w-3.5 h-3.5" />
                               </button>
 
-                              {/* Send Magic Link */}
-                              <button
-                                onClick={() => handleSendIdentityMagicLink(u.email)}
-                                title="Send Supabase Magic Link"
-                                className="p-1.5 rounded-lg border border-black/10 hover:bg-[#F6FAF9] text-[#105F68] transition-all"
-                              >
-                                <Mail className="w-3.5 h-3.5" />
-                              </button>
-
-                              {/* Send Password Reset */}
-                              <button
-                                onClick={() => handleSendIdentityPasswordReset(u.email)}
-                                title="Send Password Reset Email"
-                                className="p-1.5 rounded-lg border border-black/10 hover:bg-[#F6FAF9] text-[#3A9295] transition-all"
-                              >
-                                <KeyRound className="w-3.5 h-3.5" />
-                              </button>
+                              {/* Delete (prevent deleting root) */}
+                              {u.role !== "super_admin" && (
+                                <button
+                                  onClick={() => {
+                                    setUserToDelete(u);
+                                    setIsDeleteConfirmOpen(true);
+                                  }}
+                                  title="Delete Tenant"
+                                  className="p-2 rounded-xl bg-[#F6FAF9] hover:bg-rose-50 text-rose-600 border border-black/5 transition-all"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -795,384 +720,522 @@ export default function SuperAdminDashboard() {
           </div>
         )}
 
-        {/* TAB: AGENCY RESELLER & MULTI-GATEWAY HUB (UNFAIR MOAT) */}
-        {currentTab === "agency_reseller" && (
-          <div className="space-y-8 animate-in fade-in duration-200">
-            {/* Agency Reseller Header */}
-            <div className="bg-gradient-to-br from-[#105F68] to-[#0D4F57] text-white p-6 sm:p-8 rounded-3xl shadow-lg space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-[#63C1BB]/20 border border-[#63C1BB]/30 flex items-center justify-center">
-                    <Sparkles className="w-6 h-6 text-[#63C1BB]" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-xl sm:text-2xl font-light tracking-tight">
-                        Agency Reseller Engine
-                      </h2>
-                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#63C1BB] text-[#105F68] font-bold">
-                        Unfair Moat #6
-                      </span>
-                    </div>
-                    <p className="text-xs text-[#C8E6E2] font-light">
-                      Master agency distribution • 1-click industry template cloning • White-label CNAME custom domains.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-2xl border border-white/10 text-xs">
-                  <span className="text-[#C8E6E2]">Active Master Seats:</span>
-                  <span className="font-semibold text-white">4 Sub-Tenants Managed</span>
-                </div>
-              </div>
-            </div>
-
-            {/* 1-Click Industry Starter Kit Template Cloners */}
-            <div className="bg-white rounded-3xl border border-[#105F68]/10 shadow-sm p-6 sm:p-8 space-y-6">
-              <div>
-                <h3 className="text-lg font-light text-[#105F68] tracking-tight">
-                  1-Click Industry Starter Kit Cloners
+        {/* TAB 2: FEATURE FLAG MATRIX */}
+        {currentTab === "features" && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            {/* User Selector Strip */}
+            <div className="p-6 rounded-3xl bg-white border border-[#105F68]/15 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-1">
+                <span className="text-xs font-mono uppercase tracking-widest text-[#3A9295]">
+                  FEATURE CONTROL MATRIX
+                </span>
+                <h3 className="text-2xl font-light text-[#105F68]">
+                  Enabling &amp; Disabling Capabilities for:{" "}
+                  <span className="font-semibold">{selectedUser?.businessName}</span>
                 </h3>
-                <p className="text-xs text-[#3A9295]">
-                  Deploy pre-configured booking catalogs, intake forms, buffer rules &amp; WhatsApp scripts in 1 click.
+                <p className="text-xs text-[#3A9295] font-light">
+                  Active Tier: <span className="font-mono text-[#105F68] font-medium">{selectedUser?.planName}</span> •
+                  Slug: <span className="font-mono text-[#105F68]">/l/{selectedUser?.slug}</span>
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
-                  {
-                    title: "Aesthetic & Medical Clinic",
-                    niche: "Clinical Services",
-                    desc: "Hydrafacial, microneedling protocols, prescription barrier intake, Dr. Moreau staff hours & 15m buffers.",
-                    slug: "leclat",
-                    color: "border-[#105F68]/20 bg-[#F6FAF9]",
-                  },
-                  {
-                    title: "Automotive Detailing Pro",
-                    niche: "Bay & Equipment Rental",
-                    desc: "Ceramic coating add-on pricing, vehicle size routing, lift bay 1-3 equipment allocation & deposit rules.",
-                    slug: "apex-studio",
-                    color: "border-sky-200 bg-sky-50/40",
-                  },
-                  {
-                    title: "Artisanal Bakery Express",
-                    niche: "Custom Orders & Pre-Orders",
-                    desc: "Sourdough batches, morning pickup time slots, dietary intake questions & custom cake size toggles.",
-                    slug: "craft-bakes",
-                    color: "border-amber-200 bg-amber-50/40",
-                  },
-                  {
-                    title: "Creative Studio & Podcast",
-                    niche: "Hourly Time Rentals",
-                    desc: "Podcast booth A/B, photography cyclorama wall, strobe equipment gear locker add-ons & instant entry tokens.",
-                    slug: "vance-studio",
-                    color: "border-purple-200 bg-purple-50/40",
-                  },
-                ].map((tpl, idx) => (
-                  <div
-                    key={idx}
-                    className={`p-5 rounded-2xl border ${tpl.color} flex flex-col justify-between space-y-4 shadow-sm`}
+              {/* Target User Selector Dropdown */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-[#3A9295]">Selected Merchant:</span>
+                  <select
+                    value={selectedUser?.id || ""}
+                    onChange={(e) => {
+                      const u = users.find((usr) => usr.id === e.target.value);
+                      if (u) setSelectedUser(u);
+                    }}
+                    className="bg-[#F6FAF9] border border-[#105F68]/20 rounded-2xl px-3 py-2 text-xs text-[#105F68] font-medium focus:outline-none focus:border-[#105F68]"
                   >
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-[#3A9295]">
-                        {tpl.niche}
-                      </span>
-                      <h4 className="text-sm font-semibold text-[#105F68]">{tpl.title}</h4>
-                      <p className="text-xs text-[#103438]/80 leading-relaxed font-light">{tpl.desc}</p>
-                    </div>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.businessName} ({u.planName})
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                    <button
-                      onClick={() => {
-                        playSuccess();
-                        showToast(`Cloned '${tpl.title}' into new isolated tenant instance! Generated ovel.lk/l/${tpl.slug}-clone`);
-                      }}
-                      className="w-full py-2 rounded-xl bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-light transition-all flex items-center justify-center gap-1.5 shadow-sm"
-                    >
-                      <Plus className="w-3.5 h-3.5 text-[#63C1BB]" />
-                      <span>Clone to Client Instance</span>
-                    </button>
-                  </div>
-                ))}
+                {/* Batch Actions */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleEnableAllFeatures}
+                    className="px-3.5 py-2 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-light tracking-tight transition-all shadow-sm"
+                  >
+                    Enable All (14)
+                  </button>
+                  <button
+                    onClick={handleDisableAllFeatures}
+                    className="px-3.5 py-2 rounded-full bg-white border border-black/15 hover:border-black/30 text-xs text-[#103438] transition-all"
+                  >
+                    Disable All
+                  </button>
+                  <button
+                    onClick={handleResetFeaturesToPlan}
+                    className="px-3.5 py-2 rounded-full bg-[#C8E6E2]/40 hover:bg-[#C8E6E2]/70 text-xs text-[#105F68] font-medium transition-all"
+                  >
+                    Reset to Plan Default
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* White-Label CNAME Domains & Multi-Gateway Agility Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* White-Label Custom Domains */}
-              <div className="bg-white rounded-3xl border border-[#105F68]/10 shadow-sm p-6 space-y-5">
-                <div className="flex items-center justify-between border-b border-black/5 pb-4">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-5 h-5 text-[#105F68]" />
-                    <h3 className="text-base font-semibold text-[#105F68]">
-                      White-Label Custom CNAME Domains
-                    </h3>
-                  </div>
-                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#E8F5E9] text-[#2E7D32] font-medium border border-[#A5D6A7]">
-                    Cloudflare SSL Active
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  {[
-                    { domain: "book.leclat.clinic", tenant: "L'Éclat Aesthetic Clinic", status: "Active (SSL Verified)" },
-                    { domain: "schedule.apexdetailing.io", tenant: "Apex Precision Auto Detailing", status: "Active (Cloudflare CNAME)" },
-                    { domain: "orders.craftbakes.co", tenant: "Craft & Crust Artisanal Bakes", status: "Active (SSL Verified)" },
-                    { domain: "rentals.vancestudios.com", tenant: "Vance Production Studios", status: "Pending DNS Propagation" },
-                  ].map((item, dIdx) => (
-                    <div key={dIdx} className="p-3.5 rounded-2xl bg-[#F6FAF9] border border-black/5 flex items-center justify-between text-xs">
-                      <div>
-                        <span className="font-mono font-semibold text-[#105F68] block">{item.domain}</span>
-                        <span className="text-[11px] text-[#3A9295]">{item.tenant}</span>
+            {/* Feature Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {ALL_PLATFORM_FEATURES.map((feat) => {
+                const isEnabled = Boolean(selectedUser?.features[feat.key]);
+                return (
+                  <div
+                    key={feat.key}
+                    className={`p-6 rounded-3xl transition-all border ${
+                      isEnabled
+                        ? "bg-white border-[#105F68]/30 shadow-md"
+                        : "bg-[#F6FAF9]/60 border-black/5 opacity-80"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#105F68]/10 text-[#105F68]">
+                          {feat.category}
+                        </span>
+                        <h4 className="text-base font-medium text-[#105F68]">{feat.name}</h4>
                       </div>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                        item.status.includes("Active") ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                      }`}>
-                        {item.status}
-                      </span>
+
+                      {/* Interactive Toggle Switch */}
+                      <button
+                        type="button"
+                        onClick={() => handleFeatureToggle(feat.key)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          isEnabled ? "bg-[#105F68]" : "bg-gray-300"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            isEnabled ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
                     </div>
-                  ))}
-                </div>
+
+                    <p className="text-xs text-[#3A9295] font-light leading-relaxed mb-4">
+                      {feat.description}
+                    </p>
+
+                    <div className="pt-3 border-t border-black/5 flex items-center justify-between text-[11px] font-mono">
+                      <span className="text-[#3A9295]">Tier Requirement:</span>
+                      <span className="uppercase text-[#105F68] font-semibold">{feat.planTierMin}+</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: PLAN MANAGEMENT */}
+        {currentTab === "plans" && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="p-6 rounded-3xl bg-white border border-[#105F68]/15 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <span className="text-xs font-mono uppercase tracking-widest text-[#3A9295]">
+                  SUBSCRIPTION ARCHITECTURE
+                </span>
+                <h3 className="text-2xl font-light text-[#105F68] mt-1">
+                  Plan Quotas &amp; Tier Configuration
+                </h3>
+                <p className="text-xs text-[#3A9295] font-light mt-1">
+                  Manage commercial tiers, monthly booking quotas, and assign subscription packages.
+                </p>
               </div>
 
-              {/* Multi-Gateway Agility (0% Platform Cut Guarantee) */}
-              <div className="bg-white rounded-3xl border border-[#105F68]/10 shadow-sm p-6 space-y-5">
-                <div className="flex items-center justify-between border-b border-black/5 pb-4">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-5 h-5 text-[#105F68]" />
-                    <h3 className="text-base font-semibold text-[#105F68]">
-                      Multi-Gateway Agility (0% Platform Take-Rate)
-                    </h3>
-                  </div>
-                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#63C1BB]/20 text-[#105F68] font-bold">
-                    $0.00 Transaction Cuts
-                  </span>
-                </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    playSuccess();
+                    showToast("Plan matrix synchronized with subscription store.");
+                  }}
+                  className="px-4 py-2 rounded-full bg-[#105F68] text-white text-xs font-light tracking-tight hover:bg-[#0D4F57] transition-all shadow-sm"
+                >
+                  Sync Store Matrix
+                </button>
+              </div>
+            </div>
 
-                <p className="text-xs text-[#3A9295] leading-relaxed">
-                  Never lock merchants into Square hardware or Fresha&apos;s 20% marketplace take-rate. Connect direct Stripe Standard accounts or international regional gateways.
-                </p>
-
-                <div className="space-y-3">
-                  {[
-                    { name: "Stripe Connect Standard", desc: "Direct merchant settlement • SetupIntent card-on-file", cut: "0% Ovel Cut", active: true },
-                    { name: "LemonSqueezy Global MoR", desc: "Automated international VAT/tax compliance", cut: "0% Ovel Cut", active: false },
-                    { name: "Mollie European Gateway", desc: "iDEAL, Bancontact, SEPA instant recurring debits", cut: "0% Ovel Cut", active: false },
-                    { name: "Custom Webhook Processor", desc: "Direct HTTP POST notification to merchant POS", cut: "0% Ovel Cut", active: true },
-                  ].map((gw, gIdx) => (
-                    <div key={gIdx} className="p-3.5 rounded-2xl bg-[#F6FAF9] border border-black/5 flex items-center justify-between text-xs">
-                      <div>
-                        <span className="font-semibold text-[#105F68] block">{gw.name}</span>
-                        <span className="text-[11px] text-[#3A9295]">{gw.desc}</span>
+            {/* Plan Tier Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {(Object.keys(ADMIN_PLAN_TIERS) as SubscriptionPlanId[]).map((planKey) => {
+                const plan = ADMIN_PLAN_TIERS[planKey];
+                const tenantsOnPlan = users.filter((u) => u.planId === planKey);
+                return (
+                  <div
+                    key={planKey}
+                    className="p-8 rounded-[2.5rem] bg-white border border-[#105F68]/15 shadow-sm hover:shadow-lg transition-all flex flex-col justify-between space-y-6"
+                  >
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono uppercase px-2.5 py-1 rounded-full bg-[#105F68]/10 text-[#105F68] font-semibold">
+                          {plan.badge}
+                        </span>
+                        <span className="text-xs font-mono text-[#3A9295]">
+                          {tenantsOnPlan.length} Tenants
+                        </span>
                       </div>
-                      <div className="text-right">
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#105F68] text-white font-medium block">
-                          {gw.cut}
-                        </span>
-                        <span className="text-[10px] text-[#2E7D32] mt-0.5 block">
-                          {gw.active ? "● Primary Connected" : "Available"}
-                        </span>
+
+                      <div>
+                        <h4 className="text-2xl font-light text-[#105F68]">{plan.name}</h4>
+                        <p className="text-xs text-[#3A9295] font-light mt-1">{plan.tagline}</p>
+                      </div>
+
+                      <div className="py-3 border-y border-black/5 flex items-baseline gap-1.5">
+                        <span className="text-xs font-mono text-[#3A9295]">LKR</span>
+                        <span className="text-4xl font-light text-[#105F68]">{plan.priceLkr.toLocaleString()}</span>
+                        <span className="text-xs text-[#3A9295] font-light">/ mo</span>
+                      </div>
+
+                      <ul className="space-y-2 text-xs font-light text-[#103438]">
+                        <li className="flex items-center gap-2">
+                          <Check className="w-3.5 h-3.5 text-[#63C1BB]" />
+                          <span>Max {plan.maxOfferings} Services / Offerings</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <Check className="w-3.5 h-3.5 text-[#63C1BB]" />
+                          <span>Max {plan.maxMonthlyOrders} Orders/Bookings / mo</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <Check className="w-3.5 h-3.5 text-[#63C1BB]" />
+                          <span>0% Platform Commission</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <Check className="w-3.5 h-3.5 text-[#63C1BB]" />
+                          <span>
+                            {plan.overflowOrderPriceLkr > 0
+                              ? `+${plan.overflowOrderPriceLkr} LKR / overflow order`
+                              : "No overflow penalty"}
+                          </span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="pt-4 border-t border-black/5 space-y-2">
+                      <span className="text-[10px] font-mono uppercase text-[#3A9295] block">
+                        Quick Assign to {selectedUser?.businessName}:
+                      </span>
+                      <button
+                        onClick={() => handlePlanChange(planKey)}
+                        disabled={selectedUser?.planId === planKey}
+                        className={`w-full py-2.5 rounded-full text-xs font-light tracking-tight transition-all ${
+                          selectedUser?.planId === planKey
+                            ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                            : "bg-[#105F68] hover:bg-[#0D4F57] text-white shadow-sm"
+                        }`}
+                      >
+                        {selectedUser?.planId === planKey ? "Current Plan" : `Assign ${plan.name}`}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: AUDIT LOGS */}
+        {currentTab === "audit_logs" && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="p-6 rounded-3xl bg-white border border-[#105F68]/15 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-xs font-mono uppercase tracking-widest text-[#3A9295]">
+                  AUDIT LOG DIRECTORY
+                </span>
+                <h3 className="text-2xl font-light text-[#105F68] mt-1">
+                  Administrative Action Timelines
+                </h3>
+              </div>
+
+              <button
+                onClick={() => {
+                  playClick();
+                  clearAdminLogs();
+                  setLogs([]);
+                  showToast("Audit logs cleared.");
+                }}
+                className="px-4 py-2 rounded-full border border-black/15 text-xs text-[#3A9295] hover:text-[#105F68] hover:border-[#105F68] transition-all"
+              >
+                Clear Logs
+              </button>
+            </div>
+
+            <div className="rounded-3xl bg-white border border-[#105F68]/15 shadow-sm overflow-hidden">
+              <div className="divide-y divide-black/5 text-xs font-mono">
+                {logs.length === 0 ? (
+                  <div className="p-8 text-center text-[#3A9295]">No administrative logs recorded yet.</div>
+                ) : (
+                  logs.map((log) => (
+                    <div key={log.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#F6FAF9]/50 transition-colors">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded bg-[#105F68]/10 text-[#105F68] font-semibold text-[10px]">
+                            {log.action}
+                          </span>
+                          <span className="text-[#103438] font-medium">{log.targetTenant}</span>
+                        </div>
+                        <p className="text-[11px] text-[#3A9295]">{log.details}</p>
+                      </div>
+
+                      <div className="text-right text-[10px] text-[#3A9295]/70 shrink-0">
+                        <div>{log.timestamp}</div>
+                        <div>{log.actor}</div>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB 3: AUDIT LOGS */}
-        {currentTab === "audit_logs" && (
-          <div className="bg-white rounded-3xl border border-[#105F68]/10 shadow-sm p-6 sm:p-8 space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-light text-[#105F68] tracking-tight">
-                  Security &amp; Developer Telemetry Stream
-                </h3>
-                <p className="text-xs text-[#3A9295]">Immutable log of authentication mutations and policy checks</p>
+        {/* TAB 5: CREDENTIALS REFERENCE */}
+        {currentTab === "credentials" && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="p-8 rounded-[2.5rem] bg-white border border-[#105F68]/15 shadow-sm space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-mono uppercase tracking-widest text-[#3A9295]">
+                    CREDENTIALS.TXT REFERENCE
+                  </span>
+                  <h3 className="text-2xl font-light text-[#105F68] mt-1">
+                    System Master Access Records
+                  </h3>
+                  <p className="text-xs text-[#3A9295] font-light mt-1">
+                    These credentials are synchronized with <code className="bg-[#C8E6E2]/40 px-2 py-0.5 rounded text-[#105F68]">credentials.txt</code> in the repository root.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText("admin@ovel.lk / OvelAdmin@2026!");
+                    playSuccess();
+                    showToast("Copied admin login credentials to clipboard!");
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#105F68] text-white text-xs font-light hover:bg-[#0D4F57] transition-all shadow-sm"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy Admin Auth</span>
+                </button>
               </div>
 
-              <span className="text-xs font-mono text-[#3A9295] bg-[#F6FAF9] px-3 py-1 rounded-full border border-black/5">
-                {logs.length} Total Telemetry Records
-              </span>
-            </div>
-
-            <div className="space-y-2 max-h-[600px] overflow-y-auto font-mono text-xs" suppressHydrationWarning>
-              {logs.length === 0 ? (
-                <div className="py-12 text-center text-xs text-[#3A9295] bg-[#F6FAF9] rounded-2xl border border-black/5 p-4 font-sans">
-                  <p className="font-medium text-[#105F68]">No audit telemetry recorded yet</p>
-                  <p className="text-[11px] mt-1">Tenant provisioning, role mutations, and security events will log here.</p>
+              {/* Admin Credentials Card */}
+              <div className="p-6 rounded-3xl bg-[#F6FAF9] border border-[#105F68]/20 space-y-4">
+                <div className="flex items-center gap-2 font-medium text-sm text-[#105F68]">
+                  <ShieldCheck className="w-4 h-4 text-[#63C1BB]" />
+                  <span>Platform Super Administrator</span>
                 </div>
-              ) : (
-                logs.map((lg) => (
-                  <div
-                    key={lg.id}
-                    suppressHydrationWarning
-                    className="p-3 rounded-2xl bg-[#F6FAF9] border border-black/5 flex flex-wrap items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-[#3A9295] text-[10px]" suppressHydrationWarning>{lg.timestamp}</span>
-                      <span className="text-[#105F68] font-bold">[{lg.action}]</span>
-                      <span className="text-[#103438]">{lg.details}</span>
-                    </div>
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-black/5 text-[#3A9295]">
-                      {lg.targetTenant}
-                    </span>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
+                  <div className="p-3 bg-white rounded-xl border border-black/5">
+                    <span className="text-[#3A9295] block text-[10px] uppercase">Primary Email:</span>
+                    <span className="text-[#105F68] font-bold">admin@ovel.lk</span>
                   </div>
-                ))
-              )}
+                  <div className="p-3 bg-white rounded-xl border border-black/5">
+                    <span className="text-[#3A9295] block text-[10px] uppercase">Master Password:</span>
+                    <span className="text-[#105F68] font-bold">OvelAdmin@2026!</span>
+                  </div>
+                  <div className="p-3 bg-white rounded-xl border border-black/5">
+                    <span className="text-[#3A9295] block text-[10px] uppercase">Access URL:</span>
+                    <span className="text-[#105F68] font-bold">http://localhost:3000/admin</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Demo Accounts List */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-[#105F68] font-mono uppercase">
+                  Verified Demo Merchant Accounts:
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                  <div className="p-4 bg-[#F6FAF9] rounded-2xl border border-black/5 space-y-1">
+                    <div className="flex items-center justify-between font-semibold text-[#105F68]">
+                      <span>L&apos;Éclat Boutique (Care Clinic)</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-[#105F68]/10 text-[#105F68]">Scale</span>
+                    </div>
+                    <div>Email: <span className="text-[#105F68]">genevieve@ovel.lk</span></div>
+                    <div>Password: <span className="text-[#105F68]">MerchantPass@2026!</span></div>
+                    <div>Storefront: <span className="text-[#3A9295]">/l/MyBUsiness</span></div>
+                  </div>
+
+                  <div className="p-4 bg-[#F6FAF9] rounded-2xl border border-black/5 space-y-1">
+                    <div className="flex items-center justify-between font-semibold text-[#105F68]">
+                      <span>Apex Auto Lab (Detailing)</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800">Growth</span>
+                    </div>
+                    <div>Email: <span className="text-[#105F68]">apex@ovel.lk</span></div>
+                    <div>Password: <span className="text-[#105F68]">MerchantPass@2026!</span></div>
+                    <div>Storefront: <span className="text-[#3A9295]">/l/apex-studio</span></div>
+                  </div>
+
+                  <div className="p-4 bg-[#F6FAF9] rounded-2xl border border-black/5 space-y-1">
+                    <div className="flex items-center justify-between font-semibold text-[#105F68]">
+                      <span>Velvet Crumb Bakes (Bakery)</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-200 text-slate-800">Starter</span>
+                    </div>
+                    <div>Email: <span className="text-[#105F68]">bakes@ovel.lk</span></div>
+                    <div>Password: <span className="text-[#105F68]">MerchantPass@2026!</span></div>
+                    <div>Storefront: <span className="text-[#3A9295]">/l/craft-bakes</span></div>
+                  </div>
+
+                  <div className="p-4 bg-[#F6FAF9] rounded-2xl border border-black/5 space-y-1">
+                    <div className="flex items-center justify-between font-semibold text-[#105F68]">
+                      <span>Vance Production Loft (Studio)</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-[#105F68]/10 text-[#105F68]">Scale</span>
+                    </div>
+                    <div>Email: <span className="text-[#105F68]">vance@ovel.lk</span></div>
+                    <div>Password: <span className="text-[#105F68]">MerchantPass@2026!</span></div>
+                    <div>Storefront: <span className="text-[#3A9295]">/l/vance-studio</span></div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
       </main>
 
-      {/* Password Reset Modal */}
-      {isPasswordModalOpen && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl border border-[#105F68]/20 shadow-xl max-w-md w-full p-6 space-y-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#105F68] text-white flex items-center justify-center">
-                <Lock className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-light text-[#105F68]">Manage Credentials</h3>
-                <p className="text-xs text-[#3A9295]">{selectedUser.businessName}</p>
-              </div>
+      {/* MODAL: ADD NEW MERCHANT */}
+      {isAddUserModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-8 border border-[#105F68]/20 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-black/5 pb-4">
+              <h3 className="text-xl font-light text-[#105F68]">Register New Merchant Tenant</h3>
+              <button
+                onClick={() => setIsAddUserModalOpen(false)}
+                className="text-[#3A9295] hover:text-[#105F68] text-xs font-mono"
+              >
+                ✕ Close
+              </button>
             </div>
 
-            <form onSubmit={handlePasswordReset} className="space-y-4">
+            <form onSubmit={handleAddUserSubmit} className="space-y-4 text-xs font-light">
               <div>
-                <label className="text-xs text-[#3A9295] font-medium block mb-1">
-                  New Password for {selectedUser.email}
+                <label className="block text-[#3A9295] uppercase font-mono text-[10px] mb-1">
+                  Business Name *
                 </label>
                 <input
                   type="text"
-                  placeholder="Enter secure password..."
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
                   required
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
-                />
-              </div>
-
-              <div className="p-3 rounded-xl bg-[#C8E6E2]/30 border border-[#9ED5D1]/50 text-[11px] text-[#105F68]">
-                Alternatively, a tokenized passwordless magic-link can be dispatched directly to {selectedUser.email}.
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsPasswordModalOpen(false)}
-                  className="px-4 py-2 rounded-full text-xs text-[#3A9295] hover:text-[#105F68]"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-full bg-[#105F68] text-white text-xs font-light hover:bg-[#0D4F57] transition-all"
-                >
-                  Save Credentials
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Add Tenant Modal */}
-      {isAddUserModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl border border-[#105F68]/20 shadow-xl max-w-lg w-full p-6 space-y-5 animate-in fade-in duration-200">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#105F68] text-white flex items-center justify-center">
-                <Building2 className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-light text-[#105F68]">Onboard New Tenant</h3>
-                <p className="text-xs text-[#3A9295]">Instantly creates custom booking slug &amp; DB isolation</p>
-              </div>
-            </div>
-
-            <form onSubmit={handleCreateTenant} className="space-y-4">
-              <div>
-                <label className="text-xs text-[#3A9295] font-medium block mb-1">Business Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Lumina Skin Studio"
-                  required
-                  value={newBusinessName}
-                  onChange={(e) => setNewBusinessName(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  placeholder="e.g. Lumina Hair Studio"
+                  value={formBusinessName}
+                  onChange={(e) => setFormBusinessName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-[#3A9295] font-medium block mb-1">Owner Name</label>
+                  <label className="block text-[#3A9295] uppercase font-mono text-[10px] mb-1">
+                    Owner Name
+                  </label>
                   <input
                     type="text"
-                    placeholder="e.g. Jane Doe"
-                    value={newOwnerName}
-                    onChange={(e) => setNewOwnerName(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                    placeholder="e.g. Sarah Miller"
+                    value={formOwnerName}
+                    onChange={(e) => setFormOwnerName(e.target.value)}
+                    className="w-full px-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-[#3A9295] font-medium block mb-1">Owner Email</label>
+                  <label className="block text-[#3A9295] uppercase font-mono text-[10px] mb-1">
+                    Email Address *
+                  </label>
                   <input
                     type="email"
-                    placeholder="owner@company.com"
                     required
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                    placeholder="sarah@lumina.com"
+                    value={formEmail}
+                    onChange={(e) => setFormEmail(e.target.value)}
+                    className="w-full px-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-[#3A9295] font-medium block mb-1">Industry Category</label>
+                  <label className="block text-[#3A9295] uppercase font-mono text-[10px] mb-1">
+                    Public Slug (ovel.lk/l/...)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="lumina-studio"
+                    value={formSlug}
+                    onChange={(e) => setFormSlug(e.target.value)}
+                    className="w-full px-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[#3A9295] uppercase font-mono text-[10px] mb-1">
+                    Phone / WhatsApp
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="+94 (77) 123-4567"
+                    value={formPhone}
+                    onChange={(e) => setFormPhone(e.target.value)}
+                    className="w-full px-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#3A9295] uppercase font-mono text-[10px] mb-1">
+                    Industry Category
+                  </label>
                   <select
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value as TenantUser["category"])}
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                    value={formCategory}
+                    onChange={(e) => setFormCategory(e.target.value as TenantUser["category"])}
+                    className="w-full px-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                   >
                     <option value="Aesthetic Clinic">Aesthetic Clinic</option>
-                    <option value="Salon & Spa">Salon &amp; Spa</option>
+                    <option value="Salon & Spa">Salon & Spa</option>
                     <option value="Mobile Detailing">Mobile Detailing</option>
+                    <option value="Studio Rentals">Studio Rentals</option>
+                    <option value="Artisanal Bakery">Artisanal Bakery</option>
                     <option value="Consultant">Consultant</option>
-                    <option value="Wellness">Wellness</option>
+                    <option value="Artisan Atelier">Artisan Atelier</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-xs text-[#3A9295] font-medium block mb-1">Flat Subscription Tier</label>
+                  <label className="block text-[#3A9295] uppercase font-mono text-[10px] mb-1">
+                    Initial Plan Tier
+                  </label>
                   <select
-                    value={newPlan}
-                    onChange={(e) => setNewPlan(e.target.value as TenantUser["plan"])}
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                    value={formPlan}
+                    onChange={(e) => setFormPlan(e.target.value as SubscriptionPlanId)}
+                    className="w-full px-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                   >
-                    <option value="Pilot ($39/mo)">Pilot ($39/mo)</option>
-                    <option value="Growth ($79/mo)">Growth ($79/mo)</option>
-                    <option value="Scale ($149/mo)">Scale ($149/mo)</option>
+                    <option value="free">Starter (LKR 0 / mo)</option>
+                    <option value="growth">Growth (LKR 500 / mo)</option>
+                    <option value="scale">Scale (LKR 1,500 / mo)</option>
+                    <option value="enterprise">Enterprise (LKR 4,500 / mo)</option>
                   </select>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-black/5">
+              <div className="pt-4 flex items-center justify-end gap-3 border-t border-black/5">
                 <button
                   type="button"
                   onClick={() => setIsAddUserModalOpen(false)}
-                  className="px-4 py-2 rounded-full text-xs text-[#3A9295] hover:text-[#105F68]"
+                  className="px-5 py-2.5 rounded-full border border-black/10 text-xs text-[#3A9295] hover:text-[#105F68]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-full bg-[#105F68] text-white text-xs font-light hover:bg-[#0D4F57] transition-all flex items-center gap-1.5 shadow-sm"
+                  className="px-6 py-2.5 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-light tracking-tight shadow-md"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Deploy Tenant Account</span>
+                  Create Merchant Workspace
                 </button>
               </div>
             </form>
@@ -1180,73 +1243,130 @@ export default function SuperAdminDashboard() {
         </div>
       )}
 
-      {/* Create Auth Identity Modal */}
-      {isCreateIdentityOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl border border-[#105F68]/20 shadow-xl max-w-md w-full p-6 space-y-5 animate-in fade-in duration-200">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#105F68] text-white flex items-center justify-center">
-                <Fingerprint className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-light text-[#105F68]">Create Auth Identity</h3>
-                <p className="text-xs text-[#3A9295]">Register Supabase user with assigned role</p>
-              </div>
+      {/* MODAL: EDIT USER PROFILE */}
+      {isEditUserModalOpen && selectedUser && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-8 border border-[#105F68]/20 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-black/5 pb-4">
+              <h3 className="text-xl font-light text-[#105F68]">Edit Tenant: {selectedUser.businessName}</h3>
+              <button
+                onClick={() => setIsEditUserModalOpen(false)}
+                className="text-[#3A9295] hover:text-[#105F68] text-xs font-mono"
+              >
+                ✕ Close
+              </button>
             </div>
 
-            <form onSubmit={handleCreateNewIdentity} className="space-y-4">
+            <form onSubmit={handleEditUserSubmit} className="space-y-4 text-xs font-light">
               <div>
-                <label className="text-xs text-[#3A9295] font-medium block mb-1">Full Name</label>
+                <label className="block text-[#3A9295] uppercase font-mono text-[10px] mb-1">
+                  Business Name
+                </label>
                 <input
                   type="text"
-                  placeholder="e.g. Dr. Julian Vance"
                   required
-                  value={identityName}
-                  onChange={(e) => setIdentityName(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  value={editBusinessName}
+                  onChange={(e) => setEditBusinessName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
                 />
               </div>
 
-              <div>
-                <label className="text-xs text-[#3A9295] font-medium block mb-1">Email Address</label>
-                <input
-                  type="email"
-                  placeholder="julian@vancestudios.co"
-                  required
-                  value={identityEmail}
-                  onChange={(e) => setIdentityEmail(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#3A9295] uppercase font-mono text-[10px] mb-1">
+                    Owner Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editOwnerName}
+                    onChange={(e) => setEditOwnerName(e.target.value)}
+                    className="w-full px-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[#3A9295] uppercase font-mono text-[10px] mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    className="w-full px-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="text-xs text-[#3A9295] font-medium block mb-1">Global System Role</label>
-                <select
-                  value={identityRole}
-                  onChange={(e) => setIdentityRole(e.target.value as UserRole)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
-                >
-                  <option value="business_owner">Business Owner (Merchant Org Head)</option>
-                  <option value="staff">Specialist Staff Member</option>
-                  <option value="super_admin">Developer Super Admin</option>
-                  <option value="client">Client</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#3A9295] uppercase font-mono text-[10px] mb-1">
+                    Slug
+                  </label>
+                  <input
+                    type="text"
+                    value={editSlug}
+                    onChange={(e) => setEditSlug(e.target.value)}
+                    className="w-full px-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[#3A9295] uppercase font-mono text-[10px] mb-1">
+                    Phone
+                  </label>
+                  <input
+                    type="text"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    className="w-full px-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  />
+                </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-black/5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#3A9295] uppercase font-mono text-[10px] mb-1">
+                    Account Status
+                  </label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as TenantUser["status"])}
+                    className="w-full px-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  >
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                    <option value="pending_setup">Pending Setup</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[#3A9295] uppercase font-mono text-[10px] mb-1">
+                    Role
+                  </label>
+                  <select
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value as TenantUser["role"])}
+                    className="w-full px-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                  >
+                    <option value="business_owner">Business Owner</option>
+                    <option value="staff">Staff Specialist</option>
+                    <option value="super_admin">Super Administrator</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-4 flex items-center justify-end gap-3 border-t border-black/5">
                 <button
                   type="button"
-                  onClick={() => setIsCreateIdentityOpen(false)}
-                  className="px-4 py-2 rounded-full text-xs text-[#3A9295] hover:text-[#105F68]"
+                  onClick={() => setIsEditUserModalOpen(false)}
+                  className="px-5 py-2.5 rounded-full border border-black/10 text-xs text-[#3A9295] hover:text-[#105F68]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-full bg-[#105F68] text-white text-xs font-light hover:bg-[#0D4F57] transition-all flex items-center gap-1.5 shadow-sm"
+                  className="px-6 py-2.5 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-light tracking-tight shadow-md"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Register Identity &amp; Send Magic Link</span>
+                  Save Changes
                 </button>
               </div>
             </form>
@@ -1254,11 +1374,36 @@ export default function SuperAdminDashboard() {
         </div>
       )}
 
-      {/* Toast */}
-      {notification && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#105F68] text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 text-xs border border-[#63C1BB]/30 animate-fadeUp">
-          <Check className="w-4 h-4 text-[#63C1BB]" />
-          <span>{notification}</span>
+      {/* MODAL: CONFIRM DELETE */}
+      {isDeleteConfirmOpen && userToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 border border-rose-200 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 text-rose-600">
+              <AlertCircle className="w-6 h-6" />
+              <h3 className="text-lg font-medium text-rose-950">Confirm Permanent Removal</h3>
+            </div>
+
+            <p className="text-xs text-[#3A9295] leading-relaxed">
+              Are you sure you want to permanently delete <strong className="text-[#105F68]">{userToDelete.businessName}</strong> ({userToDelete.email})? This action cannot be undone.
+            </p>
+
+            <div className="pt-2 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                className="px-4 py-2 rounded-full border border-black/10 text-xs text-[#3A9295] hover:text-[#105F68]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteUser}
+                className="px-5 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-light shadow-md"
+              >
+                Delete Tenant
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

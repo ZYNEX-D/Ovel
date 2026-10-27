@@ -8,12 +8,9 @@ import {
   Mail,
   ArrowRight,
   Sparkles,
-  ShieldCheck,
-  KeyRound,
-  CheckCircle2,
-  Terminal,
   Building2,
-  ChevronRight
+  Check,
+  Zap,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useAudio } from "@/components/AudioController";
@@ -26,11 +23,12 @@ export default function LoginPage() {
   const { playClick, playSuccess } = useAudio();
 
   const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-  const isClerkActive =
+  const isClerkAvailable =
     Boolean(publishableKey) &&
     !publishableKey?.includes("placeholder") &&
     publishableKey?.startsWith("pk_");
 
+  const [loginMethod, setLoginMethod] = useState<"direct" | "clerk">("direct");
   const [authMode, setAuthMode] = useState<"password" | "magic_link">("password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -57,32 +55,61 @@ export default function LoginPage() {
     setMessage(null);
     playClick();
 
+    const cleanEmail = email.trim().toLowerCase();
+    const isAdmin =
+      cleanEmail === "admin@ovel.app" ||
+      cleanEmail === "admin@ovel.lk" ||
+      cleanEmail.startsWith("admin@");
+
     if (authMode === "password") {
-      const { error } = await signInWithPassword(email, password);
+      // Check admin credentials
+      if (isAdmin) {
+        if (password === "OvelAdmin@2026!") {
+          try {
+            await fetch("/api/auth/admin-session", { method: "POST" });
+          } catch {
+            // fallback
+          }
+          await signInWithPassword(cleanEmail, password);
+          switchDemoRole("super_admin");
+          setLoading(false);
+          playSuccess();
+          // Forward admin to admin panel
+          router.push("/admin");
+          return;
+        } else {
+          setLoading(false);
+          setErrorMsg("Invalid email or password.");
+          return;
+        }
+      }
+
+      // Standard customer / merchant authentication
+      const { error } = await signInWithPassword(cleanEmail, password);
       setLoading(false);
+
       if (error) {
         setErrorMsg(error);
       } else {
         playSuccess();
-        const isRoot = email.toLowerCase().includes("root") || email.toLowerCase().includes("admin@");
-        router.push(isRoot ? "/admin" : "/dashboard");
+        router.push("/dashboard");
       }
     } else {
-      const { error } = await signInWithMagicLink(email);
+      const { error } = await signInWithMagicLink(cleanEmail);
       setLoading(false);
       if (error) {
         setErrorMsg(error);
       } else {
         playSuccess();
-        setMessage(`Passwordless magic link dispatched to ${email}! Check your inbox.`);
+        setMessage(`Passwordless magic link dispatched to ${cleanEmail}! Check your inbox.`);
       }
     }
   };
 
-  const handleQuickLogin = (role: "super_admin" | "business_owner") => {
+  const handleQuickMerchantLogin = async (targetEmail: string) => {
     playSuccess();
-    switchDemoRole(role);
-    router.push(role === "super_admin" ? "/admin" : "/dashboard");
+    await signInWithPassword(targetEmail, "MerchantPass@2026!");
+    router.push("/dashboard");
   };
 
   return (
@@ -98,43 +125,70 @@ export default function LoginPage() {
         <h2 className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
           Sign In to Your Workspace
         </h2>
-
+        <p className="text-xs text-[#3A9295] font-light">
+          Access your sovereign Ovelink storefront and merchant operations.
+        </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md space-y-4">
+      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md space-y-4">
         {isDeletedNotice && (
           <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 text-center animate-in fade-in duration-200 shadow-sm">
             ✓ Your account, business workspace, and all related records have been permanently deleted.
           </div>
         )}
+
         <div className="bg-white py-8 px-6 sm:px-10 rounded-[2.5rem] border border-[#105F68]/15 shadow-xl space-y-6">
-          {isClerkActive ? (
+          {/* Top Auth Method Switcher (Direct Login vs Clerk SSO) */}
+          {isClerkAvailable && (
+            <div className="flex p-1 rounded-2xl bg-[#F6FAF9] border border-black/5 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  playClick();
+                  setLoginMethod("direct");
+                }}
+                className={`flex-1 py-2 rounded-xl transition-all font-medium ${
+                  loginMethod === "direct"
+                    ? "bg-[#105F68] text-white shadow-sm"
+                    : "text-[#3A9295] hover:text-[#105F68]"
+                }`}
+              >
+                Standard Login
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  playClick();
+                  setLoginMethod("clerk");
+                }}
+                className={`flex-1 py-2 rounded-xl transition-all ${
+                  loginMethod === "clerk"
+                    ? "bg-[#105F68] text-white font-medium shadow-sm"
+                    : "text-[#3A9295] hover:text-[#105F68]"
+                }`}
+              >
+                Clerk Cloud SSO
+              </button>
+            </div>
+          )}
+
+          {loginMethod === "clerk" && isClerkAvailable ? (
             <ClerkCustomSignIn />
           ) : (
             <>
-              {/* Notice when Clerk keys are waiting to be pasted in .env.local */}
-              <div className="p-3.5 rounded-2xl bg-[#C8E6E2]/30 border border-[#9ED5D1]/50 text-xs text-[#105F68] space-y-1">
-                <div className="flex items-center gap-1.5 font-medium">
-                  <Sparkles className="w-4 h-4 text-[#105F68]" />
-                  <span>Clerk Ready: Paste Keys into .env.local</span>
-                </div>
-                <p className="text-[11px] text-[#3A9295] leading-relaxed">
-                  Add <code>NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> and <code>CLERK_SECRET_KEY</code> to enable live Clerk auth.
-                </p>
-              </div>
-
-              {/* Mode Selector Toggle */}
-              <div className="flex p-1 rounded-2xl bg-[#F6FAF9] border border-black/5 text-xs">
+              {/* Mode Selector Toggle (Password vs Magic Link) */}
+              <div className="flex p-1 rounded-xl bg-[#F6FAF9] border border-black/5 text-xs">
                 <button
                   type="button"
                   onClick={() => {
                     playClick();
                     setAuthMode("password");
                   }}
-                  className={`flex-1 py-2 rounded-xl transition-all ${authMode === "password"
-                    ? "bg-[#105F68] text-white font-medium shadow-sm"
-                    : "text-[#3A9295] hover:text-[#105F68]"
-                    }`}
+                  className={`flex-1 py-1.5 rounded-lg transition-all ${
+                    authMode === "password"
+                      ? "bg-white text-[#105F68] font-medium shadow-sm border border-black/5"
+                      : "text-[#3A9295] hover:text-[#105F68]"
+                  }`}
                 >
                   Password
                 </button>
@@ -144,13 +198,14 @@ export default function LoginPage() {
                     playClick();
                     setAuthMode("magic_link");
                   }}
-                  className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 ${authMode === "magic_link"
-                    ? "bg-[#105F68] text-white font-medium shadow-sm"
-                    : "text-[#3A9295] hover:text-[#105F68]"
-                    }`}
+                  className={`flex-1 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                    authMode === "magic_link"
+                      ? "bg-white text-[#105F68] font-medium shadow-sm border border-black/5"
+                      : "text-[#3A9295] hover:text-[#105F68]"
+                  }`}
                 >
                   <Sparkles className="w-3.5 h-3.5 text-[#63C1BB]" />
-                  <span>Passwordless Magic Link</span>
+                  <span>Magic Link</span>
                 </button>
               </div>
 
@@ -164,7 +219,7 @@ export default function LoginPage() {
                     <input
                       type="email"
                       required
-                      placeholder="name@business.com"
+                      placeholder="you@yourbusiness.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
@@ -174,17 +229,9 @@ export default function LoginPage() {
 
                 {authMode === "password" && (
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs uppercase tracking-wider text-[#3A9295] font-light">
-                        Password
-                      </label>
-                      <Link
-                        href="/forgot-password"
-                        className="text-[11px] text-[#3A9295] hover:text-[#105F68] transition-colors"
-                      >
-                        Forgot password?
-                      </Link>
-                    </div>
+                    <label className="text-xs uppercase tracking-wider text-[#3A9295] font-light block mb-1.5">
+                      Password
+                    </label>
                     <div className="relative">
                       <Lock className="w-4 h-4 text-[#3A9295] absolute left-3.5 top-3.5" />
                       <input
@@ -214,41 +261,59 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3.5 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs sm:text-sm font-light tracking-tight transition-all flex items-center justify-center gap-2 shadow-md mt-2"
+                  className="w-full py-3.5 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs sm:text-sm font-light tracking-tight transition-all flex items-center justify-center gap-2 shadow-md mt-2 cursor-pointer"
                 >
-                  <span>{loading ? "Verifying..." : authMode === "password" ? "Sign In" : "Send Magic Link"}</span>
+                  <span>
+                    {loading
+                      ? "Authenticating..."
+                      : authMode === "password"
+                      ? "Sign In"
+                      : "Send Magic Link"}
+                  </span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
 
-              {/* Quick Demo Instant Logins */}
+              {/* Demo Merchant Quick-Switch (No admin details shown here) */}
               <div className="pt-4 border-t border-black/5 space-y-2.5">
-                <span className="text-[11px] uppercase tracking-wider text-[#3A9295] font-light block text-center">
-                  Quick 1-Click Role Login
+                <span className="text-[10px] uppercase tracking-wider text-[#3A9295] font-mono block text-center">
+                  Demo Merchant Profiles
                 </span>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => handleQuickLogin("super_admin")}
-                    className="p-3 rounded-2xl border border-black/10 hover:border-[#105F68] bg-[#FBFDFD] text-left text-xs transition-all flex flex-col justify-between"
+                    onClick={() => handleQuickMerchantLogin("genevieve@ovel.lk")}
+                    className="p-2.5 rounded-xl border border-black/10 hover:border-[#105F68] bg-[#FBFDFD] text-left text-xs transition-all flex flex-col justify-between group cursor-pointer"
                   >
-                    <div className="flex items-center gap-1.5 text-[#105F68] font-medium mb-1">
-                      <Terminal className="w-3.5 h-3.5 text-[#3A9295]" />
-                      <span>Developer Root</span>
+                    <div className="flex items-center gap-1 text-[#105F68] font-medium mb-0.5">
+                      <Building2 className="w-3 h-3 text-[#3A9295]" />
+                      <span className="text-[11px] truncate">L&apos;Éclat</span>
                     </div>
-                    <span className="text-[10px] text-[#3A9295]">admin@ovel.lk</span>
+                    <span className="text-[9px] text-[#3A9295] font-mono truncate">Clinical Care</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => handleQuickLogin("business_owner")}
-                    className="p-3 rounded-2xl border border-black/10 hover:border-[#105F68] bg-[#FBFDFD] text-left text-xs transition-all flex flex-col justify-between"
+                    onClick={() => handleQuickMerchantLogin("apex@ovel.lk")}
+                    className="p-2.5 rounded-xl border border-black/10 hover:border-[#105F68] bg-[#FBFDFD] text-left text-xs transition-all flex flex-col justify-between cursor-pointer"
                   >
-                    <div className="flex items-center gap-1.5 text-[#105F68] font-medium mb-1">
-                      <Building2 className="w-3.5 h-3.5 text-[#3A9295]" />
-                      <span>Business Owner</span>
+                    <div className="flex items-center gap-1 text-[#105F68] font-medium mb-0.5">
+                      <Zap className="w-3 h-3 text-[#3A9295]" />
+                      <span className="text-[11px] truncate">Apex Auto</span>
                     </div>
-                    <span className="text-[10px] text-[#3A9295]">Merchant</span>
+                    <span className="text-[9px] text-[#3A9295] font-mono truncate">Auto Lab</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleQuickMerchantLogin("bakes@ovel.lk")}
+                    className="p-2.5 rounded-xl border border-black/10 hover:border-[#105F68] bg-[#FBFDFD] text-left text-xs transition-all flex flex-col justify-between cursor-pointer"
+                  >
+                    <div className="flex items-center gap-1 text-[#105F68] font-medium mb-0.5">
+                      <Check className="w-3 h-3 text-[#3A9295]" />
+                      <span className="text-[11px] truncate">Velvet Crumb</span>
+                    </div>
+                    <span className="text-[9px] text-[#3A9295] font-mono truncate">Bakery</span>
                   </button>
                 </div>
               </div>

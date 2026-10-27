@@ -1,0 +1,1 @@
+import{r as t}from"./index-Bdh81gzm.js";const o=t.createContext(2),a=()=>t.useContext(o),r=t.createContext(null);function u(n){const e=t.useContext(r);t.useEffect(()=>{if(e)return e.add(n),()=>{e.delete(n)}},[e,n])}export{r as P,o as Q,a,u};

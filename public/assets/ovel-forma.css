@@ -1,0 +1,163 @@
+/* ==========================================================================
+   OVEL BRAND TYPOGRAPHY & DESIGN TOKENS
+   - Primary & Default Font: Kaleko 105 (all headings, body, UI, specs, cards)
+   - Special Editorial & Brand Font: Disolve (logo, footer mark, italic highlights)
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Kaleko 105';
+  src: url('/fonts/fonnts.com-Kaleko105Book.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Kaleko 105';
+  src: url('/fonts/fonnts.com-Kaleko105Light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Kaleko 105';
+  src: url('/fonts/fonnts.com-Kaleko105Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Kaleko 105';
+  src: url('/fonts/fonnts.com-Kaleko105Heavy.ttf') format('truetype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Disolve';
+  src: url('/fonts/Disolve_regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Disolve';
+  src: url('/fonts/Disolve_light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* Default and Primary font is Kaleko 105 */
+  --sans: 'Kaleko 105', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  --serif: 'Kaleko 105', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  --font-special: 'Disolve', 'Kaleko 105', sans-serif !important;
+
+  /* Ovel Brand Palette */
+  --wood: #105F68 !important;       /* Signature Teal */
+  --charcoal: #0D4F57 !important;   /* Deep Dark Teal */
+  --ink: #103438 !important;        /* Deep Brand Ink */
+  --accent: #63C1BB !important;     /* Bright Mint Cyan */
+  --ivory: #F6FAF9 !important;      /* Pale Frosted Mint/White */
+  --paper: #EDF6F5 !important;
+  --stone: #DCECE9 !important;
+  --sand: #C8E6E2 !important;
+  --muted: #3A9295 !important;      /* Slate Mint */
+  --muted-light: rgba(200, 230, 226, 0.72) !important;
+  --line: rgba(16, 95, 104, 0.16) !important;
+  --line-light: rgba(99, 193, 187, 0.24) !important;
+}
+
+/* Base Body and Text hierarchy */
+body, html {
+  font-family: var(--sans) !important;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+/* All headings, titles, sections default to clean, modern Kaleko 105 */
+h1, h2, h3, h4, h5, h6,
+.display, .display-sub,
+.hero__title,
+.harmony__title,
+.living__title,
+.details__title,
+.projects__title,
+.process__title,
+.contact__title,
+.cliff__title,
+.footer__tag,
+.project-card__title,
+.process__stage-title,
+.living__quote-text,
+.harmony__quote-text,
+.details__item-title {
+  font-family: 'Kaleko 105', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  letter-spacing: -0.025em !important;
+  font-weight: 400 !important;
+}
+
+/* ==========================================================================
+   SPECIAL: Exclusive application of Disolve font
+   Only used for brand logo, footer watermark, and signature italic emphasis
+   ========================================================================== */
+
+.nav__logo {
+  font-family: 'Disolve', sans-serif !important;
+  font-weight: 400 !important;
+  font-size: 28px !important;
+  letter-spacing: -0.02em !important;
+  color: var(--wood) !important;
+}
+
+.footer__mark {
+  font-family: 'Disolve', sans-serif !important;
+  font-weight: 400 !important;
+  font-size: clamp(96px, 24vw, 420px) !important;
+  letter-spacing: -0.02em !important;
+  color: #C8E6E2 !important;
+  opacity: 0.88 !important;
+}
+
+.preloader__mark {
+  font-family: 'Disolve', sans-serif !important;
+  font-size: clamp(48px, 10vw, 92px) !important;
+  letter-spacing: 0.16em !important;
+  color: var(--wood) !important;
+}
+
+/* Signature italic emphasis words in headlines (e.g. "Spaces *that* Breathe") */
+.hword.is-italic,
+.contact__word.is-italic,
+.is-italic,
+.special-accent,
+.font-special {
+  font-family: 'Disolve', sans-serif !important;
+  font-style: normal !important;
+  letter-spacing: -0.02em !important;
+  color: var(--accent) !important;
+  font-weight: 400 !important;
+}
+
+/* Buttons and Links */
+.btn--solid {
+  background: var(--wood) !important;
+  border-color: var(--wood) !important;
+  font-family: 'Kaleko 105', sans-serif !important;
+  font-weight: 500 !important;
+}
+
+.btn--solid:before {
+  background: var(--charcoal) !important;
+}
+
+.btn--ghost {
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+  font-family: 'Kaleko 105', sans-serif !important;
+}

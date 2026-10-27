@@ -589,7 +589,6 @@ export default function DashboardServicesPage() {
           return (
             <div className="p-8 rounded-3xl bg-white border border-slate-200/80 shadow-xs">
               <EmptyState
-                icon={<Sparkles className="w-6 h-6 text-[#105F68]" />}
                 title={services.length === 0 ? "No services in your catalog yet" : "No services match your search"}
                 description="Configure your service offerings, price ranges, service durations, and nested sub-categories to make them bookable."
                 action={

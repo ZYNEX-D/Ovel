@@ -2,15 +2,15 @@
 
 import React, { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
-import { 
-  FileText, 
-  ExternalLink, 
-  Plus, 
-  Trash2, 
-  Copy, 
-  Check, 
-  X, 
-  Calendar, 
+import {
+  FileText,
+  ExternalLink,
+  Plus,
+  Trash2,
+  Copy,
+  Check,
+  X,
+  Calendar,
   Sparkles,
   ShoppingBag,
   Package,
@@ -21,18 +21,29 @@ import {
   CheckCircle2,
   Landmark,
   CreditCard,
-  Coins
+  Coins,
+  Briefcase,
+  Truck,
+  Building2,
+  MapPin,
+  Percent,
+  Receipt,
+  FileCheck,
+  Layers,
+  Clock,
+  ShieldCheck,
+  User
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  getQuotes, 
+import {
+  getQuotes,
   INITIAL_QUOTES,
-  createQuote, 
-  deleteQuote, 
+  createQuote,
+  deleteQuote,
   saveQuotes,
-  getClientProfiles, 
+  getClientProfiles,
   INITIAL_CLIENT_PROFILES,
-  getServices, 
+  getServices,
   INITIAL_SERVICES,
   getProducts,
   INITIAL_PRODUCTS,
@@ -40,12 +51,16 @@ import {
   INITIAL_PAYMENT_ACCOUNTS,
   PaymentAccount,
   deductInventoryForLineItems,
-  QuoteProposal, 
-  ClientProfile, 
+  QuoteProposal,
+  QuoteFulfillmentType,
+  ClientProfile,
   ServiceItem,
   ProductItem,
   InvoiceLineItem,
-  formatServicePrice
+  formatServicePrice,
+  convertQuoteToInvoice,
+  PaymentCreditTerms,
+  calculateDueDate
 } from "@/lib/platform-store";
 import { useClientStore } from "@/lib/use-client-store";
 import { useAuth } from "@/lib/auth-context";
@@ -60,12 +75,14 @@ import { Combobox, ComboboxOption } from "@/components/arc/combobox/combobox";
 import { Select } from "@/components/arc/select/select";
 import { SortableDataTable, type DataColumn } from "@/components/arc/sortable-data-table/sortable-data-table";
 import { Stepper, StepperStep } from "@/components/arc/stepper/stepper";
+import { RadioCards, type RadioCardOption } from "@/components/arc/radio-cards/radio-cards";
 
 interface LineItemState {
   id: string;
   type: "product" | "service" | "custom";
   itemId?: string;
   description: string;
+  unit?: string;
   quantity: number;
   unitPrice: number;
   stockCount?: number;
@@ -107,29 +124,70 @@ export default function DashboardQuotesPage() {
   const [notification, setNotification] = useState<string | null>(null);
   const [deletingQuoteId, setDeletingQuoteId] = useState<string | null>(null);
 
-  // Form State
+  // Quote -> Invoice Conversion Dialog State
+  const [convertingQuote, setConvertingQuote] = useState<QuoteProposal | null>(null);
+  const [convertCreditTerms, setConvertCreditTerms] = useState<PaymentCreditTerms>("net_30");
+  const [convertCreditDays, setConvertCreditDays] = useState<number>(30);
+  const [convertInitialPayment, setConvertInitialPayment] = useState<number>(0);
+  const [convertPaymentMethod, setConvertPaymentMethod] = useState<string>("Bank Transfer");
+  const [convertNotes, setConvertNotes] = useState<string>("");
+
+  // Form State: Proposal Identity & Scope
   const [title, setTitle] = useState("");
+  const [quoteNumber, setQuoteNumber] = useState("");
+  const [fulfillmentType, setFulfillmentType] = useState<QuoteFulfillmentType>("project");
+  const [requiresScheduling, setRequiresScheduling] = useState(false);
+  const [scopeDescription, setScopeDescription] = useState("");
+
+  // Client Details & Autosuggest
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
+  const [clientCompany, setClientCompany] = useState("");
+  const [clientAddress, setClientAddress] = useState("");
+  const [showClientSuggestions, setShowClientSuggestions] = useState(false);
+  const [highlightedClientIndex, setHighlightedClientIndex] = useState(-1);
+
+  const clientSuggestions = useMemo(() => {
+    const q = clientName.trim().toLowerCase();
+    if (!q) return [];
+    return clients.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q) ||
+        (c.phone && c.phone.includes(q))
+    ).slice(0, 6);
+  }, [clients, clientName]);
+
+  // Line items & Catalog
   const [searchCatalogValue, setSearchCatalogValue] = useState("");
   const [lineItems, setLineItems] = useState<LineItemState[]>([
     {
       id: "li_init",
       type: "custom",
-      description: "Consultation & Project Deliverable",
+      description: "Project Deliverable / Consulting Scope",
+      unit: "deliverable",
       quantity: 1,
       unitPrice: 250,
     },
   ]);
   const [optionalAddOns, setOptionalAddOns] = useState<{ description: string; price: number }[]>([
-    { description: "Priority Weekend Allocation & Expedited Turnaround", price: 150 },
+    { description: "Priority Expedited Turnaround & Direct Support", price: 150 },
   ]);
+
+  // Financial adjustments
+  const [discountType, setDiscountType] = useState<"percentage" | "fixed">("percentage");
+  const [discountValue, setDiscountValue] = useState<number>(0);
+  const [taxRate, setTaxRate] = useState<number>(0);
+  const [depositMode, setDepositMode] = useState<"none" | "percentage" | "fixed" | "full">("percentage");
+  const [depositPercentage, setDepositPercentage] = useState<number>(25);
   const [depositAmount, setDepositAmount] = useState<number>(100);
   const [expiresInDays, setExpiresInDays] = useState<number>(14);
+  const [requireSignature, setRequireSignature] = useState<boolean>(true);
+  const [notes, setNotes] = useState<string>("");
   const [selectedPaymentAccountId, setSelectedPaymentAccountId] = useState<string>("any");
   const [termsAndConditions, setTermsAndConditions] = useState<string>(
-    "1. Scope: Deliverables correspond strictly to itemized line items.\n2. Validity: Quotation rates remain firm for 14 calendar days from issuance.\n3. Deposit & Settlement: Upfront deposit is due upon signing to reserve specialist scheduling.\n4. Cancellation: Cancellations made under 24 hours prior to scheduled kickoff are subject to deposit forfeiture."
+    "1. Scope: Deliverables correspond strictly to itemized deliverables and project milestones.\n2. Validity: Quotation rates remain firm for 14 calendar days from issuance.\n3. Settlement: Invoicing and payments follow agreed schedule without mandatory calendar appointment.\n4. Revisions: Out-of-scope alterations will be billed under a separate change order."
   );
   const [quoteStatus, setQuoteStatus] = useState<"draft" | "sent" | "accepted">("sent");
 
@@ -140,7 +198,7 @@ export default function DashboardQuotesPage() {
 
   // Step Validation & Stepper Config
   const isStep0Valid = Boolean(title.trim() && clientName.trim() && clientEmail.trim());
-  const isStep1Valid = lineItems.some(
+  const isStep2Valid = lineItems.some(
     (item) => item.description.trim() && Number(item.unitPrice) >= 0 && Number(item.quantity) > 0
   );
 
@@ -148,29 +206,38 @@ export default function DashboardQuotesPage() {
     {
       id: "client",
       label: "Proposal & Client",
-      description: "Title and client contact",
+      description: "Title, scope & contacts",
       error: attemptedSteps.includes(0) && !isStep0Valid ? "Required fields missing" : undefined,
+    },
+    {
+      id: "model",
+      label: "Delivery Model",
+      description: "Fulfillment & kickoff slot",
     },
     {
       id: "items",
       label: "Line Items",
-      description: "Products & services",
-      error: attemptedSteps.includes(1) && !isStep1Valid ? "Add at least 1 item" : undefined,
+      description: "Products, services & units",
+      error: attemptedSteps.includes(2) && !isStep2Valid ? "Add at least 1 item" : undefined,
     },
     {
       id: "terms",
-      label: "Add-ons & Terms",
-      description: "Deposit & validity",
+      label: "Pricing & Terms",
+      description: "Deposit, discounts & account",
     },
     {
       id: "review",
       label: "Review & Publish",
-      description: "Summary & status",
+      description: "Summary & publication",
     },
   ];
 
   const handleOpenCreateModal = () => {
     playClick();
+    const nextQtNum = `QT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    setQuoteNumber(nextQtNum);
+    setFulfillmentType("project");
+    setRequiresScheduling(false);
     setQuoteStep(0);
     setAttemptedSteps([]);
     setIsCreateOpen(true);
@@ -183,15 +250,15 @@ export default function DashboardQuotesPage() {
         showToast("Please provide proposal title, client name, and email.");
         return;
       }
-    } else if (quoteStep === 1) {
-      if (!isStep1Valid) {
-        if (!attemptedSteps.includes(1)) setAttemptedSteps((prev) => [...prev, 1]);
+    } else if (quoteStep === 2) {
+      if (!isStep2Valid) {
+        if (!attemptedSteps.includes(2)) setAttemptedSteps((prev) => [...prev, 2]);
         showToast("Please add at least one line item with a description.");
         return;
       }
     }
     playClick();
-    setQuoteStep((prev) => Math.min(prev + 1, 3));
+    setQuoteStep((prev) => Math.min(prev + 1, 4));
   };
 
   const handlePrevStep = () => {
@@ -199,10 +266,28 @@ export default function DashboardQuotesPage() {
     setQuoteStep((prev) => Math.max(prev - 1, 0));
   };
 
-  // Form Computations
-  const subtotal = useMemo(() => {
+  // Financial Computations
+  const itemsSubtotal = useMemo(() => {
     return lineItems.reduce((sum, item) => sum + (Number(item.quantity || 1) * (Number(item.unitPrice) || 0)), 0);
   }, [lineItems]);
+
+  const discountAmount = useMemo(() => {
+    if (discountType === "percentage") {
+      return (itemsSubtotal * (Number(discountValue) || 0)) / 100;
+    }
+    return Math.min(Number(discountValue) || 0, itemsSubtotal);
+  }, [itemsSubtotal, discountType, discountValue]);
+
+  const taxableAmount = Math.max(0, itemsSubtotal - discountAmount);
+  const taxAmount = (taxableAmount * (Number(taxRate) || 0)) / 100;
+  const totalAmount = taxableAmount + taxAmount;
+
+  const calculatedDeposit = useMemo(() => {
+    if (depositMode === "none") return 0;
+    if (depositMode === "full") return totalAmount;
+    if (depositMode === "percentage") return (totalAmount * (Number(depositPercentage) || 0)) / 100;
+    return Math.min(Number(depositAmount) || 0, totalAmount);
+  }, [depositMode, totalAmount, depositPercentage, depositAmount]);
 
   const catalogOptions: ComboboxOption[] = useMemo(() => {
     const prods: ComboboxOption[] = (products || []).map((p) => ({
@@ -272,20 +357,57 @@ export default function DashboardQuotesPage() {
   const handleSelectClient = (clientId: string) => {
     const found = clients.find((c) => c.id === clientId);
     if (found) {
-      setClientName(found.name);
-      setClientEmail(found.email);
-      setClientPhone(found.phone || "");
+      handleSelectClientProfile(found);
     }
   };
 
-  const handleAddLineItem = () => {
+  const handleSelectClientProfile = (found: ClientProfile) => {
+    playSuccess();
+    setClientName(found.name);
+    setClientEmail(found.email);
+    setClientPhone(found.phone || "");
+    if (found.formulasOrNotes && !scopeDescription) {
+      setScopeDescription(found.formulasOrNotes);
+    }
+    setShowClientSuggestions(false);
+    setHighlightedClientIndex(-1);
+  };
+
+  const handleFulfillmentChange = (type: QuoteFulfillmentType) => {
+    playClick();
+    setFulfillmentType(type);
+    if (type === "appointment") {
+      setRequiresScheduling(true);
+      setTermsAndConditions(
+        "1. Scope: Calendar booking reservations and scheduled specialist sessions.\n2. Validity: Quotation rates remain firm for 14 calendar days.\n3. Upfront Deposit: Due upon signing to secure the reserved appointment slot.\n4. Cancellation: Cancellations made under 24 hours prior to scheduled kickoff are subject to deposit forfeiture."
+      );
+    } else if (type === "delivery") {
+      setRequiresScheduling(false);
+      setTermsAndConditions(
+        "1. Supply & Delivery: Physical goods will be dispatched or prepared for pickup upon order confirmation.\n2. Inspection: Client agrees to inspect received inventory within 48 hours of delivery.\n3. Returns: Return requests for damaged or incorrect items are honored within 7 business days."
+      );
+    } else if (type === "project") {
+      setRequiresScheduling(false);
+      setTermsAndConditions(
+        "1. Scope: Deliverables correspond strictly to itemized deliverables and project milestones.\n2. Validity: Quotation rates remain firm for 14 calendar days from issuance.\n3. Settlement: Invoicing and payments follow agreed schedule without mandatory calendar appointment.\n4. Revisions: Out-of-scope alterations will be billed under a separate change order."
+      );
+    } else {
+      setRequiresScheduling(false);
+      setTermsAndConditions(
+        "1. Scope: Deliverables correspond strictly to itemized line items.\n2. Validity: Quotation rates remain firm for 14 calendar days from issuance.\n3. Settlement: Invoicing proceeds upon client digital acceptance."
+      );
+    }
+  };
+
+  const handleAddLineItem = (type: "custom" | "product" | "service" = "custom") => {
     playClick();
     setLineItems([
       ...lineItems,
       {
         id: "li_" + Math.random().toString(36).slice(2, 8),
-        type: "custom",
+        type,
         description: "",
+        unit: type === "service" ? "hrs" : type === "product" ? "items" : "unit",
         quantity: 1,
         unitPrice: 50,
       },
@@ -301,9 +423,10 @@ export default function DashboardQuotesPage() {
     setLineItems(lineItems.filter((_, i) => i !== index));
   };
 
-  const handleAddCatalogItem = (selectedValue: string) => {
-    if (!selectedValue) return;
-    const [type, id] = selectedValue.split(":");
+  const handleAddCatalogItem = (compositeKey: string) => {
+    if (!compositeKey) return;
+    const [type, id] = compositeKey.split(":");
+    if (!type || !id) return;
 
     if (type === "product") {
       const prod = products.find((p) => p.id === id);
@@ -312,7 +435,7 @@ export default function DashboardQuotesPage() {
           const isInitialEmpty =
             prev.length === 1 &&
             prev[0].id === "li_init" &&
-            prev[0].description === "Consultation & Project Deliverable" &&
+            prev[0].description === "Project Deliverable / Consulting Scope" &&
             prev[0].unitPrice === 250;
           const base = isInitialEmpty ? [] : prev;
           return [
@@ -322,6 +445,7 @@ export default function DashboardQuotesPage() {
               type: "product",
               itemId: prod.id,
               description: prod.name,
+              unit: "items",
               quantity: 1,
               unitPrice: prod.priceCents / 100,
               stockCount: prod.stockCount,
@@ -338,7 +462,7 @@ export default function DashboardQuotesPage() {
           const isInitialEmpty =
             prev.length === 1 &&
             prev[0].id === "li_init" &&
-            prev[0].description === "Consultation & Project Deliverable" &&
+            prev[0].description === "Project Deliverable / Consulting Scope" &&
             prev[0].unitPrice === 250;
           const base = isInitialEmpty ? [] : prev;
           return [
@@ -348,6 +472,7 @@ export default function DashboardQuotesPage() {
               type: "service",
               itemId: srv.id,
               description: srv.name,
+              unit: `${srv.durationMinutes}m session`,
               quantity: 1,
               unitPrice: srv.priceCents / 100,
             },
@@ -381,8 +506,8 @@ export default function DashboardQuotesPage() {
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + (Number(expiresInDays) || 14));
 
-    const totalCents = Math.round(subtotal * 100);
-    const depositCents = Math.round((Number(depositAmount) || 0) * 100);
+    const totalCents = Math.round(totalAmount * 100);
+    const depositCents = Math.round(calculatedDeposit * 100);
 
     const formattedLineItems: InvoiceLineItem[] = lineItems
       .filter((item) => item.description.trim())
@@ -390,7 +515,7 @@ export default function DashboardQuotesPage() {
         id: item.id,
         type: item.type,
         itemId: item.itemId,
-        description: item.description,
+        description: item.unit ? `${item.description} (${item.unit})` : item.description,
         quantity: item.quantity,
         unitPriceCents: Math.round(item.unitPrice * 100),
         priceCents: Math.round(item.quantity * item.unitPrice * 100),
@@ -421,25 +546,38 @@ export default function DashboardQuotesPage() {
     createQuote(
       {
         title,
+        quoteNumber: quoteNumber.trim() || `QT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        fulfillmentType,
+        requiresScheduling,
         clientName,
         clientEmail,
         clientPhone,
+        clientCompany: clientCompany.trim() || undefined,
+        clientAddress: clientAddress.trim() || undefined,
+        scopeDescription: scopeDescription.trim() || undefined,
         lineItems: formattedLineItems.length > 0 ? formattedLineItems : [{ description: title, priceCents: totalCents }],
         optionalAddOns: formattedAddOns,
+        subtotalCents: Math.round(itemsSubtotal * 100),
+        discountCents: Math.round(discountAmount * 100),
+        discountPercentage: discountType === "percentage" ? discountValue : undefined,
+        taxCents: Math.round(taxAmount * 100),
+        taxRate: taxRate > 0 ? taxRate : undefined,
         totalCents,
         depositCents,
+        requireDeposit: depositCents > 0,
+        requireSignature,
+        notes: notes.trim() || undefined,
         termsAndConditions: termsAndConditions.trim() || undefined,
         paymentMethodId: selectedAcc ? selectedAcc.id : undefined,
         paymentMethodName: selectedAcc
           ? selectedAcc.name
           : selectedPaymentAccountId === "any"
-          ? "Client's Choice (All Active Channels)"
-          : undefined,
+            ? "Client's Choice (All Active Channels)"
+            : undefined,
         paymentMethodDetails: selectedAcc
           ? selectedAcc.type === "bank_transfer"
-            ? `${selectedAcc.bankName || "Bank"} • A/C No: ${selectedAcc.accountNumber || ""} (${selectedAcc.accountName || ""})${
-                selectedAcc.branchName ? ` • ${selectedAcc.branchName}` : ""
-              }`
+            ? `${selectedAcc.bankName || "Bank"} • A/C No: ${selectedAcc.accountNumber || ""} (${selectedAcc.accountName || ""})${selectedAcc.branchName ? ` • ${selectedAcc.branchName}` : ""
+            }`
             : selectedAcc.instructions || selectedAcc.type
           : undefined,
         status: quoteStatus,
@@ -449,24 +587,55 @@ export default function DashboardQuotesPage() {
     );
 
     setIsCreateOpen(false);
-    setQuoteStep(0);
-    setAttemptedSteps([]);
+    // Reset defaults
     setTitle("");
     setClientName("");
     setClientEmail("");
     setClientPhone("");
-    setSearchCatalogValue("");
+    setClientCompany("");
+    setClientAddress("");
+    setScopeDescription("");
     setLineItems([
       {
         id: "li_init",
         type: "custom",
-        description: "Consultation & Project Deliverable",
+        description: "Project Deliverable / Consulting Scope",
         quantity: 1,
         unitPrice: 250,
       },
     ]);
-    setOptionalAddOns([{ description: "Priority Weekend Allocation", price: 150 }]);
-    showToast(`Quote "${title}" successfully drafted & published!`);
+    setOptionalAddOns([{ description: "Priority Expedited Turnaround", price: 150 }]);
+    showToast(`Quotation "${title}" created & customized successfully!`);
+  };
+
+  const handleOpenConvertDialog = (quote: QuoteProposal) => {
+    playClick();
+    setConvertingQuote(quote);
+    setConvertCreditTerms("net_30");
+    setConvertCreditDays(30);
+    setConvertInitialPayment((quote.depositCents || 0) / 100);
+    setConvertPaymentMethod(quote.paymentMethodName || "Bank Transfer");
+    setConvertNotes(`Generated from accepted quotation ${quote.quoteNumber || quote.title}`);
+  };
+
+  const handleGenerateInvoiceFromQuote = () => {
+    if (!convertingQuote) return;
+    playSuccess();
+    const created = convertQuoteToInvoice(
+      convertingQuote.id,
+      {
+        creditTerms: convertCreditTerms,
+        creditPeriodDays: convertCreditTerms === "custom" ? convertCreditDays : undefined,
+        initialPaymentCents: Math.round(Number(convertInitialPayment || 0) * 100),
+        initialPaymentMethod: convertPaymentMethod,
+        notes: convertNotes,
+      },
+      wsId
+    );
+    setConvertingQuote(null);
+    if (created) {
+      showToast(`Invoice ${created.invoiceNumber} generated! Check Invoices dashboard.`);
+    }
   };
 
   const handleUpdateQuoteStatus = (quote: QuoteProposal, nextStatus: "sent" | "accepted" | "converted") => {
@@ -485,6 +654,11 @@ export default function DashboardQuotesPage() {
     const updated = quotes.map((q) => (q.id === quote.id ? { ...q, status: nextStatus } : q));
     saveQuotes(updated, wsId);
     showToast(`Quote updated to "${nextStatus}"`);
+
+    // When quotation is accepted, immediately prompt the option to create invoice
+    if (nextStatus === "accepted") {
+      handleOpenConvertDialog(quote);
+    }
   };
 
   const handleCopyQuoteLink = (quoteId: string) => {
@@ -512,19 +686,54 @@ export default function DashboardQuotesPage() {
       sortable: true,
       render: (_val, quote) => (
         <div>
-          <div className="font-medium text-slate-900">{quote.title}</div>
-          <div className="text-xs text-slate-500">{quote.lineItems?.length || 0} line {quote.lineItems?.length === 1 ? "item" : "items"}</div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-semibold text-slate-900">{quote.title}</span>
+            {quote.quoteNumber && (
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold">
+                {quote.quoteNumber}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+            <span>{quote.lineItems?.length || 0} {quote.lineItems?.length === 1 ? "item" : "items"}</span>
+            <span className="w-1 h-1 rounded-full bg-slate-300" />
+            <span className="inline-flex items-center gap-1 font-medium text-[#3A9295]">
+              {quote.fulfillmentType === "appointment" ? (
+                <>
+                  <Calendar className="w-3 h-3 text-[#105F68]" />
+                  <span>Appointment</span>
+                </>
+              ) : quote.fulfillmentType === "delivery" ? (
+                <>
+                  <Package className="w-3 h-3 text-[#105F68]" />
+                  <span>Products / Order</span>
+                </>
+              ) : quote.fulfillmentType === "project" ? (
+                <>
+                  <Briefcase className="w-3 h-3 text-[#105F68]" />
+                  <span>Project Deliverables</span>
+                </>
+              ) : (
+                <>
+                  <FileText className="w-3 h-3 text-[#105F68]" />
+                  <span>General</span>
+                </>
+              )}
+            </span>
+          </div>
         </div>
       ),
     },
     {
       key: "clientName",
-      label: "Client",
+      label: "Client & Company",
       sortable: true,
       render: (_val, quote) => (
         <div>
-          <div className="text-xs font-medium text-slate-800">{quote.clientName}</div>
-          <div className="text-[11px] text-slate-400">{quote.clientEmail}</div>
+          <div className="text-xs font-semibold text-slate-800">{quote.clientName}</div>
+          <div className="text-[11px] text-slate-500">
+            {quote.clientCompany ? `${quote.clientCompany} • ` : ""}{quote.clientEmail}
+          </div>
         </div>
       ),
     },
@@ -534,7 +743,7 @@ export default function DashboardQuotesPage() {
       sortable: true,
       numeric: true,
       render: (val) => (
-        <span className="font-mono font-medium text-[#103438]">
+        <span className="font-mono font-semibold text-[#103438]">
           {formatCurrency(Number(val) || 0, currency)}
         </span>
       ),
@@ -546,7 +755,7 @@ export default function DashboardQuotesPage() {
       numeric: true,
       render: (val) => (
         <span className="font-mono text-xs text-slate-600">
-          {Number(val) > 0 ? formatCurrency(Number(val), currency) : "—"}
+          {Number(val) > 0 ? formatCurrency(Number(val), currency) : "None (0%)"}
         </span>
       ),
     },
@@ -561,8 +770,8 @@ export default function DashboardQuotesPage() {
               quote.status === "accepted" || quote.status === "converted"
                 ? "emerald"
                 : quote.status === "sent"
-                ? "teal"
-                : "neutral"
+                  ? "teal"
+                  : "neutral"
             }
             size="xs"
           >
@@ -603,62 +812,114 @@ export default function DashboardQuotesPage() {
                 e.stopPropagation();
                 handleUpdateQuoteStatus(quote, "accepted");
               }}
-              className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-medium hover:bg-emerald-100 flex items-center gap-1 cursor-pointer transition-colors"
-              title="Accept quote & deduct product stock"
+              className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors"
+              title="Mark proposal accepted manually"
             >
               <Check className="w-3 h-3" />
               <span>Accept</span>
             </button>
           )}
 
+          {quote.status === "accepted" && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenConvertDialog(quote);
+              }}
+              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+              title="Create invoice for this accepted quotation"
+            >
+              <Receipt className="w-3 h-3" />
+              <span>Create Invoice</span>
+            </button>
+          )}
+
+          {quote.status === "converted" && (
+            <Link
+              href="/dashboard/invoices"
+              onClick={(e) => e.stopPropagation()}
+              className="px-2.5 py-1 rounded-lg bg-[#105F68]/10 text-[#105F68] border border-[#105F68]/20 hover:bg-[#105F68]/15 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors"
+              title="View generated invoice in Invoices"
+            >
+              <FileCheck className="w-3 h-3 text-[#105F68]" />
+              <span>Invoice</span>
+            </Link>
+          )}
+
+          <Link
+            href={`/quote/${quote.id}`}
+            target="_blank"
+            onClick={(e) => e.stopPropagation()}
+            className="p-1 text-slate-400 hover:text-[#105F68] rounded-md transition-colors"
+            title="Open Interactive Proposal"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Link>
+
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              playClick();
               setDeletingQuoteId(quote.id);
             }}
-            className="p-1 rounded-md text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
-            title="Delete quote"
+            className="p-1 text-slate-400 hover:text-rose-600 rounded-md transition-colors"
+            title="Delete Quote"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       ),
     },
-  ], [currency, copiedId, handleCopyQuoteLink, handleUpdateQuoteStatus, playClick]);
+  ], [currency, copiedId]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto font-['Kaleko_105',sans-serif]">
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {notification && (
+          <div className="fixed top-5 right-5 z-50">
+            <Toast title="Quotation Update" description={notification} />
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black/5 pb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
-            Quotes &amp; Proposals Pipeline
-          </h1>
-          <p className="text-xs text-[#3A9295] mt-1">
-            Create interactive proposals linking services and physical products with automatic inventory management upon confirmation.
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
+              Quotations &amp; Proposals
+            </h1>
+            <ArcBadge variant="teal" size="xs">
+              0% Take-rate
+            </ArcBadge>
+          </div>
+          <p className="text-xs sm:text-sm text-[#3A9295] mt-1 max-w-2xl leading-relaxed">
+            Create tailored estimates, contracts, and proposals for appointments, physical wholesale products, retainers, or custom client projects with digital signatures.
           </p>
         </div>
 
         <button
           onClick={handleOpenCreateModal}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#105F68] text-white text-xs font-semibold hover:bg-[#0D4F57] transition-all shadow-sm cursor-pointer"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs sm:text-sm font-medium tracking-wide transition-all shadow-sm hover:scale-[1.01] cursor-pointer"
         >
-          <Plus className="w-4 h-4" />
-          <span>Create Quote</span>
+          <Plus className="w-4 h-4 text-[#63C1BB]" />
+          <span>Create New Quotation</span>
         </button>
       </div>
 
       {/* Quote List presentation with SortableDataTable */}
       {quotes.length === 0 ? (
-        <div className="p-12 text-center rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-[#C8E6E2]/40 text-[#105F68] flex items-center justify-center mx-auto">
-            <FileText className="w-6 h-6" />
-          </div>
+        <div className="p-8 sm:p-12 text-center rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-3 select-none">
+          <img
+            src="/animations/emptyfiles.svg"
+            alt="No results"
+            className="w-32 h-32 mx-auto object-contain pointer-events-none mb-1"
+          />
           <h3 className="text-base font-semibold text-slate-800">No Quotes or Proposals Yet</h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Draft interactive estimates with select products, services, and optional add-ons to send to prospective clients.
+            Draft interactive estimates with select products, services, optional add-ons, or custom terms to send to prospective clients.
           </p>
           <div className="pt-2">
             <button
@@ -671,44 +932,48 @@ export default function DashboardQuotesPage() {
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-2 sm:p-4 overflow-hidden">
-          <SortableDataTable
-            rows={quotes as unknown as (QuoteProposal & Record<string, unknown>)[]}
-            rowKey="id"
-            caption="Quotes & Proposals"
-            columns={quoteColumns}
-            defaultSort={{ key: "createdAt", direction: "desc" }}
-            selectable
-            itemName={{ one: "quote", other: "quotes" }}
-            emptyMessage="No quotes or proposals yet"
-          />
-        </div>
+        <SortableDataTable
+          rows={quotes as unknown as (QuoteProposal & Record<string, unknown>)[]}
+          rowKey="id"
+          caption="Quotes & Proposals"
+          columns={quoteColumns}
+          defaultSort={{ key: "createdAt", direction: "desc" }}
+          selectable
+          itemName={{ one: "proposal", other: "proposals" }}
+          emptyMessage="No matching proposals found"
+        />
       )}
 
       {/* =========================================================================
-          ARC UI ANIMATED DIALOG: CREATE QUOTE WITH STEPPER TABS
+          ARC UI MULTI-STEP DIALOG: CREATE & CUSTOMIZE QUOTATION
          ========================================================================= */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent
-          title="Create Quote / Proposal"
-          description="Draft an interactive estimate linking catalog items, custom terms, and live inventory reservation."
-          className="!max-w-[720px]"
+          title="Create & Customize Quotation"
+          description="Customize scope, line items, pricing units, deposit terms, and fulfillment mode."
+          size="3xl"
+          className="max-w-4xl max-h-[92vh] overflow-y-auto"
+          headerExtra={
+            <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-[#105F68]/10 text-[#105F68] font-bold border border-[#105F68]/20">
+              {quoteNumber || "QT-NEW"}
+            </span>
+          }
         >
-          <div className="pt-2">
-            {/* ARC UI STEPPER: TAB NAVIGATION */}
-            <div className="mb-6 pt-1 pb-4 border-b border-black/5">
+          <div className="space-y-6">
+            {/* Stepper Navigation */}
+            <div className="p-3 sm:p-4 rounded-2xl bg-[#F6FAF9]/80 border border-[#105F68]/15 shadow-2xs">
               <Stepper
                 steps={quoteSteps}
                 current={quoteStep}
                 onStepSelect={(idx) => {
                   if (idx > quoteStep) {
                     if (quoteStep === 0 && !isStep0Valid) {
-                      if (!attemptedSteps.includes(0)) setAttemptedSteps((prev) => [...prev, 0]);
-                      showToast("Please complete client details first.");
+                      setAttemptedSteps((prev) => [...prev, 0]);
+                      showToast("Please complete required proposal & client fields first.");
                       return;
                     }
-                    if (quoteStep === 1 && !isStep1Valid) {
-                      if (!attemptedSteps.includes(1)) setAttemptedSteps((prev) => [...prev, 1]);
+                    if ((quoteStep === 2 || idx > 2) && !isStep2Valid) {
+                      setAttemptedSteps((prev) => [...prev, 2]);
                       showToast("Please add at least 1 line item.");
                       return;
                     }
@@ -721,9 +986,9 @@ export default function DashboardQuotesPage() {
               />
             </div>
 
-            <form onSubmit={handleCreateQuote} className="space-y-4 text-xs">
+            <form onSubmit={handleCreateQuote} className="space-y-6 text-xs sm:text-sm">
               <AnimatePresence mode="wait">
-                {/* STEP 0: PROPOSAL & CLIENT DETAILS */}
+                {/* STEP 0: PROPOSAL PURPOSE & CLIENT DETAILS */}
                 {quoteStep === 0 && (
                   <motion.div
                     key="step-0"
@@ -731,95 +996,215 @@ export default function DashboardQuotesPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.18 }}
-                    className="space-y-4"
+                    className="space-y-6"
                   >
+                    {/* Proposal Title & Number */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                          Proposal Title <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Website Overhaul & Digital Commerce Setup"
+                          value={title}
+                          onChange={(e) => setTitle(e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs sm:text-sm text-[#103438] placeholder:text-slate-400 focus:outline-none focus:border-[#105F68] focus:bg-white transition-all font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                          Quote Reference / Number
+                        </label>
+                        <input
+                          type="text"
+                          value={quoteNumber}
+                          onChange={(e) => setQuoteNumber(e.target.value)}
+                          placeholder="QT-2026-1001"
+                          className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs sm:text-sm font-mono text-[#103438] focus:outline-none focus:border-[#105F68] focus:bg-white transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Scope / Deliverables Executive Summary */}
                     <div>
-                      <label className="text-slate-700 font-semibold block mb-1.5">
-                        Proposal Title <span className="text-rose-500">*</span>
+                      <label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                        Executive Summary &amp; Scope of Work <span className="text-slate-400 font-normal">(Optional)</span>
                       </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Comprehensive Solution & Product Package"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#103438] focus:outline-none focus:border-[#105F68] focus:bg-white transition-all font-medium"
+                      <textarea
+                        rows={3}
+                        placeholder="Outline project deliverables, objectives, milestones, or shipment schedule for the client..."
+                        value={scopeDescription}
+                        onChange={(e) => setScopeDescription(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs sm:text-sm text-[#103438] leading-relaxed focus:outline-none focus:border-[#105F68] focus:bg-white resize-none transition-all placeholder:text-slate-400"
                       />
-                      {attemptedSteps.includes(0) && !title.trim() && (
-                        <p className="text-[11px] text-rose-500 mt-1">Please enter a proposal title.</p>
-                      )}
                     </div>
 
                     {/* Client Information */}
-                    <div className="p-4 rounded-2xl bg-[#F6FAF9] border border-black/5 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-[#105F68]">Client Information</span>
-                        {clients.length > 0 && (
-                          <select
-                            onChange={(e) => handleSelectClient(e.target.value)}
-                            defaultValue=""
-                            className="text-[11px] px-2.5 py-1 rounded-lg border border-black/10 bg-white text-[#105F68] font-medium hover:border-[#105F68] transition-colors"
-                          >
-                            <option value="" disabled>Autofill from saved clients...</option>
-                            {clients.map((c) => (
-                              <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
-                            ))}
-                          </select>
-                        )}
+                    <div className="p-5 rounded-2xl bg-[#F6FAF9] border border-black/5 space-y-4">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <span className="font-semibold text-xs sm:text-sm text-[#105F68] flex items-center gap-2">
+                          <Building2 className="w-4 h-4" />
+                          <span>Client &amp; Organization Details</span>
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-normal">
+                          Type full name to search &amp; autofill saved customers
+                        </span>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                        <div>
-                          <label className="text-[11px] text-slate-500 block mb-1">Full Name <span className="text-rose-500">*</span></label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                        <div className="relative">
+                          <label className="text-xs text-slate-600 font-medium block mb-1">
+                            Full Name <span className="text-rose-500">*</span>
+                          </label>
                           <input
                             type="text"
                             required
                             placeholder="e.g. Alex Morgan"
                             value={clientName}
-                            onChange={(e) => setClientName(e.target.value)}
-                            className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs text-[#103438] focus:outline-none focus:border-[#105F68]"
+                            onChange={(e) => {
+                              setClientName(e.target.value);
+                              setShowClientSuggestions(true);
+                              setHighlightedClientIndex(-1);
+                            }}
+                            onFocus={() => {
+                              if (clientName.trim() && clientSuggestions.length > 0) {
+                                setShowClientSuggestions(true);
+                              }
+                            }}
+                            onBlur={() => {
+                              setTimeout(() => setShowClientSuggestions(false), 220);
+                            }}
+                            onKeyDown={(e) => {
+                              if (!showClientSuggestions || clientSuggestions.length === 0) return;
+                              if (e.key === "ArrowDown") {
+                                e.preventDefault();
+                                setHighlightedClientIndex((prev) => (prev + 1) % clientSuggestions.length);
+                              } else if (e.key === "ArrowUp") {
+                                e.preventDefault();
+                                setHighlightedClientIndex((prev) => (prev - 1 + clientSuggestions.length) % clientSuggestions.length);
+                              } else if (e.key === "Enter" && highlightedClientIndex >= 0) {
+                                e.preventDefault();
+                                handleSelectClientProfile(clientSuggestions[highlightedClientIndex]);
+                              } else if (e.key === "Escape") {
+                                setShowClientSuggestions(false);
+                              }
+                            }}
+                            className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-black/10 text-xs sm:text-sm text-[#103438] focus:outline-none focus:border-[#105F68] transition-all"
                           />
+
+                          {/* Customer Autosuggest Dropdown */}
+                          {showClientSuggestions && clientSuggestions.length > 0 && (
+                            <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl shadow-xl border border-slate-200/90 py-1 overflow-hidden max-h-64 overflow-y-auto animate-in fade-in duration-150">
+                              <div className="px-3 py-1.5 text-[10px] uppercase font-semibold text-slate-400 tracking-wider flex items-center justify-between border-b border-slate-100 bg-slate-50/70">
+                                <span className="flex items-center gap-1.5">
+                                  <User className="w-3 h-3 text-[#105F68]" />
+                                  <span>Matching Customers</span>
+                                </span>
+                                <span className="text-[10px] text-[#105F68] font-medium">{clientSuggestions.length} found</span>
+                              </div>
+                              <div className="py-1">
+                                {clientSuggestions.map((c, idx) => {
+                                  const isHighlighted = idx === highlightedClientIndex;
+                                  const initials = c.name
+                                    .split(" ")
+                                    .map((n) => n[0])
+                                    .join("")
+                                    .substring(0, 2)
+                                    .toUpperCase();
+
+                                  return (
+                                    <div
+                                      key={c.id}
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        handleSelectClientProfile(c);
+                                      }}
+                                      onMouseEnter={() => setHighlightedClientIndex(idx)}
+                                      className={`px-3 py-2 flex items-center justify-between gap-2.5 cursor-pointer transition-colors ${
+                                        isHighlighted ? "bg-[#105F68]/10 text-[#105F68]" : "hover:bg-slate-50 text-slate-800"
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-7 h-7 rounded-full bg-[#105F68]/15 text-[#105F68] font-bold text-[11px] flex items-center justify-center shrink-0 border border-[#105F68]/20">
+                                          {initials}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p className="text-xs font-semibold truncate leading-tight">{c.name}</p>
+                                          <p className="text-[10.5px] text-slate-500 truncate leading-tight mt-0.5">{c.email}</p>
+                                        </div>
+                                      </div>
+
+                                      <div className="text-right shrink-0">
+                                        {c.phone && (
+                                          <span className="text-[10.5px] text-slate-500 font-mono block">
+                                            {c.phone}
+                                          </span>
+                                        )}
+                                        {c.reliabilityScore ? (
+                                          <span className="text-[9.5px] px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700 font-medium border border-emerald-200">
+                                            {c.reliabilityScore}%
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <div>
-                          <label className="text-[11px] text-slate-500 block mb-1">Email Address <span className="text-rose-500">*</span></label>
+                          <label className="text-xs text-slate-600 font-medium block mb-1">Email Address <span className="text-rose-500">*</span></label>
                           <input
                             type="email"
                             required
                             placeholder="alex@example.com"
                             value={clientEmail}
                             onChange={(e) => setClientEmail(e.target.value)}
-                            className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs text-[#103438] focus:outline-none focus:border-[#105F68]"
+                            className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-black/10 text-xs sm:text-sm text-[#103438] focus:outline-none focus:border-[#105F68]"
                           />
                         </div>
                         <div>
-                          <label className="text-[11px] text-slate-500 block mb-1">Phone Number</label>
+                          <label className="text-xs text-slate-600 font-medium block mb-1">Phone Number</label>
                           <input
                             type="tel"
-                            placeholder="+1 555-0199 (Optional)"
+                            placeholder="+1 555-0199"
                             value={clientPhone}
                             onChange={(e) => setClientPhone(e.target.value)}
-                            className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs text-[#103438] focus:outline-none focus:border-[#105F68]"
+                            className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-black/10 text-xs sm:text-sm text-[#103438] focus:outline-none focus:border-[#105F68]"
                           />
                         </div>
                       </div>
-                      {attemptedSteps.includes(0) && (!clientName.trim() || !clientEmail.trim()) && (
-                        <p className="text-[11px] text-rose-500">Please provide both client name and email.</p>
-                      )}
-                    </div>
 
-                    <div className="p-3.5 rounded-xl bg-teal-50/70 border border-teal-100/80 flex items-start gap-2.5 text-xs text-[#105F68]">
-                      <Sparkles className="w-4 h-4 text-[#105F68] shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-semibold text-xs text-[#105F68]">Interactive Client Experience</p>
-                        <p className="text-[11px] text-[#3A9295] mt-0.5">
-                          When published, clients view an interactive proposal portal where they can inspect deliverables, select optional add-ons, and e-sign.
-                        </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 border-t border-black/5">
+                        <div>
+                          <label className="text-xs text-slate-600 font-medium block mb-1">Company / Studio (Optional)</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Morgan Creative Ltd."
+                            value={clientCompany}
+                            onChange={(e) => setClientCompany(e.target.value)}
+                            className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-black/10 text-xs sm:text-sm text-[#103438] focus:outline-none focus:border-[#105F68]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-600 font-medium block mb-1">Billing / Delivery Address (Optional)</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 100 Main St, Suite 4B, New York, NY"
+                            value={clientAddress}
+                            onChange={(e) => setClientAddress(e.target.value)}
+                            className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-black/10 text-xs sm:text-sm text-[#103438] focus:outline-none focus:border-[#105F68]"
+                          />
+                        </div>
                       </div>
                     </div>
                   </motion.div>
                 )}
 
-                {/* STEP 1: LINE ITEMS (PRODUCTS & SERVICES) */}
+                {/* STEP 1: QUOTATION PURPOSE & DELIVERY MODEL */}
                 {quoteStep === 1 && (
                   <motion.div
                     key="step-1"
@@ -827,35 +1212,166 @@ export default function DashboardQuotesPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.18 }}
-                    className="space-y-3.5"
+                    className="space-y-6"
+                  >
+                    <div className="p-5 sm:p-6 rounded-3xl bg-[#F6FAF9]/90 border border-black/5 space-y-5">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <h3 className="font-semibold text-sm sm:text-base text-[#105F68]">
+                            Quotation Purpose &amp; Delivery Model
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Select what this quote is for so the client proposal behaves correctly.
+                          </p>
+                        </div>
+                        <span className="text-xs font-medium text-slate-500 px-3 py-1 rounded-full bg-white border border-black/10 shadow-2xs">
+                          Choose model
+                        </span>
+                      </div>
+
+                      {/* Delivery Model RadioCards */}
+                      <RadioCards
+                        aria-label="Quotation purpose and delivery model"
+                        name="fulfillmentType"
+                        value={fulfillmentType}
+                        onValueChange={(val) => handleFulfillmentChange(val as QuoteFulfillmentType)}
+                        layout="grid"
+                        minColumnWidth={180}
+                        options={[
+                          {
+                            value: "project",
+                            label: "Project Scope",
+                            description: "Deliverables, phased milestones & contractual work.",
+                            meta: "Milestones",
+                            icon: <Briefcase className="w-4 h-4" />,
+                          },
+                          {
+                            value: "delivery",
+                            label: "Products / Order",
+                            description: "Physical goods, equipment & inventory dispatch.",
+                            meta: "Physical Supply",
+                            icon: <Truck className="w-4 h-4" />,
+                          },
+                          {
+                            value: "appointment",
+                            label: "Appointment",
+                            description: "Calendar consultation, onboarding or kickoff slot.",
+                            meta: "Scheduled Slot",
+                            icon: <Calendar className="w-4 h-4" />,
+                          },
+                          {
+                            value: "none",
+                            label: "General Agreement",
+                            description: "Direct estimate, fast digital review & terms.",
+                            meta: "Standard Terms",
+                            icon: <FileText className="w-4 h-4" />,
+                          },
+                        ]}
+                      />
+
+                      {/* Interactive Scheduling Toggle - Can be selected & unselected freely */}
+                      <div
+                        onClick={() => {
+                          playClick();
+                          setRequiresScheduling((prev) => !prev);
+                        }}
+                        className={`p-4.5 rounded-2xl  transition-all cursor-pointer flex items-center justify-between gap-4 ${requiresScheduling
+                          ? " "
+                          : ""
+                          }`}
+                      >
+                        <div className="flex items-center justify-start gap-3">
+                          <div
+                            className={`p-2 rounded-xl shrink-0 transition-colors ${requiresScheduling ? "bg-[#105F68] text-white" : "bg-slate-100 text-slate-500"
+                              }`}
+                          >
+                            <Clock className="w-4 h-4" />
+                          </div>
+                          <div className="space-y-0.5">
+                            <div className="font-semibold text-xs sm:text-sm text-[#105F68] flex items-center gap-2">
+                              <span>Require Appointment Kickoff Slot on Acceptance?</span>
+                              <ArcBadge variant={requiresScheduling ? "emerald" : "neutral"} size="xs">
+                                {requiresScheduling ? "Active" : "Unselected"}
+                              </ArcBadge>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                              {requiresScheduling
+                                ? "Client will be prompted to pick a calendar appointment slot upon signing."
+                                : "No appointment required. Client can review, e-sign, and authorize agreement directly."}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={requiresScheduling}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            playClick();
+                            setRequiresScheduling((prev) => !prev);
+                          }}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${requiresScheduling ? "bg-[#105F68]" : "bg-slate-200"
+                            }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${requiresScheduling ? "translate-x-5" : "translate-x-0"
+                              }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Helpful Delivery Behavior Info Callout */}
+                      <div className="p-3.5 rounded-xl bg-white/80 border border-[#105F68]/10 text-xs text-slate-600 flex items-center gap-2.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#105F68] shrink-0" />
+                        <span>
+                          {fulfillmentType === "project" && "Project deliverables model: Milestones and deliverables with clear scope acceptance."}
+                          {fulfillmentType === "delivery" && "Products & physical goods model: Invoicing and dispatch preparation upon order authorization."}
+                          {fulfillmentType === "appointment" && (requiresScheduling ? "Appointment kickoff model: Client selects an onboarding or kickoff time slot right after signing." : "Appointment model (scheduling optional): Client can e-sign immediately; calendar booking can be coordinated later.")}
+                          {fulfillmentType === "none" && "General terms model: Fast e-signature and immediate payment processing."}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* STEP 2: LINE ITEMS (PRODUCTS, SERVICES & CUSTOM DELIVERABLES) */}
+                {quoteStep === 2 && (
+                  <motion.div
+                    key="step-2"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.18 }}
+                    className="space-y-4"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="font-semibold text-[#105F68] flex items-center gap-1.5 text-xs">
-                          <ShoppingBag className="w-3.5 h-3.5" />
-                          <span>Line Items (Products &amp; Services)</span>
+                        <span className="font-semibold text-[#105F68] flex items-center gap-2 text-sm">
+                          <ShoppingBag className="w-4 h-4" />
+                          <span>Line Items &amp; Deliverables</span>
                         </span>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Search catalog to instantly add deliverables, or create a custom item.
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Quick-add products or services from your catalog, or specify custom line items with unit pricing.
                         </p>
                       </div>
                       <button
                         type="button"
-                        onClick={handleAddLineItem}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#105F68]/10 text-[11px] font-semibold text-[#105F68] hover:bg-[#105F68]/20 transition-colors cursor-pointer"
+                        onClick={() => handleAddLineItem("custom")}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#105F68]/10 text-xs font-semibold text-[#105F68] hover:bg-[#105F68]/20 transition-colors cursor-pointer"
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-3.5 h-3.5" />
                         <span>Add Custom Item</span>
                       </button>
                     </div>
 
-                    {/* SINGLE SEARCH / SELECT COMBOBOX BAR AT TOP */}
-                    <div className="p-3 rounded-2xl bg-white border border-[#105F68]/20 shadow-xs space-y-1.5">
+                    {/* Quick Catalog Search */}
+                    <div className="p-4 rounded-2xl bg-white border border-[#105F68]/20 shadow-xs space-y-2">
                       <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-semibold text-[#105F68] block">
-                          Catalog Search &amp; Quick Add
+                        <label className="text-xs font-semibold text-[#105F68] block">
+                          Catalog Quick Add (Products &amp; Services)
                         </label>
-                        <span className="text-[10px] text-slate-400">
+                        <span className="text-xs text-slate-400">
                           {products.length} products • {services.length} services
                         </span>
                       </div>
@@ -867,172 +1383,368 @@ export default function DashboardQuotesPage() {
                           setSearchCatalogValue("");
                         }}
                         placeholder="Search product or service from catalog to add..."
-                        controlClassName="min-h-[38px] py-1 text-xs bg-[#F6FAF9] rounded-xl border-black/10 focus-within:border-[#105F68]"
+                        controlClassName="min-h-[42px] py-1.5 text-xs sm:text-sm bg-[#F6FAF9] rounded-xl border-black/10 focus-within:border-[#105F68]"
                       />
                     </div>
 
-                    {/* ADDED LINE ITEMS LIST */}
-                    <div className="space-y-2 max-h-[290px] overflow-y-auto pr-1">
+                    {/* Line Items List */}
+                    <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
                       {lineItems.length === 0 ? (
-                        <div className="p-6 text-center rounded-2xl bg-[#F6FAF9] border border-dashed border-black/15 text-xs text-slate-400 space-y-1">
-                          <p className="font-medium text-slate-600">No line items added yet.</p>
-                          <p className="text-[11px]">Use the search bar above to pick items from your catalog, or click "Add Custom Item".</p>
+                        <div className="p-8 text-center rounded-2xl bg-[#F6FAF9] border border-dashed border-black/15 text-xs text-slate-400 space-y-2">
+                          <ShoppingBag className="w-8 h-8 text-slate-300 mx-auto" />
+                          <p className="font-medium text-slate-600 text-sm">No line items added yet.</p>
+                          <p className="text-xs">Use the search bar above or click "Add Custom Item" to customize your proposal scope.</p>
                         </div>
                       ) : (
-                        lineItems.map((item, idx) => (
-                          <div
-                            key={item.id || idx}
-                            className="p-3 rounded-xl bg-white border border-black/10 space-y-2 shadow-xs transition-all hover:border-black/20"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                {item.type === "product" ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-semibold border border-amber-200/60">
-                                    <Package className="w-3 h-3" />
-                                    <span>Product</span>
+                        <>
+                          <div className="hidden sm:grid grid-cols-12 gap-2.5 px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                            <div className="col-span-5">Item Description</div>
+                            <div className="col-span-2">Unit</div>
+                            <div className="col-span-2">Quantity</div>
+                            <div className="col-span-3 text-right">Unit Price</div>
+                          </div>
+
+                          {lineItems.map((item, idx) => (
+                            <div
+                              key={item.id || idx}
+                              className="p-3.5 sm:p-4 rounded-xl bg-white border border-black/10 space-y-3 shadow-xs transition-all hover:border-black/20"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextType: "custom" | "product" | "service" =
+                                        item.type === "custom" ? "product" : item.type === "product" ? "service" : "custom";
+                                      const updated = [...lineItems];
+                                      updated[idx].type = nextType;
+                                      setLineItems(updated);
+                                    }}
+                                    className="cursor-pointer"
+                                    title="Click to toggle type: Custom / Product / Service"
+                                  >
+                                    {item.type === "product" ? (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-200">
+                                        <Package className="w-3.5 h-3.5" />
+                                        <span>Product</span>
+                                      </span>
+                                    ) : item.type === "service" ? (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
+                                        <ShoppingBag className="w-3.5 h-3.5" />
+                                        <span>Service</span>
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200">
+                                        <FileText className="w-3.5 h-3.5" />
+                                        <span>Custom Item</span>
+                                      </span>
+                                    )}
+                                  </button>
+                                  <span className="text-xs font-medium text-slate-400">
+                                    Item #{idx + 1}
                                   </span>
-                                ) : item.type === "service" ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 text-[10px] font-semibold border border-teal-200/60">
-                                    <ShoppingBag className="w-3 h-3" />
-                                    <span>Service</span>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveLineItem(idx)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                                  title="Remove Line Item"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-12 gap-2.5 items-center">
+                                <div className="col-span-12 sm:col-span-5">
+                                  <input
+                                    type="text"
+                                    required
+                                    placeholder="Deliverable or product title"
+                                    value={item.description}
+                                    onChange={(e) => {
+                                      const updated = [...lineItems];
+                                      updated[idx].description = e.target.value;
+                                      setLineItems(updated);
+                                    }}
+                                    className="w-full px-3 py-2 rounded-lg bg-[#F6FAF9] border border-black/10 text-xs sm:text-sm text-[#103438] focus:outline-none focus:border-[#105F68] focus:bg-white"
+                                  />
+                                </div>
+
+                                <div className="col-span-4 sm:col-span-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Unit (e.g. hrs)"
+                                    value={item.unit || ""}
+                                    onChange={(e) => {
+                                      const updated = [...lineItems];
+                                      updated[idx].unit = e.target.value;
+                                      setLineItems(updated);
+                                    }}
+                                    className="w-full px-2.5 py-2 rounded-lg bg-[#F6FAF9] border border-black/10 text-xs sm:text-sm text-[#103438] text-center focus:outline-none focus:border-[#105F68] focus:bg-white"
+                                  />
+                                </div>
+
+                                <div className="col-span-4 sm:col-span-2 flex items-center gap-1.5">
+                                  <input
+                                    type="number"
+                                    min="0.1"
+                                    step="any"
+                                    value={item.quantity}
+                                    onChange={(e) => {
+                                      const updated = [...lineItems];
+                                      updated[idx].quantity = Math.max(0.1, Number(e.target.value));
+                                      setLineItems(updated);
+                                    }}
+                                    className="w-full px-2.5 py-2 rounded-lg bg-[#F6FAF9] border border-black/10 text-xs sm:text-sm font-mono text-[#103438] focus:outline-none focus:border-[#105F68] focus:bg-white"
+                                  />
+                                </div>
+
+                                <div className="col-span-4 sm:col-span-3 flex items-center gap-1.5">
+                                  <span className="text-xs text-slate-400 font-semibold">{symbol}</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    required
+                                    value={item.unitPrice}
+                                    onChange={(e) => {
+                                      const updated = [...lineItems];
+                                      updated[idx].unitPrice = Number(e.target.value);
+                                      setLineItems(updated);
+                                    }}
+                                    className="w-full px-2.5 py-2 rounded-lg bg-[#F6FAF9] border border-black/10 text-xs sm:text-sm font-mono text-[#103438] focus:outline-none focus:border-[#105F68] focus:bg-white"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Subtotal row */}
+                              <div className="flex items-center justify-between text-xs px-1 pt-2 border-t border-black/5">
+                                {item.type === "product" && item.stockCount != null ? (
+                                  <span className={item.quantity > item.stockCount ? "text-amber-600 font-semibold text-xs inline-flex items-center gap-1" : "text-emerald-700 text-xs inline-flex items-center gap-1"}>
+                                    {item.quantity > item.stockCount ? (
+                                      <>
+                                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                        <span>{item.quantity} exceeds inventory stock ({item.stockCount} available)</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                        <span>In Stock: {item.stockCount} units available</span>
+                                      </>
+                                    )}
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-semibold">
-                                    <FileText className="w-3 h-3" />
-                                    <span>Custom</span>
+                                  <span className="text-slate-500 text-xs">
+                                    {formatCurrencyRaw(item.unitPrice, currency)} / {item.unit || "unit"}
                                   </span>
                                 )}
-                                <span className="text-[10px] font-medium text-slate-400">
-                                  #{idx + 1}
+                                <span className="text-[#105F68] font-mono font-semibold text-xs sm:text-sm">
+                                  Total: {formatCurrencyRaw(item.quantity * item.unitPrice, currency)}
                                 </span>
                               </div>
-
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveLineItem(idx)}
-                                className="p-1 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-black/5 transition-colors cursor-pointer"
-                                title="Remove Line Item"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
                             </div>
-
-                            <div className="grid grid-cols-12 gap-2 items-center">
-                              <div className="col-span-6">
-                                <input
-                                  type="text"
-                                  required
-                                  placeholder="Description / custom name"
-                                  value={item.description}
-                                  onChange={(e) => {
-                                    const updated = [...lineItems];
-                                    updated[idx].description = e.target.value;
-                                    setLineItems(updated);
-                                  }}
-                                  className="w-full px-2.5 py-1.5 rounded-lg bg-[#F6FAF9] border border-black/10 text-xs text-[#103438] focus:outline-none focus:border-[#105F68] focus:bg-white"
-                                />
-                              </div>
-
-                              <div className="col-span-3 flex items-center gap-1">
-                                <label className="text-[10px] text-slate-400 shrink-0">Qty:</label>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={item.quantity}
-                                  onChange={(e) => {
-                                    const updated = [...lineItems];
-                                    updated[idx].quantity = Math.max(1, Number(e.target.value));
-                                    setLineItems(updated);
-                                  }}
-                                  className="w-full px-2 py-1.5 rounded-lg bg-[#F6FAF9] border border-black/10 text-xs font-mono text-[#103438] focus:outline-none focus:border-[#105F68] focus:bg-white"
-                                />
-                              </div>
-
-                              <div className="col-span-3 flex items-center gap-1">
-                                <span className="text-[10px] text-slate-400">{symbol}</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  required
-                                  value={item.unitPrice}
-                                  onChange={(e) => {
-                                    const updated = [...lineItems];
-                                    updated[idx].unitPrice = Number(e.target.value);
-                                    setLineItems(updated);
-                                  }}
-                                  className="w-full px-2 py-1.5 rounded-lg bg-[#F6FAF9] border border-black/10 text-xs font-mono text-[#103438] focus:outline-none focus:border-[#105F68] focus:bg-white"
-                                />
-                              </div>
-                            </div>
-
-                            {/* Stock Warning & Subtotal Row */}
-                            <div className="flex items-center justify-between text-[10px] px-1 pt-1 border-t border-black/5">
-                              {item.type === "product" && item.stockCount != null ? (
-                                <span className={item.quantity > item.stockCount ? "text-amber-600 font-semibold" : "text-emerald-700"}>
-                                  {item.quantity > item.stockCount
-                                    ? `⚠️ Requested ${item.quantity} exceeds available stock of ${item.stockCount} units`
-                                    : `✓ In Stock: ${item.stockCount} units available`}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400">Unit: {formatCurrencyRaw(item.unitPrice, currency)}</span>
-                              )}
-                              <span className="text-[#105F68] font-mono font-semibold">
-                                Subtotal: {formatCurrencyRaw(item.quantity * item.unitPrice, currency)}
-                              </span>
-                            </div>
-                          </div>
-                        ))
+                          ))}
+                        </>
                       )}
                     </div>
 
-                    {attemptedSteps.includes(1) && !isStep1Valid && (
-                      <p className="text-[11px] text-rose-500">Please provide a description and price for at least one item.</p>
-                    )}
-
                     {/* Subtotal summary card */}
-                    <div className="p-3.5 rounded-xl bg-[#F6FAF9] border border-black/5 flex items-center justify-between text-xs">
+                    <div className="p-4 rounded-xl bg-[#F6FAF9] border border-black/5 flex items-center justify-between text-xs sm:text-sm">
                       <span className="text-slate-600 font-medium">Estimated Items Subtotal:</span>
-                      <span className="font-bold text-[#105F68] font-mono text-sm">{formatCurrencyRaw(subtotal, currency)}</span>
+                      <span className="font-bold text-[#105F68] font-mono text-base">{formatCurrencyRaw(itemsSubtotal, currency)}</span>
                     </div>
                   </motion.div>
                 )}
 
-                {/* STEP 2: ADD-ONS, TERMS & PAYMENT METHOD */}
-                {quoteStep === 2 && (
+                {/* STEP 3: PRICING ADJUSTMENTS, ADD-ONS & TERMS */}
+                {quoteStep === 3 && (
                   <motion.div
-                    key="step-2"
+                    key="step-3"
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.18 }}
-                    className="space-y-4 max-h-[460px] overflow-y-auto pr-1"
+                    className="space-y-5 max-h-[500px] overflow-y-auto pr-1"
                   >
-                    {/* Optional Add-ons */}
-                    <div className="space-y-2.5">
+                    {/* Financial Adjustments: Discount & Tax */}
+                    <div className="p-5 rounded-2xl bg-[#F6FAF9] border border-black/5 space-y-4">
+                      <span className="font-semibold text-xs sm:text-sm text-[#105F68] flex items-center gap-2">
+                        <Receipt className="w-4 h-4" />
+                        <span>Discounts &amp; Tax Customization</span>
+                      </span>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs text-slate-600 font-medium block mb-1">
+                            Discount ({discountType === "percentage" ? "%" : symbol})
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={discountType}
+                              onChange={(e) => setDiscountType(e.target.value as "percentage" | "fixed")}
+                              className="px-3 py-2 rounded-xl bg-white border border-black/10 text-xs sm:text-sm text-[#103438]"
+                            >
+                              <option value="percentage">% Percent</option>
+                              <option value="fixed">{symbol} Fixed</option>
+                            </select>
+                            <input
+                              type="number"
+                              min="0"
+                              value={discountValue}
+                              onChange={(e) => setDiscountValue(Number(e.target.value))}
+                              placeholder="0"
+                              className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs sm:text-sm font-mono text-[#103438]"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-slate-600 font-medium block mb-1">
+                            Tax Rate (%)
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={taxRate}
+                              onChange={(e) => setTaxRate(Number(e.target.value))}
+                              placeholder="0"
+                              className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs sm:text-sm font-mono text-[#103438]"
+                            />
+                            <span className="text-xs text-slate-500 font-mono shrink-0 whitespace-nowrap">
+                              Tax: {formatCurrencyRaw(taxAmount, currency)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Upfront Deposit Mode Customization */}
+                    <div className="p-5 rounded-2xl bg-[#F6FAF9] border border-black/5 space-y-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className="font-semibold text-[#105F68] block">Optional Upsell Add-ons</span>
-                          <p className="text-[11px] text-slate-500">Clients can toggle these optional additions on during proposal review.</p>
+                          <span className="font-semibold text-xs sm:text-sm text-[#105F68] block">
+                            Upfront Deposit Due on Signing
+                          </span>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Configure how much is required to lock in this proposal.
+                          </p>
+                        </div>
+                        <span className="font-mono font-bold text-[#105F68] text-sm">
+                          {formatCurrencyRaw(calculatedDeposit, currency)}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setDepositMode("none")}
+                          className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${depositMode === "none"
+                            ? "bg-[#105F68] text-white border-[#105F68] shadow-sm ring-2 ring-[#105F68]/20"
+                            : "bg-white text-slate-700 border-black/10 hover:border-[#105F68]/30"
+                            }`}
+                        >
+                          <div className="font-semibold text-xs sm:text-sm">No Deposit</div>
+                          <div className={`text-[11px] mt-0.5 ${depositMode === "none" ? "text-white/80" : "text-slate-400"}`}>0% (Invoice later)</div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDepositMode("percentage");
+                            setDepositPercentage(25);
+                          }}
+                          className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${depositMode === "percentage" && depositPercentage === 25
+                            ? "bg-[#105F68] text-white border-[#105F68] shadow-sm ring-2 ring-[#105F68]/20"
+                            : "bg-white text-slate-700 border-black/10 hover:border-[#105F68]/30"
+                            }`}
+                        >
+                          <div className="font-semibold text-xs sm:text-sm">25% Retainer</div>
+                          <div className={`text-[11px] mt-0.5 ${depositMode === "percentage" && depositPercentage === 25 ? "text-white/80" : "text-slate-400"}`}>Quarter value</div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDepositMode("percentage");
+                            setDepositPercentage(50);
+                          }}
+                          className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${depositMode === "percentage" && depositPercentage === 50
+                            ? "bg-[#105F68] text-white border-[#105F68] shadow-sm ring-2 ring-[#105F68]/20"
+                            : "bg-white text-slate-700 border-black/10 hover:border-[#105F68]/30"
+                            }`}
+                        >
+                          <div className="font-semibold text-xs sm:text-sm">50% Half</div>
+                          <div className={`text-[11px] mt-0.5 ${depositMode === "percentage" && depositPercentage === 50 ? "text-white/80" : "text-slate-400"}`}>Half upfront</div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setDepositMode("full")}
+                          className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${depositMode === "full"
+                            ? "bg-[#105F68] text-white border-[#105F68] shadow-sm ring-2 ring-[#105F68]/20"
+                            : "bg-white text-slate-700 border-black/10 hover:border-[#105F68]/30"
+                            }`}
+                        >
+                          <div className="font-semibold text-xs sm:text-sm">100% Full</div>
+                          <div className={`text-[11px] mt-0.5 ${depositMode === "full" ? "text-white/80" : "text-slate-400"}`}>Full settlement</div>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-black/5">
+                        <div>
+                          <label className="text-xs text-slate-600 font-medium block mb-1">
+                            Custom Deposit Amount ({symbol})
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={depositAmount}
+                            onChange={(e) => {
+                              setDepositMode("fixed");
+                              setDepositAmount(Number(e.target.value));
+                            }}
+                            className="w-full px-3.5 py-2 rounded-xl bg-white border border-black/10 text-xs sm:text-sm font-mono text-[#103438]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-600 font-medium block mb-1">
+                            Validity Period (Days)
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={expiresInDays}
+                            onChange={(e) => setExpiresInDays(Number(e.target.value))}
+                            className="w-full px-3.5 py-2 rounded-xl bg-white border border-black/10 text-xs sm:text-sm font-mono text-[#103438]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Optional Add-ons */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-semibold text-xs sm:text-sm text-[#105F68] block">Optional Upsell Add-ons</span>
+                          <p className="text-xs text-slate-500">Clients can toggle these optional additions on during proposal review.</p>
                         </div>
                         <button
                           type="button"
                           onClick={handleAddAddOn}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#105F68]/10 text-[11px] font-semibold text-[#105F68] hover:bg-[#105F68]/20 transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#105F68]/10 text-xs font-semibold text-[#105F68] hover:bg-[#105F68]/20 transition-colors cursor-pointer"
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-3.5 h-3.5" />
                           <span>Add Option</span>
                         </button>
                       </div>
 
-                      {optionalAddOns.length === 0 ? (
-                        <div className="p-3.5 rounded-xl bg-[#F6FAF9] border border-dashed border-black/10 text-center text-slate-400 text-xs">
-                          No optional add-ons configured. Click "Add Option" to offer clients additional services.
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
+                      {optionalAddOns.length > 0 && (
+                        <div className="space-y-2.5">
                           {optionalAddOns.map((addon, idx) => (
-                            <div key={idx} className="flex items-center gap-2 p-2.5 rounded-xl bg-[#F6FAF9] border border-black/5">
+                            <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-[#F6FAF9] border border-black/5">
                               <input
                                 type="text"
                                 placeholder="e.g. Priority Delivery / Extended Care"
@@ -1042,30 +1754,28 @@ export default function DashboardQuotesPage() {
                                   updated[idx].description = e.target.value;
                                   setOptionalAddOns(updated);
                                 }}
-                                className="flex-1 px-3 py-1.5 rounded-lg bg-white border border-black/10 text-xs text-[#103438] focus:outline-none focus:border-[#105F68]"
+                                className="flex-1 px-3 py-2 rounded-lg bg-white border border-black/10 text-xs sm:text-sm text-[#103438] focus:outline-none focus:border-[#105F68]"
                               />
-                              <div className="flex items-center gap-1 w-28 shrink-0">
-                                <span className="text-[10px] text-slate-400">{symbol}</span>
+                              <div className="flex items-center gap-1.5 w-32 shrink-0">
+                                <span className="text-xs text-slate-400 font-semibold">{symbol}</span>
                                 <input
                                   type="number"
                                   min="0"
-                                  placeholder="50"
                                   value={addon.price}
                                   onChange={(e) => {
                                     const updated = [...optionalAddOns];
                                     updated[idx].price = Number(e.target.value);
                                     setOptionalAddOns(updated);
                                   }}
-                                  className="w-full px-2 py-1.5 rounded-lg bg-white border border-black/10 text-xs font-mono text-[#103438] focus:outline-none focus:border-[#105F68]"
+                                  className="w-full px-2.5 py-2 rounded-lg bg-white border border-black/10 text-xs sm:text-sm font-mono text-[#103438]"
                                 />
                               </div>
                               <button
                                 type="button"
                                 onClick={() => handleRemoveAddOn(idx)}
-                                className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg cursor-pointer"
-                                title="Remove Add-on"
+                                className="p-2 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 cursor-pointer"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
                           ))}
@@ -1073,74 +1783,74 @@ export default function DashboardQuotesPage() {
                       )}
                     </div>
 
-                    {/* Deposit & Expiration */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-[#F6FAF9] border border-black/5">
-                      <div>
-                        <label className="text-slate-700 font-semibold block mb-1">
-                          Upfront Deposit Due at Signing ({symbol})
-                        </label>
-                        <p className="text-[10px] text-slate-400 mb-1.5">Hold amount charged when client accepts and signs.</p>
-                        <input
-                          type="number"
-                          min="0"
-                          value={depositAmount}
-                          onChange={(e) => setDepositAmount(Number(e.target.value))}
-                          className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs font-mono text-[#103438] focus:outline-none focus:border-[#105F68]"
-                        />
+                    {/* E-Signature Requirement Toggle */}
+                    <div className="p-4 rounded-xl bg-white border border-black/10 flex items-center justify-between gap-4">
+                      <div className="space-y-0.5">
+                        <span className="font-semibold text-xs sm:text-sm text-[#105F68] flex items-center gap-2">
+                          <FileCheck className="w-4 h-4 text-[#105F68]" />
+                          <span>Require Digital E-Signature?</span>
+                        </span>
+                        <p className="text-xs text-slate-500">
+                          When enabled, clients must draw or type an electronic signature to accept.
+                        </p>
                       </div>
-                      <div>
-                        <label className="text-slate-700 font-semibold block mb-1">
-                          Proposal Validity (Days)
-                        </label>
-                        <p className="text-[10px] text-slate-400 mb-1.5">Days before this estimate expires automatically.</p>
-                        <input
-                          type="number"
-                          min="1"
-                          value={expiresInDays}
-                          onChange={(e) => setExpiresInDays(Number(e.target.value))}
-                          className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs font-mono text-[#103438] focus:outline-none focus:border-[#105F68]"
-                        />
-                      </div>
+                      <input
+                        type="checkbox"
+                        checked={requireSignature}
+                        onChange={(e) => setRequireSignature(e.target.checked)}
+                        className="w-4 h-4 rounded text-[#105F68] accent-[#105F68] cursor-pointer"
+                      />
                     </div>
 
-                    {/* MANUAL TERMS AND CONDITIONS */}
-                    <div className="p-4 rounded-2xl bg-[#F6FAF9] border border-black/5 space-y-2">
-                      <div className="flex items-center justify-between">
+                    {/* Terms & Conditions */}
+                    <div className="p-5 rounded-2xl bg-[#F6FAF9] border border-black/5 space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
                         <div>
-                          <label className="text-xs font-semibold text-[#105F68] block">
-                            Terms &amp; Conditions (Manual &amp; Editable)
+                          <label className="text-xs sm:text-sm font-semibold text-[#105F68] block">
+                            Terms &amp; Conditions (Fully Customizable)
                           </label>
-                          <p className="text-[10px] text-slate-400">
-                            Type custom terms, milestones, cancellation rules, or warranty terms manually for this proposal.
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Set contract clauses, milestone timelines, or return and delivery terms.
                           </p>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <button
                             type="button"
                             onClick={() =>
                               setTermsAndConditions(
-                                "1. Scope: Deliverables correspond strictly to itemized line items.\n2. Validity: Quotation rates remain firm for 14 calendar days from issuance.\n3. Deposit & Settlement: Upfront deposit is due upon signing to reserve specialist scheduling.\n4. Cancellation: Cancellations made under 24 hours prior to scheduled kickoff are subject to deposit forfeiture."
+                                "1. Scope: Deliverables correspond strictly to itemized deliverables and project milestones.\n2. Validity: Quotation rates remain firm for 14 calendar days from issuance.\n3. Settlement: Invoicing and payments follow agreed schedule without mandatory calendar appointment.\n4. Revisions: Out-of-scope alterations will be billed under a separate change order."
                               )
                             }
-                            className="px-2 py-0.5 rounded-md bg-white border border-black/10 text-[10px] text-slate-600 hover:text-[#105F68] cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg bg-white border border-black/10 text-xs text-slate-600 hover:text-[#105F68] hover:border-[#105F68]/30 transition-colors"
                           >
-                            Standard
+                            Project
                           </button>
                           <button
                             type="button"
                             onClick={() =>
                               setTermsAndConditions(
-                                "1. Strict 50% Retainer: Work commences solely upon settlement confirmation.\n2. Non-Refundable Deposit: Upfront deposit covers allocated specialist slots and reserved inventory.\n3. Change Orders: Any alterations to deliverables will be billed separately."
+                                "1. Supply & Delivery: Physical goods will be dispatched or prepared for pickup upon order confirmation.\n2. Inspection: Client agrees to inspect received inventory within 48 hours of delivery.\n3. Returns: Return requests for damaged or incorrect items are honored within 7 business days."
                               )
                             }
-                            className="px-2 py-0.5 rounded-md bg-white border border-black/10 text-[10px] text-slate-600 hover:text-[#105F68] cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg bg-white border border-black/10 text-xs text-slate-600 hover:text-[#105F68] hover:border-[#105F68]/30 transition-colors"
                           >
-                            Strict
+                            Supply
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setTermsAndConditions(
+                                "1. Scope: Calendar booking reservations and scheduled specialist sessions.\n2. Validity: Quotation rates remain firm for 14 calendar days.\n3. Upfront Deposit: Due upon signing to secure the reserved appointment slot.\n4. Cancellation: Cancellations made under 24 hours prior to scheduled kickoff are subject to deposit forfeiture."
+                              )
+                            }
+                            className="px-2.5 py-1 rounded-lg bg-white border border-black/10 text-xs text-slate-600 hover:text-[#105F68] hover:border-[#105F68]/30 transition-colors"
+                          >
+                            Session
                           </button>
                           <button
                             type="button"
                             onClick={() => setTermsAndConditions("")}
-                            className="px-2 py-0.5 rounded-md bg-white border border-black/10 text-[10px] text-slate-400 hover:text-rose-500 cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg bg-white border border-black/10 text-xs text-slate-400 hover:text-rose-500 hover:border-rose-300 transition-colors"
                           >
                             Clear
                           </button>
@@ -1149,169 +1859,109 @@ export default function DashboardQuotesPage() {
 
                       <textarea
                         rows={4}
-                        placeholder="Type terms and conditions manually for this quote..."
+                        placeholder="Type terms and conditions for this quote..."
                         value={termsAndConditions}
                         onChange={(e) => setTermsAndConditions(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs text-[#103438] leading-relaxed focus:outline-none focus:border-[#105F68]"
+                        className="w-full px-4 py-2.5 rounded-xl bg-white border border-black/10 text-xs sm:text-sm text-[#103438] leading-relaxed focus:outline-none focus:border-[#105F68]"
                       />
                     </div>
 
-                    {/* SELECT PAYMENT METHOD */}
-                    <div className="p-4 rounded-2xl bg-[#F6FAF9] border border-black/5 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <label className="text-xs font-semibold text-[#105F68] block">
-                            Designated Payment Method &amp; Account
-                          </label>
-                          <p className="text-[10px] text-slate-400">
-                            Choose how the client should settle this quote deposit &amp; balance.
-                          </p>
-                        </div>
-                        <Link
-                          href="/dashboard/payments"
-                          target="_blank"
-                          className="inline-flex items-center gap-1 text-[10px] text-[#3A9295] hover:text-[#105F68] hover:underline"
-                        >
-                          <span>Manage Accounts</span>
-                          <ExternalLink className="w-2.5 h-2.5" />
-                        </Link>
-                      </div>
-
+                    {/* Designated Payment Account */}
+                    <div className="p-5 rounded-2xl bg-[#F6FAF9] border border-black/5 space-y-2">
+                      <label className="text-xs sm:text-sm font-semibold text-[#105F68] block">
+                        Designated Settlement Account
+                      </label>
                       <select
                         value={selectedPaymentAccountId}
                         onChange={(e) => setSelectedPaymentAccountId(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs text-[#103438] focus:outline-none focus:border-[#105F68]"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-black/10 text-xs sm:text-sm text-[#103438] focus:outline-none focus:border-[#105F68]"
                       >
                         <option value="any">Client's Choice (All Active Channels: Card, Bank, Cash)</option>
                         {paymentAccounts
                           .filter((acc) => acc.isActive)
                           .map((acc) => (
                             <option key={acc.id} value={acc.id}>
-                              {acc.name} ({acc.type === "bank_transfer" ? `${acc.bankName || "Bank"} - ${acc.accountNumber || ""}` : acc.type.replace("_", " ")})
-                              {acc.isDefault ? " [Default]" : ""}
+                              {acc.name} ({acc.type.replace("_", " ")})
                             </option>
                           ))}
                       </select>
-
-                      {/* Selected Account Details Preview */}
-                      {(() => {
-                        const sel = paymentAccounts.find((a) => a.id === selectedPaymentAccountId);
-                        if (!sel) return null;
-
-                        return (
-                          <div className="p-3 rounded-xl bg-white border border-[#105F68]/20 space-y-1.5 text-xs shadow-2xs">
-                            <div className="flex items-center justify-between">
-                              <span className="font-semibold text-[#105F68] flex items-center gap-1.5">
-                                {sel.type === "bank_transfer" ? (
-                                  <Landmark className="w-3.5 h-3.5 text-emerald-600" />
-                                ) : sel.type === "online_gateway" ? (
-                                  <CreditCard className="w-3.5 h-3.5 text-blue-600" />
-                                ) : (
-                                  <Coins className="w-3.5 h-3.5 text-amber-600" />
-                                )}
-                                <span>{sel.name}</span>
-                              </span>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#105F68]/10 text-[#105F68] font-medium capitalize">
-                                {sel.type.replace("_", " ")}
-                              </span>
-                            </div>
-
-                            {sel.type === "bank_transfer" && (
-                              <div className="text-[11px] text-slate-600 space-y-0.5 font-mono pt-1 border-t border-black/5">
-                                <p>Bank: {sel.bankName} • Branch: {sel.branchName || "Main"}</p>
-                                <p>Account Name: {sel.accountName}</p>
-                                <p className="font-bold text-[#105F68]">A/C Number: {sel.accountNumber}</p>
-                              </div>
-                            )}
-
-                            {sel.instructions && (
-                              <p className="text-[10px] text-slate-500 italic pt-1 border-t border-black/5">
-                                "{sel.instructions}"
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })()}
                     </div>
                   </motion.div>
                 )}
 
-                {/* STEP 3: REVIEW & PUBLISH */}
-                {quoteStep === 3 && (
+                {/* STEP 4: REVIEW & PUBLISH */}
+                {quoteStep === 4 && (
                   <motion.div
-                    key="step-3"
+                    key="step-4"
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.18 }}
-                    className="space-y-4"
+                    className="space-y-5"
                   >
                     {/* Proposal Summary Card */}
-                    <div className="p-4 rounded-2xl bg-white border border-black/10 shadow-xs space-y-3">
-                      <div className="flex items-start justify-between border-b border-black/5 pb-3">
+                    <div className="p-5 rounded-2xl bg-white border border-black/10 shadow-xs space-y-4">
+                      <div className="flex items-start justify-between border-b border-black/5 pb-4">
                         <div>
-                          <span className="text-[10px] font-bold tracking-wider uppercase text-slate-400">Proposal Summary</span>
-                          <h4 className="text-sm font-semibold text-[#105F68] mt-0.5">{title || "Untitled Proposal"}</h4>
-                          <p className="text-xs text-slate-500 mt-0.5">{clientName || "Unnamed Client"} • {clientEmail}</p>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold tracking-wider uppercase text-slate-400">Proposal Summary</span>
+                            <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-100 text-[#105F68] font-bold">
+                              {quoteNumber || "QT-NEW"}
+                            </span>
+                          </div>
+                          <h4 className="text-base font-semibold text-[#105F68] mt-1">{title || "Untitled Proposal"}</h4>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {clientName || "Unnamed Client"} {clientCompany ? `(${clientCompany})` : ""} • {clientEmail}
+                          </p>
                         </div>
                         <div className="text-right">
-                          <span className="text-[10px] text-slate-400 block">Total Base Value</span>
-                          <span className="text-lg font-bold text-[#105F68] font-mono">{formatCurrencyRaw(subtotal, currency)}</span>
+                          <span className="text-xs text-slate-400 block">Total Quotation Value</span>
+                          <span className="text-xl font-bold text-[#105F68] font-mono">{formatCurrencyRaw(totalAmount, currency)}</span>
                         </div>
                       </div>
 
-                      <div className="space-y-2 text-xs">
+                      <div className="space-y-2.5 text-xs sm:text-sm">
                         <div className="flex justify-between text-slate-600">
-                          <span>Line Items Count:</span>
-                          <span className="font-medium text-slate-800">{lineItems.length} {lineItems.length === 1 ? "item" : "items"}</span>
+                          <span>Fulfillment Model:</span>
+                          <span className="font-semibold text-[#105F68] capitalize">
+                            {fulfillmentType} {requiresScheduling ? "(With Appointment Booking)" : "(No Appointment Required)"}
+                          </span>
                         </div>
-                        {optionalAddOns.length > 0 && (
+                        <div className="flex justify-between text-slate-600">
+                          <span>Line Items:</span>
+                          <span className="font-medium text-slate-800">{lineItems.length} items (Subtotal: {formatCurrencyRaw(itemsSubtotal, currency)})</span>
+                        </div>
+                        {discountAmount > 0 && (
+                          <div className="flex justify-between text-emerald-600">
+                            <span>Discount:</span>
+                            <span className="font-medium">-{formatCurrencyRaw(discountAmount, currency)}</span>
+                          </div>
+                        )}
+                        {taxAmount > 0 && (
                           <div className="flex justify-between text-slate-600">
-                            <span>Optional Add-ons Available:</span>
-                            <span className="font-medium text-slate-800">{optionalAddOns.length} {optionalAddOns.length === 1 ? "option" : "options"}</span>
+                            <span>Tax ({taxRate}%):</span>
+                            <span className="font-medium">{formatCurrencyRaw(taxAmount, currency)}</span>
                           </div>
                         )}
-                        <div className="flex justify-between text-slate-600">
-                          <span>Upfront Deposit Required:</span>
-                          <span className="font-mono font-medium text-[#105F68]">{formatCurrencyRaw(depositAmount, currency)}</span>
-                        </div>
-                        <div className="flex justify-between text-slate-600">
-                          <span>Designated Payment Method:</span>
-                          <span className="font-medium text-slate-800">
-                            {selectedPaymentAccountId === "any"
-                              ? "Client's Choice (All Active Channels)"
-                              : paymentAccounts.find((a) => a.id === selectedPaymentAccountId)?.name || "Specific Method"}
+                        <div className="flex justify-between text-slate-600 border-t border-black/5 pt-2 font-semibold">
+                          <span>Deposit Due on Signing:</span>
+                          <span className="font-mono text-[#105F68]">
+                            {calculatedDeposit > 0 ? formatCurrencyRaw(calculatedDeposit, currency) : "None (0% Deposit)"}
                           </span>
                         </div>
                         <div className="flex justify-between text-slate-600">
-                          <span>Valid Until:</span>
-                          <span className="font-medium text-slate-800">
-                            {new Date(Date.now() + (Number(expiresInDays) || 14) * 86400000).toLocaleDateString(undefined, {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric"
-                            })} ({expiresInDays} days)
-                          </span>
+                          <span>Digital E-Signature:</span>
+                          <span className="font-medium">{requireSignature ? "Required" : "Optional / Instant Confirmation"}</span>
                         </div>
-                        {termsAndConditions.trim() && (
-                          <div className="pt-2 border-t border-black/5">
-                            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block mb-1">
-                              Custom Terms &amp; Conditions:
-                            </span>
-                            <p className="text-[11px] text-slate-600 whitespace-pre-line line-clamp-3 bg-[#F6FAF9] p-2 rounded-lg">
-                              {termsAndConditions}
-                            </p>
-                          </div>
-                        )}
                       </div>
                     </div>
 
                     {/* Status Picker with Arc UI Select */}
-                    <div className="p-4 rounded-2xl bg-[#105F68]/10 border border-[#105F68]/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="p-5 rounded-2xl bg-[#105F68]/10 border border-[#105F68]/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div>
-                        <span className="font-semibold text-xs text-[#105F68] block">Publication Status</span>
-                        <span className="text-[11px] text-slate-600 block mt-0.5">
-                          Choose whether to issue this quote directly to the client or keep as internal draft.
+                        <span className="font-semibold text-xs sm:text-sm text-[#105F68] block">Publication Status</span>
+                        <span className="text-xs text-slate-600 block mt-0.5">
+                          Choose whether to issue this quote directly to the client or keep as draft.
                         </span>
                       </div>
                       <div className="shrink-0 w-full sm:w-auto">
@@ -1331,12 +1981,11 @@ export default function DashboardQuotesPage() {
                             },
                             {
                               value: "accepted",
-                              label: "Accepted (Deduct Stock Now)",
+                              label: "Accepted Directly",
                               icon: <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />,
                             },
                           ]}
                           className="w-full sm:w-60"
-                          triggerClassName="min-h-[36px] py-1 text-xs bg-white border border-[#105F68]/20 shadow-2xs"
                         />
                       </div>
                     </div>
@@ -1344,48 +1993,46 @@ export default function DashboardQuotesPage() {
                 )}
               </AnimatePresence>
 
-              {/* STEP CONTROLS FOOTER */}
-              <div className="flex items-center justify-between gap-2 pt-4 border-t border-slate-100">
+              {/* Navigation Actions */}
+              <div className="pt-4 border-t border-black/10 flex items-center justify-between">
                 {quoteStep > 0 ? (
                   <button
                     type="button"
                     onClick={handlePrevStep}
-                    className="px-4 py-2 rounded-full border border-black/10 text-xs font-medium text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-slate-600 hover:text-[#105F68] hover:bg-black/5 transition-colors cursor-pointer text-xs sm:text-sm font-medium"
                   >
-                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <ArrowLeft className="w-4 h-4" />
                     <span>Back</span>
                   </button>
                 ) : (
                   <DialogClose asChild>
                     <button
                       type="button"
-                      className="px-4 py-2 rounded-full border border-black/10 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                      className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-slate-600 transition-colors cursor-pointer text-xs sm:text-sm font-medium"
                     >
                       Cancel
                     </button>
                   </DialogClose>
                 )}
 
-                <div className="flex items-center gap-2">
-                  {quoteStep < 3 ? (
-                    <button
-                      type="button"
-                      onClick={handleNextStep}
-                      className="px-5 py-2 rounded-full bg-[#105F68] text-white text-xs font-semibold hover:bg-[#0D4F57] transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <span>Continue</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  ) : (
-                    <button
-                      type="submit"
-                      className="px-6 py-2 rounded-full bg-[#105F68] text-white text-xs font-semibold hover:bg-[#0D4F57] transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Check className="w-4 h-4" />
-                      <span>Create &amp; Publish Quote</span>
-                    </button>
-                  )}
-                </div>
+                {quoteStep < 4 ? (
+                  <button
+                    type="button"
+                    onClick={handleNextStep}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#105F68] hover:bg-[#0D4F57] text-white font-semibold transition-all shadow-sm cursor-pointer text-xs sm:text-sm"
+                  >
+                    <span>Continue</span>
+                    <ArrowRight className="w-4 h-4 text-[#63C1BB]" />
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#105F68] hover:bg-[#0D4F57] text-white font-semibold transition-all shadow-sm cursor-pointer text-xs sm:text-sm"
+                  >
+                    <span>Publish &amp; Issue Quotation</span>
+                    <ArrowRight className="w-4 h-4 text-[#63C1BB]" />
+                  </button>
+                )}
               </div>
             </form>
           </div>
@@ -1393,48 +2040,230 @@ export default function DashboardQuotesPage() {
       </Dialog>
 
       {/* Delete Confirmation Modal */}
-      <Dialog open={Boolean(deletingQuoteId)} onOpenChange={(open) => { if (!open) setDeletingQuoteId(null); }}>
-        <DialogContent
-          title="Delete Quote?"
-          description="Are you sure you want to remove this proposal? The interactive signing link will no longer function."
-        >
-          <div className="pt-2 space-y-4">
-            <Alert tone="danger" title="Proposal Removal">
-              This action cannot be undone.
-            </Alert>
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <DialogClose asChild>
+      {deletingQuoteId && (
+        <Dialog open={true} onOpenChange={() => setDeletingQuoteId(null)}>
+          <DialogContent title="Delete Proposal" className="max-w-md">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 text-rose-600">
+                <AlertTriangle className="w-6 h-6 shrink-0" />
+                <h4 className="font-semibold text-slate-900 text-sm">Delete this quote proposal?</h4>
+              </div>
+              <p className="text-xs text-slate-500">
+                This will permanently remove the proposal and deactivate the interactive client URL.
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  className="px-4 py-2 rounded-full text-xs text-slate-600 hover:bg-slate-50"
+                  onClick={() => setDeletingQuoteId(null)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
-              </DialogClose>
-              <button
-                type="button"
-                onClick={() => deletingQuoteId && handleDeleteQuote(deletingQuoteId)}
-                className="px-4 py-2 rounded-full bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700"
-              >
-                Delete Quote
-              </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteQuote(deletingQuoteId)}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs cursor-pointer"
+                >
+                  Confirm Delete
+                </button>
+              </div>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
 
-      {/* Toast Notification */}
-      <div className="fixed bottom-6 right-6 z-50 pointer-events-none">
-        <div className="pointer-events-auto">
-          <Toast
-            key={notification || "idle"}
-            open={Boolean(notification)}
-            onOpenChange={(open) => { if (!open) setNotification(null); }}
-            title={notification || ""}
-            duration={3000}
-          />
-        </div>
-      </div>
+      {/* Create Invoice for Accepted Quotation Modal */}
+      {convertingQuote && (
+        <Dialog open={true} onOpenChange={() => setConvertingQuote(null)}>
+          <DialogContent
+            title="Create Invoice from Quotation"
+            description="Generate an itemized invoice, define credit payment terms, and record partial/advance deposits."
+            size="2xl"
+            className="max-w-2xl max-h-[90vh] overflow-y-auto"
+            headerExtra={
+              <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                {convertingQuote.quoteNumber || "QT-ACCEPTED"}
+              </span>
+            }
+          >
+            <div className="space-y-5 pt-1">
+              {/* Proposal Summary Card */}
+              <div className="p-4 rounded-2xl bg-[#F6FAF9] border border-[#105F68]/15 space-y-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h4 className="text-sm font-semibold text-[#103438]">{convertingQuote.title}</h4>
+                    <p className="text-xs text-[#3A9295] mt-0.5">
+                      Client: <span className="font-medium text-[#103438]">{convertingQuote.clientName}</span> ({convertingQuote.clientEmail})
+                    </p>
+                  </div>
+                  <ArcBadge variant="emerald" size="xs">Accepted</ArcBadge>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#105F68]/10 text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Total Value</span>
+                    <span className="font-mono font-semibold text-[#103438]">
+                      {formatCurrency(convertingQuote.totalCents || 0, currency)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Deposit Credited</span>
+                    <span className="font-mono font-medium text-emerald-700">
+                      {formatCurrency(convertingQuote.depositCents || 0, currency)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Balance Due</span>
+                    <span className="font-mono font-semibold text-[#105F68]">
+                      {formatCurrency(
+                        Math.max(0, (convertingQuote.totalCents || 0) - (convertingQuote.depositCents || 0)),
+                        currency
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Credit Period & Payment Terms Section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-[#105F68] flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Credit Period &amp; Payment Terms</span>
+                  </label>
+                  <span className="text-[11px] text-[#3A9295]">
+                    Due Date:{" "}
+                    <strong className="text-[#103438]">
+                      {new Date(
+                        calculateDueDate(
+                          new Date().toISOString(),
+                          convertCreditTerms,
+                          convertCreditDays
+                        )
+                      ).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                    </strong>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {[
+                    { id: "due_on_receipt", label: "Due on Receipt", desc: "Immediate payment required" },
+                    { id: "net_7", label: "Net 7 Days", desc: "1 week credit" },
+                    { id: "net_15", label: "Net 15 Days", desc: "Bi-weekly credit" },
+                    { id: "net_30", label: "Net 30 Days", desc: "Standard business credit" },
+                    { id: "net_60", label: "Net 60 Days", desc: "Extended 2 months" },
+                    { id: "custom", label: "Custom Period", desc: "Custom days schedule" },
+                  ].map((term) => {
+                    const isSelected = convertCreditTerms === term.id;
+                    return (
+                      <button
+                        key={term.id}
+                        type="button"
+                        onClick={() => setConvertCreditTerms(term.id as PaymentCreditTerms)}
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${isSelected
+                          ? "bg-[#105F68]/10 border-[#105F68] text-[#103438] ring-1 ring-[#105F68]"
+                          : "bg-white border-black/10 hover:border-black/20 text-slate-700"
+                          }`}
+                      >
+                        <div className="text-xs font-semibold">{term.label}</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">{term.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {convertCreditTerms === "custom" && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <label className="text-xs text-slate-600">Custom Credit Days:</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={convertCreditDays}
+                      onChange={(e) => setConvertCreditDays(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-24 px-2.5 py-1 text-xs border border-black/10 rounded-lg bg-white focus:outline-none focus:border-[#105F68]"
+                    />
+                    <span className="text-xs text-slate-500">days after issue</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Partial / Advance Payment Recording */}
+              <div className="space-y-3 pt-2 border-t border-black/5">
+                <label className="text-xs font-semibold text-[#105F68] flex items-center gap-1.5">
+                  <Coins className="w-3.5 h-3.5" />
+                  <span>Initial Partial / Advance Payment</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-slate-500 block mb-1">
+                      Amount Paid Upfront ({symbol})
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1.5 text-xs text-slate-400 font-mono">{symbol}</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max={(convertingQuote.totalCents || 0) / 100}
+                        value={convertInitialPayment}
+                        onChange={(e) => setConvertInitialPayment(parseFloat(e.target.value) || 0)}
+                        className="w-full pl-7 pr-3 py-1.5 text-xs font-mono border border-black/10 rounded-xl bg-white focus:outline-none focus:border-[#105F68]"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-500 block mb-1">Payment Method</label>
+                    <select
+                      value={convertPaymentMethod}
+                      onChange={(e) => setConvertPaymentMethod(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs border border-black/10 rounded-xl bg-white focus:outline-none focus:border-[#105F68]"
+                    >
+                      <option value="Bank Transfer">Bank Transfer / Wire</option>
+                      <option value="Credit Card">Credit Card / POS</option>
+                      <option value="Cash">Cash Settlement</option>
+                      <option value="Online Gateway">Online Payment Gateway</option>
+                      <option value="Cheque">Company Cheque</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="text-xs font-semibold text-[#105F68] block mb-1">Invoice Notes / Reference</label>
+                <input
+                  type="text"
+                  value={convertNotes}
+                  onChange={(e) => setConvertNotes(e.target.value)}
+                  className="w-full px-3 py-1.5 text-xs border border-black/10 rounded-xl bg-white focus:outline-none focus:border-[#105F68]"
+                  placeholder="Notes for client on invoice statement..."
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-black/5">
+                <button
+                  type="button"
+                  onClick={() => setConvertingQuote(null)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateInvoiceFromQuote}
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-semibold transition-all shadow-xs cursor-pointer"
+                >
+                  <Receipt className="w-3.5 h-3.5 text-[#63C1BB]" />
+                  <span>Generate Official Invoice</span>
+                </button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

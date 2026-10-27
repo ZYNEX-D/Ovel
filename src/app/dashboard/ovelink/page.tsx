@@ -26,7 +26,9 @@ import {
   ShieldAlert,
   RefreshCw,
   Star,
-  Tag
+  Tag,
+  Camera,
+  Image as ImageIcon
 } from "lucide-react";
 import { 
   getOvelink, 
@@ -45,6 +47,7 @@ import { getReviews, INITIAL_REVIEWS, getReputationConfig, saveReputationConfig 
 import { useAuth } from "@/lib/auth-context";
 import { useAudio } from "@/components/AudioController";
 import OvelinkView from "@/components/OvelinkView";
+import EditBannerModal from "@/components/EditBannerModal";
 import { dollarsToCents } from "@/lib/booking-time";
 import { useClientStore, useDraftStore } from "@/lib/use-client-store";
 import { formatCurrency, getCurrencySymbol, SUPPORTED_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currency";
@@ -68,6 +71,7 @@ export default function OvelinkStudioPage() {
   const [studioSubTab, setStudioSubTab] = useState<"branding" | "booking" | "offerings" | "reviews" | "themes" | "style" | "socials">("branding");
   const [previewDevice, setPreviewDevice] = useState<"mobile" | "desktop">("mobile");
   const [isAddOfferingOpen, setIsAddOfferingOpen] = useState(false);
+  const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [newSlotInput, setNewSlotInput] = useState("");
@@ -420,6 +424,60 @@ export default function OvelinkStudioPage() {
                     onChange={(e) => setActiveOvelink({ ...activeOvelink, avatarInitials: e.target.value.toUpperCase() })}
                     className="w-full px-4 py-2.5 rounded-xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68] uppercase font-mono"
                   />
+                </div>
+              </div>
+
+              {/* Storefront Cover Banner Section */}
+              <div className="p-3.5 rounded-2xl bg-[#F6FAF9] border border-black/5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-[#105F68] font-semibold text-xs block">
+                      Storefront Cover Banner
+                    </label>
+                    <p className="text-[11px] text-[#3A9295]">
+                      Displayed at the top of your public storefront and overview
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClick();
+                      setIsBannerModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-[#105F68] hover:bg-[#0D4F57] text-white text-[11px] font-medium transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-[#63C1BB]" />
+                    <span>Edit Banner</span>
+                  </button>
+                </div>
+
+                {/* Banner Mini Preview */}
+                <div
+                  onClick={() => {
+                    playClick();
+                    setIsBannerModalOpen(true);
+                  }}
+                  className={`w-full h-20 rounded-xl bg-gradient-to-r ${activeOvelink.coverGradient} relative overflow-hidden bg-cover bg-center border border-black/10 cursor-pointer group shadow-inner flex items-center justify-between px-4`}
+                  style={activeOvelink.coverImageUrl ? { backgroundImage: `url(${activeOvelink.coverImageUrl})` } : undefined}
+                >
+                  <div className="absolute inset-0 bg-black/35 group-hover:bg-black/45 transition-colors" />
+                  <div className="relative z-10 flex items-center gap-2.5 text-white">
+                    <div className="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center font-bold text-xs">
+                      {activeOvelink.avatarInitials || "OV"}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-xs truncate max-w-[180px] drop-shadow-sm">{activeOvelink.businessName}</p>
+                      <span className="text-[10px] opacity-85 flex items-center gap-1">
+                        <ImageIcon className="w-2.5 h-2.5" />
+                        {activeOvelink.coverImageUrl ? "Custom Photo Banner" : "Gradient Atmosphere"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <span className="relative z-10 text-[10px] px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-white font-medium border border-white/25 group-hover:bg-white/30 transition-all flex items-center gap-1">
+                    <Camera className="w-3 h-3" />
+                    <span>Change</span>
+                  </span>
                 </div>
               </div>
 
@@ -1325,7 +1383,7 @@ export default function OvelinkStudioPage() {
               className={`transition-all duration-300 w-full ${
                 previewDevice === "mobile"
                   ? "max-w-[390px] border-[10px] border-zinc-900 rounded-[48px] shadow-2xl overflow-hidden bg-black relative"
-                  : "border-4 border-zinc-300 rounded-3xl shadow-xl overflow-hidden"
+                  : "max-w-5xl border-4 border-zinc-300 rounded-3xl shadow-xl overflow-hidden"
               }`}
               style={{ height: "740px" }}
             >
@@ -1337,7 +1395,12 @@ export default function OvelinkStudioPage() {
               )}
 
               <div className="w-full h-full overflow-y-auto hide-scrollbar scrollbar-none">
-                <OvelinkView config={activeOvelink} isEmbedPreview={true} />
+                <OvelinkView
+                  config={activeOvelink}
+                  isEmbedPreview={true}
+                  previewDevice={previewDevice}
+                  onEditBanner={() => setIsBannerModalOpen(true)}
+                />
               </div>
             </div>
           </div>
@@ -1476,6 +1539,26 @@ export default function OvelinkStudioPage() {
           <span>{notification}</span>
         </div>
       )}
+
+      {/* Edit Banner Modal */}
+      <EditBannerModal
+        open={isBannerModalOpen}
+        onOpenChange={setIsBannerModalOpen}
+        currentGradient={activeOvelink.coverGradient}
+        currentImageUrl={activeOvelink.coverImageUrl}
+        storeName={activeOvelink.businessName}
+        avatarInitials={activeOvelink.avatarInitials}
+        onSave={(banner) => {
+          const updated = {
+            ...activeOvelink,
+            coverGradient: banner.coverGradient,
+            coverImageUrl: banner.coverImageUrl
+          };
+          setActiveOvelink(updated);
+          saveOvelink(updated);
+          showToast("Storefront banner updated successfully!");
+        }}
+      />
     </div>
   );
 }
