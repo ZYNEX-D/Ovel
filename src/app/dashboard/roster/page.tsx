@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import {
   getBookings,
+  getStaff,
   saveBookings,
   createBooking,
   INITIAL_BOOKINGS,
@@ -59,6 +60,7 @@ export default function DashboardRosterPage() {
   const wsId = profile?.organizationId;
   const bookings = useClientStore(() => getBookings(wsId), () => INITIAL_BOOKINGS);
   const clientProfiles = useClientStore(() => getClientProfiles(wsId), () => INITIAL_CLIENT_PROFILES);
+  const staffList = useClientStore(() => getStaff(wsId), () => []);
 
   const defaultSlug = profile?.organizationSlug || "leclat";
   const activeOvelink = useClientStore(
@@ -559,7 +561,7 @@ export default function DashboardRosterPage() {
 
             <div className="pt-2 flex gap-2">
               <a
-                href={`https://wa.me/${selectedClientProfile.phone.replace(/[^0-9]/g, "")}`}
+                href={`https://wa.me/${(selectedClientProfile.phone || "").replace(/[^0-9]/g, "")}`}
                 target="_blank"
                 rel="noreferrer"
                 className="flex-1 py-2.5 rounded-full bg-[#25D366] text-white text-xs font-semibold hover:bg-[#1EBE5D] transition-all flex items-center justify-center gap-2 shadow-sm"
@@ -674,9 +676,17 @@ export default function DashboardRosterPage() {
                     onChange={(e) => setNewStaff(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-2xl border border-black/15 text-xs bg-white"
                   >
-                    <option value="Dr. Genevieve Moreau">Dr. Genevieve Moreau</option>
-                    <option value="Elena Rostova">Elena Rostova</option>
-                    <option value="Julian Vance">Julian Vance</option>
+                    {staffList && staffList.length > 0 ? (
+                      staffList.map((s) => (
+                        <option key={s.id} value={s.name}>
+                          {s.name} {s.role ? `(${s.role})` : ""}
+                        </option>
+                      ))
+                    ) : (
+                      <option value={profile?.fullName || activeOvelink?.businessName || "Primary Specialist"}>
+                        {profile?.fullName || activeOvelink?.businessName || "Primary Specialist"}
+                      </option>
+                    )}
                   </select>
                 </div>
                 <div>

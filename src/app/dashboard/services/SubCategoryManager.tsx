@@ -135,7 +135,7 @@ export function SubCategoryManager({
                           handleUpdateCategory(index, {
                             ...cat,
                             pricingType: "range",
-                            priceMaxCents: cat.priceMaxCents || cat.priceCents * 1.3,
+                            priceMaxCents: cat.priceMaxCents || Math.round(cat.priceCents * 1.3),
                           })
                         }
                         className={`py-1 rounded-md font-medium transition-all ${

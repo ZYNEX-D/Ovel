@@ -384,7 +384,7 @@ export default function OvelinkView({
         orderNotes,
         selectedSubCategory ? `Option/Variant: ${selectedSubCategory.name}` : null,
       ].filter(Boolean).join(" | ") || undefined,
-    }, { checkConflicts: Boolean(selectedOffering.requiresTimeSlot) });
+    }, { checkConflicts: Boolean(selectedOffering.requiresTimeSlot), workspaceId: targetWs });
 
     if (!booking) {
       setBookingError("That time was just taken. Pick another slot.");

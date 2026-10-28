@@ -69,20 +69,11 @@ export default function DashboardProductsPage() {
   );
 
   const readProducts = useCallback(() => {
-    let list = getProducts(wsId);
-    if ((!list || list.length === 0) && profile?.organizationSlug) {
-      list = getProducts(profile.organizationSlug);
+    const targetWs = wsId || profile?.organizationSlug || defaultSlug;
+    if (targetWs) {
+      return getProducts(targetWs);
     }
-    if ((!list || list.length === 0) && defaultSlug) {
-      list = getProducts(defaultSlug);
-    }
-    if (!list || list.length === 0) {
-      list = getProducts();
-    }
-    if (!list || list.length === 0) {
-      list = getProducts("demo");
-    }
-    return list;
+    return getProducts();
   }, [wsId, profile?.organizationSlug, defaultSlug]);
   const products = useClientStore(readProducts, () => INITIAL_PRODUCTS);
 

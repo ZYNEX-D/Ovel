@@ -24,8 +24,10 @@ import {
   getCategories, 
   saveCategories, 
   UniversalCategory, 
-  getServices, 
-  getProducts 
+  getServices,
+  saveServices, 
+  getProducts,
+  saveProducts 
 } from "@/lib/platform-store";
 import { useClientStore, useHydrated } from "@/lib/use-client-store";
 import { useAuth } from "@/lib/auth-context";
@@ -94,6 +96,28 @@ export default function DashboardCategoriesPage() {
   };
 
   const flatCategoryOptions = useMemo(() => flattenCategories(categories), [categories]);
+
+  // Helper to collect all descendant IDs to prevent cycle selection
+  const getDescendantIds = (catId: string, cats: UniversalCategory[]): Set<string> => {
+    const descendants = new Set<string>();
+    const findAndCollect = (list: UniversalCategory[], collect = false) => {
+      for (const item of list) {
+        if (collect || item.id === catId) {
+          if (item.id !== catId) descendants.add(item.id);
+          if (item.subCategories) findAndCollect(item.subCategories, true);
+        } else if (item.subCategories) {
+          findAndCollect(item.subCategories, false);
+        }
+      }
+    };
+    findAndCollect(cats);
+    return descendants;
+  };
+
+  const descendantIds = useMemo(() => {
+    if (!editingCategoryId) return new Set<string>();
+    return getDescendantIds(editingCategoryId, categories);
+  }, [editingCategoryId, categories]);
 
   // Count total categories recursively
   const countAllCategories = (cats: UniversalCategory[]): number => {
@@ -179,6 +203,7 @@ export default function DashboardCategoriesPage() {
       : name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
     const categoryId = editingCategoryId || "cat_" + Date.now().toString(36);
+    const existingCat = editingCategoryId ? findCategory(categories, editingCategoryId) : null;
 
     const categoryData: UniversalCategory = {
       id: categoryId,
@@ -192,49 +217,41 @@ export default function DashboardCategoriesPage() {
       seoDescription: seoDescription.trim() || undefined,
       seoKeywords: seoKeywords.trim() || undefined,
       isActive: true,
-      subCategories: editingCategoryId
-        ? findCategory(categories, editingCategoryId)?.subCategories || []
-        : [],
+      subCategories: existingCat?.subCategories || [],
     };
 
-    let updatedCategories: UniversalCategory[] = [];
+    const removeFromTree = (list: UniversalCategory[], targetId: string): UniversalCategory[] => {
+      return list
+        .filter((c) => c.id !== targetId)
+        .map((c) => ({
+          ...c,
+          subCategories: c.subCategories ? removeFromTree(c.subCategories, targetId) : [],
+        }));
+    };
 
-    if (editingCategoryId) {
-      // Recursive update
-      const updateRecursive = (list: UniversalCategory[]): UniversalCategory[] => {
-        return list.map((c) => {
-          if (c.id === editingCategoryId) {
-            return { ...categoryData, subCategories: c.subCategories };
-          }
-          if (c.subCategories && c.subCategories.length > 0) {
-            return { ...c, subCategories: updateRecursive(c.subCategories) };
-          }
-          return c;
-        });
-      };
-      updatedCategories = updateRecursive(categories);
-    } else {
-      // Insertion
-      if (!parentCategoryId) {
-        updatedCategories = [...categories, categoryData];
-      } else {
-        const insertRecursive = (list: UniversalCategory[]): UniversalCategory[] => {
-          return list.map((c) => {
-            if (c.id === parentCategoryId) {
-              return {
-                ...c,
-                subCategories: [...(c.subCategories || []), categoryData],
-              };
-            }
-            if (c.subCategories && c.subCategories.length > 0) {
-              return { ...c, subCategories: insertRecursive(c.subCategories) };
-            }
-            return c;
-          });
-        };
-        updatedCategories = insertRecursive(categories);
+    const insertIntoTree = (list: UniversalCategory[], targetParentId: string | null, node: UniversalCategory): UniversalCategory[] => {
+      if (!targetParentId) {
+        return [...list, node];
       }
-    }
+      return list.map((c) => {
+        if (c.id === targetParentId) {
+          return {
+            ...c,
+            subCategories: [...(c.subCategories || []), node],
+          };
+        }
+        if (c.subCategories && c.subCategories.length > 0) {
+          return {
+            ...c,
+            subCategories: insertIntoTree(c.subCategories, targetParentId, node),
+          };
+        }
+        return c;
+      });
+    };
+
+    const treeWithoutItem = editingCategoryId ? removeFromTree(categories, editingCategoryId) : categories;
+    const updatedCategories = insertIntoTree(treeWithoutItem, parentCategoryId, categoryData);
 
     saveCategories(updatedCategories, wsId);
     setIsCategoryModalOpen(false);
@@ -258,6 +275,17 @@ export default function DashboardCategoriesPage() {
 
     const updated = deleteRecursive(categories);
     saveCategories(updated, wsId);
+
+    // Clean dangling category references in services and products
+    const updatedServices = services.map((s) => s.categoryId === idToDelete ? { ...s, categoryId: undefined } : s);
+    if (updatedServices.some((s, idx) => s !== services[idx])) {
+      saveServices(updatedServices, wsId);
+    }
+    const updatedProducts = products.map((p) => p.categoryId === idToDelete ? { ...p, categoryId: undefined } : p);
+    if (updatedProducts.some((p, idx) => p !== products[idx])) {
+      saveProducts(updatedProducts, wsId);
+    }
+
     setDeletingCategory(null);
     showToast(`Category "${deletingCategory.name}" removed`);
   };
@@ -277,6 +305,13 @@ export default function DashboardCategoriesPage() {
     };
     const updated = deleteRecursive(categories);
     saveCategories(updated, wsId);
+
+    // Clean dangling category references in services and products
+    const updatedServices = services.map((s) => (s.categoryId && toDeleteSet.has(s.categoryId)) ? { ...s, categoryId: undefined } : s);
+    saveServices(updatedServices, wsId);
+    const updatedProducts = products.map((p) => (p.categoryId && toDeleteSet.has(p.categoryId)) ? { ...p, categoryId: undefined } : p);
+    saveProducts(updatedProducts, wsId);
+
     const count = selectedIds.length;
     setSelectedIds([]);
     showToast(`Removed ${count} selected categories`);
@@ -683,7 +718,7 @@ export default function DashboardCategoriesPage() {
                     >
                       <option value="">Root Category (Top Level)</option>
                       {flatCategoryOptions
-                        .filter((c) => c.id !== editingCategoryId)
+                        .filter((c) => c.id !== editingCategoryId && !descendantIds.has(c.id))
                         .map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.name}

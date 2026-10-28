@@ -269,7 +269,7 @@ export default function BrandSettingsPage() {
         return;
       }
       showToast("Workspace & account deleted successfully.");
-      router.push("/sign-in");
+      router.push("/login");
     } catch {
       setIsDeleting(false);
       showToast("Failed to delete account. Please contact support.");

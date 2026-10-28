@@ -75,25 +75,38 @@ export default function DashboardLayout({
   );
 
   const navSections: NavSection[] = React.useMemo(() => {
+    const catalogItems: NavItem[] = [
+      ...(businessType !== "products" ? [{ href: "/dashboard/services", label: "Services", icon: ShoppingBag }] : []),
+      ...(businessType !== "services" ? [{ href: "/dashboard/products", label: "Products", icon: Package }] : []),
+      { href: "/dashboard/categories", label: "Categories", icon: FolderTree },
+      { href: "/dashboard/invoices", label: "Invoices", icon: CreditCard },
+      ...(businessType !== "products" ? [{ href: "/dashboard/quotes", label: "Quotes", icon: FileText }] : []),
+      { href: "/dashboard/payments", label: "Payment Accounts", icon: Landmark },
+    ];
+
+    const managementItems: NavItem[] = [
+      { href: "/dashboard/usage", label: "Usage & Limits", icon: Gauge },
+      ...(businessType !== "products" ? [{ href: "/dashboard/staff", label: "Staff", icon: Users }] : []),
+      { href: "/dashboard/team", label: "Team & Roles", icon: ShieldCheck },
+      { href: "/dashboard/settings", label: "Settings", icon: Settings },
+    ];
+
     return [
       {
         title: "Overview",
         items: [
           { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-          { href: "/dashboard/roster", label: "Orders & Bookings", icon: CalendarIcon },
+          { 
+            href: "/dashboard/roster", 
+            label: businessType === "products" ? "Orders" : "Orders & Bookings", 
+            icon: CalendarIcon 
+          },
           { href: "/dashboard/users", label: "Clients", icon: UserCheck },
         ],
       },
       {
         title: "Catalog & Offerings",
-        items: [
-          { href: "/dashboard/services", label: "Services", icon: ShoppingBag },
-          { href: "/dashboard/products", label: "Products", icon: Package },
-          { href: "/dashboard/categories", label: "Categories", icon: FolderTree },
-          { href: "/dashboard/invoices", label: "Invoices", icon: CreditCard },
-          { href: "/dashboard/quotes", label: "Quotes", icon: FileText },
-          { href: "/dashboard/payments", label: "Payment Accounts", icon: Landmark },
-        ],
+        items: catalogItems,
       },
       {
         title: "Online Presence",
@@ -105,15 +118,10 @@ export default function DashboardLayout({
       },
       {
         title: "Management",
-        items: [
-          { href: "/dashboard/usage", label: "Usage & Limits", icon: Gauge },
-          { href: "/dashboard/staff", label: "Staff", icon: Users },
-          { href: "/dashboard/team", label: "Team & Roles", icon: ShieldCheck },
-          { href: "/dashboard/settings", label: "Settings", icon: Settings },
-        ],
+        items: managementItems,
       },
     ];
-  }, []);
+  }, [businessType]);
 
   const handleCopyOvelink = () => {
     playClick();
@@ -138,9 +146,7 @@ export default function DashboardLayout({
           <Link href="/" className="flex items-center group">
             <span className="font-['Disolve'] text-4xl text-[#105F68] tracking-tight">Ovel</span>
           </Link>
-          {/* <ArcBadge variant="teal" pulseDot size="xs">
-            0% Commission
-          </ArcBadge> */}
+          
         </div>
 
         {/* Business Tenant Identity */}

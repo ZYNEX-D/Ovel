@@ -143,7 +143,7 @@ export default function DashboardOverviewPage() {
 
   const handleClaimWaitlist = (entryId: string) => {
     playSuccess();
-    const assignedStaff = staff[0]?.name || "Dr. Genevieve Moreau";
+    const assignedStaff = staff[0]?.name || profile?.fullName || activeOvelink?.businessName || "Primary Specialist";
     const newBooking = claimWaitlistSlot(entryId, assignedStaff, wsId);
     if (newBooking) {
       setIsWaitlistModalOpen(false);
@@ -458,7 +458,7 @@ export default function DashboardOverviewPage() {
                 <div className="py-10 px-4 text-center space-y-3">
                   <div className="w-24 h-24 sm:w-24 sm:h-24 mx-auto flex items-center justify-center">
                     <video
-                      src="/animations/NoResult.webm"
+                      src="/animations/noresult.webm"
                       autoPlay
                       loop
                       muted
