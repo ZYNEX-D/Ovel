@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ovel — From the first quote to the last payment</title>
+<meta name="description" content="Ovel is the flat-price platform for salons, clinics, detailers, and specialists. Quote, book, remind, invoice, and get paid. Client payments settle to you.">
+<meta name="theme-color" content="#105F68">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ovel">
+<meta property="og:title" content="Ovel — From the first quote to the last payment">
+<meta property="og:description" content="Quote, book, remind, invoice, and get paid on one link. A flat price. Nothing taken from the payment.">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/SplitText.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js"></script>
+<!-- ░░ Component styles — the catalogue hover-reveal + cinematic plates need
+real pseudo-class selectors (group-hover-dim) that Tailwind can't express ░░ -->
+<style>
+/* single source of truth for the accent — recolor the whole site here */
+:root { --accent: #105F68; --radius: 28px; --radius-sm: 20px; }
+@font-face { font-family: 'Kaleko 105'; src: url('/fonts/fonnts.com-Kaleko105Light.ttf') format('truetype'); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Kaleko 105'; src: url('/fonts/fonnts.com-Kaleko105Book.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Kaleko 105'; src: url('/fonts/fonnts.com-Kaleko105Bold.ttf') format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Kaleko 105'; src: url('/fonts/fonnts.com-Kaleko105Bold.ttf') format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Kaleko 105'; src: url('/fonts/fonnts.com-Kaleko105Heavy.ttf') format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
+html, body, body * { font-family: 'Kaleko 105', sans-serif !important; }
+/* clip, not hidden: overflow-x:hidden forces overflow-y to auto and
+   steals the scroll container away from Lenis, so the wheel does nothing */
+html, body { overflow-x: clip; }
+/* visible keyboard focus (cursor:none hides the pointer, so this matters) */
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 1px; }
+/* ── THE CATALOGUE — cursor-following preview + hover image swap ── */
+.cat-list { list-style: none; }
+.cat-row {
+position: relative; display: grid;
+grid-template-columns: 4rem 1fr auto; align-items: baseline; gap: 2vw;
+padding: 1.6rem 0; border-bottom: 1px solid rgba(16,52,56,.15); cursor: pointer;
+text-decoration: none; color: inherit;
+}
+.cat-no   { color: var(--accent); font-family: 'IBM Plex Mono', monospace; font-size: .75rem; letter-spacing: .2em; }
+.cat-name {
+font-family: 'Inter Tight', sans-serif; font-weight: 500; letter-spacing: -.02em;
+font-size: clamp(1.8rem, 5vw, 4rem); line-height: 1; color: #103438;
+transition: letter-spacing .6s cubic-bezier(.33,1,.68,1), color .5s ease, transform .6s cubic-bezier(.33,1,.68,1);
+}
+.cat-meta { font-family: 'IBM Plex Mono', monospace; font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: rgba(16,52,56,.5); }
+.cat-thumb { display: none; }
+@media (hover: hover) {
+.cat-row { transition: opacity .5s ease; }
+.cat-list:hover .cat-row:not(:hover) { opacity: .3; }
+.cat-row:hover .cat-name { letter-spacing: .06em; color: var(--accent); transform: translateX(1.25rem); }
+}
+.cat-preview {
+position: fixed; top: 0; left: 0; z-index: 55; pointer-events: none;
+width: clamp(200px, 20vw, 320px); aspect-ratio: 4 / 5;
+background-size: cover; background-position: center;
+display: flex; align-items: flex-end; padding: 1.2rem;
+color: #F6FAF9; font-size: 1.7rem; letter-spacing: -0.03em;
+filter: contrast(1.05);
+opacity: 0; will-change: transform;
+/* transform is driven entirely by GSAP — never CSS-transition it, or the
+per-frame position updates fight the transition and stutter */
+}
+@media (max-width: 767px) {
+.cat-row { grid-template-columns: 2.5rem 1fr auto; gap: 1rem; align-items: center; }
+.cat-meta { display: none; }
+.cat-thumb { display: block; width: 3.5rem; height: 4.5rem; background-size: cover; background-position: center; }
+.cat-preview { display: none; }
+}
+/* ── THE PLATES — pinned full-bleed cinematic cross-dissolve ── */
+.plates { position: relative; height: 100svh; overflow: hidden; background: #103438; }
+.plates-frames { position: absolute; inset: 0; }
+.plate-frame { position: absolute; inset: 0; opacity: 0; }
+.plate-frame:first-child { opacity: 1; }
+.plate-img {
+position: relative;
+width: 100%; height: 100%; background-size: cover; background-position: center;
+transform-origin: center; will-change: transform;
+}
+.shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.plates-scrim {
+position: absolute; inset: 0; pointer-events: none;
+background: linear-gradient(180deg, rgba(16,52,56,.45) 0%, transparent 28%, rgba(16,52,56,.6) 100%);
+}
+/* label + counter sit below the fixed header so the glass nav never covers them */
+.plates-label, .plates-count {
+position: absolute; top: 5rem; z-index: 2; color: rgba(246,250,249,.5);
+font-family: 'IBM Plex Mono', monospace; font-size: .7rem; letter-spacing: .25em; text-transform: uppercase;
+}
+.plates-label { left: 1.5rem; } .plates-count { right: 1.5rem; }
+.plates-count b { color: #F6FAF9; font-weight: 400; }
+/* captions anchored from the TOP so every title starts at the same y */
+.plates-caps { position: absolute; left: 1.5rem; right: 1.5rem; bottom: 3rem; z-index: 2; min-height: 7em; }
+.plate-cap {
+position: absolute; left: 0; top: 0; right: 0;
+display: flex; flex-direction: column;
+opacity: 0; transform: translateY(14px);
+transition: opacity .5s ease, transform .6s cubic-bezier(.33,1,.68,1);
+}
+.plate-cap.is-on { opacity: 1; transform: none; }
+.cap-title {
+font-family: 'Inter Tight', sans-serif; font-weight: 500; letter-spacing: -.01em;
+font-size: clamp(1.5rem, 3.4vw, 2.6rem); line-height: 1.1; color: #F6FAF9;
+}
+.cap-desc {
+margin-top: .7rem; max-width: 46ch;
+font-family: 'IBM Plex Mono', monospace; font-size: .8rem; line-height: 1.55;
+letter-spacing: .02em; color: rgba(246,250,249,.6);
+}
+@media (min-width: 768px) {
+.plates-label { top: 6.5rem; left: 3rem; } .plates-count { top: 6.5rem; right: 3rem; }
+.plates-caps { left: 3rem; right: 3rem; bottom: 4rem; }
+}
+/* reduced-motion fallback: stack the frames, no pin, all captions shown */
+.plates.is-reduced { height: auto; }
+.plates.is-reduced .plates-frames { position: relative; }
+.plates.is-reduced .plate-frame { position: relative; opacity: 1; height: 70svh; }
+.plates.is-reduced .plate-cap { position: static; opacity: 1; transform: none; margin-bottom: 1.5rem; }
+/* ── HEADER — frosted glass that fades in once you leave the top ── */
+#site-header { transition: background-color .5s ease, backdrop-filter .5s ease, border-color .5s ease; border-bottom: 1px solid transparent; }
+#site-header.is-scrolled {
+background-color: rgba(246,250,249,.72);
+-webkit-backdrop-filter: blur(14px) saturate(1.1);
+backdrop-filter: blur(14px) saturate(1.1);
+border-bottom-color: rgba(16,52,56,.08);
+}
+/* active-tab indicator — set by the scroll-spy */
+#site-header nav a { position: relative; }
+#site-header nav a.nav-active { color: var(--accent); opacity: 1; }
+#site-header nav a.nav-active::after {
+content: ''; position: absolute; left: 0; right: 0; bottom: -7px; height: 1px; background: var(--accent);
+}
+/* ── FOOTER CTA — accent underline that draws in under "better" ── */
+.cta-better { position: relative; white-space: nowrap; }
+.cta-underline {
+position: absolute; left: 0; right: 0; bottom: .04em; height: .05em;
+background: var(--accent); transform: scaleX(0); transform-origin: left center;
+}
+/* Ovel radii — panels, images, and the floating preview share one corner */
+.frame,
+.reveal-wrap,
+.archive-item,
+.cat-preview,
+.cat-thumb,
+#pin-stage,
+.plates,
+#studio,
+.h-track-panel > div:first-child {
+  border-radius: var(--radius);
+}
+.frame,
+.archive-item,
+#pin-stage,
+.plates,
+#studio,
+.h-track-panel > div:first-child { overflow: hidden; }
+#works { padding: 0.75rem 0.75rem 0; }
+.plates, #studio {
+  width: calc(100% - 1.5rem);
+  margin-inline: auto;
+}
+.plates { height: calc(100svh - 1.5rem); }
+#contact { border-radius: var(--radius) var(--radius) 0 0; }
+#magnet, a.rounded-full { border-radius: 999px; }
+</style>
+</head>
+<body class="bg-[#F6FAF9] text-[#103438] antialiased selection:bg-[var(--accent)] selection:text-[#F6FAF9]" style="font-family:'Kaleko 105',sans-serif">
+
+<!-- ░░ GRAIN OVERLAY — opacity tuned in CONFIG.grainOpacity ░░ -->
+<div id="grain" class="fixed inset-0 z-[90] pointer-events-none" style="opacity:.05;background-image:url(&quot;data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E&quot;)"></div>
+
+<!-- ░░ SCROLL PROGRESS — thin clay line, driven by Lenis.progress ░░ -->
+<div class="fixed top-0 inset-x-0 z-[97] h-px bg-[#103438]/10 pointer-events-none">
+  <div id="progress" class="h-full bg-[var(--accent)]" style="transform:scaleX(0);transform-origin:left center"></div>
+</div>
+
+<!-- ░░ CUSTOM CURSOR — thin crosshair ring ░░ -->
+<div id="cursor" class="fixed top-0 left-0 z-[95] pointer-events-none hidden md:flex items-center justify-center" style="width:2.25rem;height:2.25rem;margin-left:-1.125rem;margin-top:-1.125rem">
+  <div class="absolute inset-0 rounded-full border border-[#103438]/70" style="transition:transform .35s cubic-bezier(.22,1,.36,1)"></div>
+  <div class="w-1 h-1 bg-[var(--accent)] rounded-full"></div>
+</div>
+
+<!-- ░░ LOADER — thin counter on a baseline, then a clean cut upward ░░ -->
+<div id="loader" class="fixed inset-0 z-[99] bg-[#103438] text-[#F6FAF9] flex flex-col justify-end">
+  <div class="px-6 md:px-12 pb-10 md:pb-14 flex items-end justify-between border-t border-[#F6FAF9]/15 pt-6 mx-6 md:mx-12">
+    <p class="text-xs uppercase tracking-[0.25em] text-[#F6FAF9]/50">Ovel — Quote to paid</p>
+    <p id="counter" class="text-5xl md:text-7xl font-light tracking-tight tabular-nums leading-none">000</p>
+  </div>
+</div>
+
+<!-- Fail-safe: if a CDN/script never boots or the intro errors, lift the loader
+     and unlock scrolling after 6s so the page can never get trapped. Standalone
+     so it runs even when GSAP/Lenis fail to load. -->
+<script>
+  window.__odeIntroDone = false;
+  setTimeout(function () {
+    if (!window.__odeIntroDone) {
+      var l = document.getElementById('loader');
+      if (l) l.style.display = 'none';
+      document.body.style.overflow = '';
+      window.__odeIntroDone = true;
+      if (window.__odeRelease) window.__odeRelease();
+    }
+  }, 6000);
+</script>
+
+<!-- ░░ HEADER ░░ -->
+<header id="site-header" class="fixed top-0 inset-x-0 z-[60] text-[#103438]">
+  <div class="flex items-center justify-between px-6 md:px-12 h-16 md:h-20">
+    <a href="/" class="text-sm font-medium tracking-[-0.05em]">Ovel<span class="text-[var(--accent)]">—</span></a>
+    <nav class="hidden md:flex items-center gap-10 text-xs uppercase tracking-[0.2em] opacity-70">
+      <a href="#process" class="hover:opacity-100">The loop</a>
+      <a href="#catalogue" class="hover:opacity-100">Index</a>
+      <a href="#pricing" class="hover:opacity-100">Pricing</a>
+      <a href="#studio" class="hover:opacity-100">Promise</a>
+      <a href="/login" class="hover:opacity-100">Sign in</a>
+    </nav>
+    <div class="flex items-center gap-5">
+      <a href="/signup" class="hidden md:flex text-xs uppercase tracking-[0.2em] items-center gap-2 rounded-full border border-[#103438]/15 px-4 py-2">Start <iconify-icon icon="solar:arrow-right-up-linear" width="14" stroke-width="1.5"></iconify-icon></a>
+      <button id="menu-btn" class="md:hidden flex items-center justify-center w-10 h-10 -mr-2" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
+        <iconify-icon icon="solar:hamburger-menu-linear" width="26" stroke-width="1.5"></iconify-icon>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ░░ MOBILE MENU — full-screen overlay (md:hidden) ░░ -->
+<div id="mobile-menu" class="fixed inset-0 z-[98] bg-[#103438] text-[#F6FAF9] hidden flex-col px-6 py-6" style="visibility:hidden">
+  <div class="flex items-center justify-between h-10">
+    <span class="text-sm font-medium tracking-[-0.05em]">Ovel<span style="color:var(--accent)">—</span></span>
+    <button id="menu-close" class="flex items-center justify-center w-10 h-10 -mr-2" aria-label="Close menu">
+      <iconify-icon icon="solar:close-circle-linear" width="28" stroke-width="1.5"></iconify-icon>
+    </button>
+  </div>
+  <nav class="flex-1 flex flex-col justify-center gap-2">
+    <a href="#process" class="mobile-link text-5xl font-medium tracking-tight">The loop</a>
+    <a href="#catalogue" class="mobile-link text-5xl font-medium tracking-tight">Index</a>
+    <a href="#pricing" class="mobile-link text-5xl font-medium tracking-tight">Pricing</a>
+    <a href="#studio" class="mobile-link text-5xl font-medium tracking-tight">Promise</a>
+    <a href="/signup" class="mobile-link text-5xl font-medium tracking-tight">Start</a>
+  </nav>
+  <div class="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-[#F6FAF9]/40">
+    <a href="/login" class="mobile-link hover:text-[#F6FAF9] transition-colors">Sign in</a>
+    <a href="mailto:hello@ovel.lk" class="mobile-link hover:text-[#F6FAF9] transition-colors">hello@ovel.lk</a>
+  </div>
+</div>
+
+<!-- ░░ HERO — type leads, shader is atmosphere only ░░ -->
+<section class="relative min-h-[100svh] flex flex-col justify-end overflow-hidden">
+  <!-- structural grid lines -->
+  <div class="absolute inset-y-0 left-6 md:left-12 w-px bg-[#103438]/10"></div>
+  <div class="absolute inset-y-0 right-6 md:right-12 w-px bg-[#103438]/10"></div>
+  <div class="absolute left-1/2 inset-y-0 w-px bg-[#103438]/[0.06] hidden md:block"></div>
+
+  <div class="relative px-6 md:px-12 pb-10 md:pb-16">
+    <p class="hero-sub text-xs uppercase tracking-[0.3em] text-[#103438]/50 mb-6 md:mb-10">Flat price · no commission</p>
+    <h1 class="leading-[0.86] tracking-tight font-medium">
+      <span class="hero-line block text-[21vw] md:text-[17vw]">OVEL</span>
+      <span class="hero-line block text-[21vw] md:text-[17vw]"><span class="text-[var(--accent)]">—</span>LINK</span>
+    </h1>
+    <div class="hero-sub mt-8 md:mt-12 flex flex-col md:flex-row md:items-end justify-between gap-6 border-t border-[#103438]/15 pt-6">
+      <p class="max-w-md text-sm md:text-base font-normal text-[#103438]/70 leading-relaxed">Quote, book, remind, invoice, and get paid. One link. What your clients pay settles to you.</p>
+      <p class="text-xs uppercase tracking-[0.25em] text-[#103438]/40 flex items-center gap-3" style="font-family:'IBM Plex Mono',monospace">Scroll <iconify-icon icon="solar:arrow-down-linear" width="14" stroke-width="1.5"></iconify-icon> 001</p>
+    </div>
+  </div>
+</section>
+
+<!-- ░░ PINNED SELECTED WORK — image holds, caption assembles line by line ░░ -->
+<section id="works" class="relative">
+  <div id="pin-stage" class="h-[100svh] relative overflow-hidden bg-[#0D4F57]">
+    <img src="/landing/img/window.jpg" alt="Treatment bed beside a tall window" class="shot">
+    <div class="absolute inset-0 bg-gradient-to-b from-[#103438]/30 via-[#103438]/25 to-[#103438]/75"></div>
+    <div id="pin-img" class="absolute inset-x-[5%] top-[6%] bottom-[31%] md:inset-x-[18%] rounded-[28px] bg-[#F6FAF9] text-[#103438] overflow-hidden flex flex-col shadow-[0_40px_80px_-36px_rgba(0,0,0,.45)]" style="transform:scale(1.08)">
+      <div class="flex items-center justify-between gap-4 bg-[#105F68] px-6 md:px-8 py-4 text-[11px] uppercase tracking-[0.18em] text-[#C8E6E2]">
+        <span class="truncate">ovel.lk/l/leclat</span>
+        <span class="shrink-0">Thursday</span>
+      </div>
+      <div class="flex items-center gap-4 px-6 md:px-8 pt-6">
+        <span class="flex h-14 w-14 items-center justify-center rounded-[18px] bg-[#105F68] text-sm text-white">LE</span>
+        <div>
+          <p class="text-[11px] uppercase tracking-[0.18em] text-[#105F68]">Appointments</p>
+          <p class="text-xl leading-tight">L'Éclat Studio</p>
+        </div>
+      </div>
+      <ul class="mt-4 flex-1 px-6 md:px-8">
+        <li class="flex items-center justify-between gap-4 border-t border-[#105F68]/10 py-3.5">
+          <span class="min-w-0"><span class="block truncate">Hydrafacial Glow</span><span class="mt-0.5 block text-xs text-[#3A9295]">09:30 · 60 min</span></span>
+          <span class="shrink-0 text-right"><span class="block text-sm tabular-nums">Rs 195.00</span><span class="mt-0.5 block text-[11px] uppercase tracking-[0.14em] text-[#105F68]">Paid</span></span>
+        </li>
+        <li class="flex items-center justify-between gap-4 border-t border-[#105F68]/10 py-3.5">
+          <span class="min-w-0"><span class="block truncate">Complexion roadmap</span><span class="mt-0.5 block text-xs text-[#3A9295]">11:00 · 45 min</span></span>
+          <span class="shrink-0 text-right"><span class="block text-sm tabular-nums">Rs 120.00</span><span class="mt-0.5 block text-[11px] uppercase tracking-[0.14em] text-[#105F68]">Deposit</span></span>
+        </li>
+        <li class="flex items-center justify-between gap-4 border-t border-[#105F68]/10 py-3.5">
+          <span class="min-w-0"><span class="block truncate">Barrier Rescue kit</span><span class="mt-0.5 block text-xs text-[#3A9295]">14:15 · order</span></span>
+          <span class="shrink-0 text-right"><span class="block text-sm tabular-nums">Rs 88.00</span><span class="mt-0.5 block text-[11px] uppercase tracking-[0.14em] text-[#105F68]">Quote</span></span>
+        </li>
+      </ul>
+      <div class="mx-6 md:mx-8 mb-6 flex items-end justify-between gap-4 border-t border-[#105F68]/10 pt-4">
+        <p class="text-sm text-[#3A9295]">Commission on these</p>
+        <p class="text-4xl font-light leading-none text-[#105F68] tabular-nums">Rs 0</p>
+      </div>
+    </div>
+    <div class="absolute inset-x-0 bottom-0 px-6 md:px-12 pb-10 md:pb-16 text-[#F6FAF9]">
+      <div class="overflow-hidden"><p class="pin-line text-xs uppercase tracking-[0.3em] text-[#F6FAF9]/60 mb-4">The link — 001</p></div>
+      <div class="overflow-hidden"><h2 class="pin-line text-5xl md:text-8xl font-medium tracking-tight leading-[0.95]">Your Ovelink</h2></div>
+      <div class="overflow-hidden"><p class="pin-line mt-4 text-sm md:text-base text-[#F6FAF9]/70">One page for the whole client loop</p></div>
+      <div class="overflow-hidden"><p class="pin-line mt-2 text-xs text-[#C8E6E2] uppercase tracking-[0.25em]">Nothing taken from the payment</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ░░ STATS — numbers count up on enter (echoes the loader counter) ░░ -->
+<section id="pricing" class="px-6 md:px-12 py-24 md:py-36 border-t border-[#103438]/10">
+  <p class="text-xs uppercase tracking-[0.3em] text-[#103438]/40 mb-12 md:mb-16">Pricing — in the open</p>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-y-12 gap-x-8">
+    <div class="border-t border-[#103438]/15 pt-5 rounded-none">
+      <p class="text-5xl md:text-7xl font-light tracking-tight tabular-nums leading-none"><span data-count="0" data-suffix="%">0</span></p>
+      <p class="mt-3 text-xs uppercase tracking-[0.2em] text-[#103438]/50">Commission</p>
+    </div>
+    <div class="border-t border-[#103438]/15 pt-5">
+      <p class="text-5xl md:text-7xl font-light tracking-tight tabular-nums leading-none"><span data-count="5" data-suffix="">0</span></p>
+      <p class="mt-3 text-xs uppercase tracking-[0.2em] text-[#103438]/50">Steps in the loop</p>
+    </div>
+    <div class="border-t border-[#103438]/15 pt-5">
+      <p class="text-5xl md:text-7xl font-light tracking-tight tabular-nums leading-none"><span data-count="3" data-suffix="">0</span></p>
+      <p class="mt-3 text-xs uppercase tracking-[0.2em] text-[#103438]/50">Flat-price plans</p>
+    </div>
+    <div class="border-t border-[#103438]/15 pt-5">
+      <p class="text-5xl md:text-7xl font-light tracking-tight tabular-nums leading-none"><span data-count="0" data-suffix=" LKR">0</span></p>
+      <p class="mt-3 text-xs uppercase tracking-[0.2em] text-[#103438]/50">To start</p>
+    </div>
+  </div>
+  <div class="mt-14 grid md:grid-cols-3 gap-4">
+    <a href="/signup" class="block rounded-[28px] border border-[#103438]/10 bg-white p-7">
+      <p class="text-xs uppercase tracking-[0.2em] text-[#105F68]">Starter</p>
+      <p class="mt-4 text-4xl font-light tabular-nums">LKR 0</p>
+      <p class="mt-2 text-sm text-[#103438]/60">3 listings · 100 bookings a month</p>
+    </a>
+    <a href="/signup?plan=growth" class="block rounded-[28px] border border-[#105F68] bg-white p-7">
+      <p class="text-xs uppercase tracking-[0.2em] text-[#105F68]">Growth</p>
+      <p class="mt-4 text-4xl font-light tabular-nums">LKR 500</p>
+      <p class="mt-2 text-sm text-[#103438]/60">Quotes, invoices, two-way WhatsApp</p>
+    </a>
+    <a href="/signup?plan=scale" class="block rounded-[28px] border border-[#103438]/10 bg-white p-7">
+      <p class="text-xs uppercase tracking-[0.2em] text-[#105F68]">Scale</p>
+      <p class="mt-4 text-4xl font-light tabular-nums">LKR 1,500</p>
+      <p class="mt-2 text-sm text-[#103438]/60">Staff, waitlist, and credit terms</p>
+    </a>
+  </div>
+</section>
+
+<!-- ░░ PROJECTS — clip-path wipes + subtle parallax + velocity skew ░░ -->
+<section class="px-6 md:px-12 py-24 md:py-40 space-y-28 md:space-y-48">
+
+  <!-- project 01 -->
+  <article id="work-hein" class="grid md:grid-cols-12 gap-8 items-end">
+    <div class="md:col-span-7 frame">
+      <div class="reveal-wrap overflow-hidden" style="clip-path:inset(100% 0 0 0)">
+        <div class="reveal-img skewable w-full bg-white text-[#103438] p-6 md:p-9 flex flex-col" style="transform:scale(1.15)">
+          <div class="flex items-start justify-between gap-6">
+            <div>
+              <p class="text-[11px] uppercase tracking-[0.2em] text-[#3A9295]">L'Éclat Studio · Quote 014</p>
+              <p class="mt-3 text-2xl md:text-4xl font-medium tracking-tight">Hydrafacial Glow</p>
+              <p class="mt-1 text-sm text-[#3A9295]">60 min · Facials &amp; Skin</p>
+            </div>
+            <p class="shrink-0 rounded-full bg-[#C8E6E2] px-3 py-1 text-[11px] uppercase tracking-[0.14em] text-[#0D4F57]">Awaiting signature</p>
+          </div>
+          <div class="mt-6 border-y border-[#105F68]/10">
+            <div class="flex items-end justify-between gap-4 border-b border-[#105F68]/10 py-3.5 text-sm">
+              <span>Session<span class="block text-[#3A9295]">Lymphatic drainage</span></span>
+              <span class="tabular-nums">Rs 195.00</span>
+            </div>
+            <div class="flex items-end justify-between gap-4 border-b border-[#105F68]/10 py-3.5 text-sm">
+              <span>Deposit<span class="block text-[#3A9295]">Taken when they accept, credited on the invoice</span></span>
+              <span class="tabular-nums">Rs 50.00</span>
+            </div>
+            <div class="flex items-end justify-between gap-4 py-3.5 text-sm">
+              <span>Balance<span class="block text-[#3A9295]">What the invoice still asks for</span></span>
+              <span class="tabular-nums">Rs 145.00</span>
+            </div>
+          </div>
+          <p class="mt-5 max-w-sm text-sm leading-relaxed text-[#3A9295]">Signing it opens the invoice. The deposit is already credited, and the tax is already on the bill.</p>
+          <div class="mt-8 flex items-end justify-between gap-6">
+            <div>
+              <p class="text-[11px] uppercase tracking-[0.18em] text-[#3A9295]">Signature</p>
+              <p class="mt-3 w-40 border-b border-[#105F68]/40 pb-1 text-sm text-[#105F68]">—</p>
+            </div>
+            <div class="text-right">
+              <p class="text-[11px] uppercase tracking-[0.18em] text-[#3A9295]">Due</p>
+              <p class="mt-1 text-3xl font-light leading-none text-[#105F68] tabular-nums">Rs 195.00</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="md:col-span-5 md:pl-8">
+      <p class="text-xs uppercase tracking-[0.3em] text-[var(--accent)] mb-4">01</p>
+      <h3 class="text-3xl md:text-5xl font-medium tracking-tight leading-tight">Quote</h3>
+      <p class="mt-3 text-sm text-[#103438]/60">A proposal they can sign</p>
+      <p class="mt-6 text-sm md:text-base text-[#103438]/70 leading-relaxed max-w-sm border-t border-[#103438]/15 pt-6">Send the price, the work, and the terms. When they accept, it is ready to become the invoice.</p>
+    </div>
+  </article>
+
+  <!-- project 02 -->
+  <article id="work-kalk" class="grid md:grid-cols-12 gap-8 items-end">
+    <div class="md:col-span-5 md:order-1 order-2 md:pr-8 md:text-right">
+      <p class="text-xs uppercase tracking-[0.3em] text-[var(--accent)] mb-4">02</p>
+      <h3 class="text-3xl md:text-5xl font-medium tracking-tight leading-tight">Book</h3>
+      <p class="mt-3 text-sm text-[#103438]/60">A time on your link</p>
+      <p class="mt-6 text-sm md:text-base text-[#103438]/70 leading-relaxed max-w-sm md:ml-auto border-t border-[#103438]/15 pt-6">They pick an appointment, a rental, or an order. No app, and no account to create.</p>
+    </div>
+    <div class="md:col-span-7 md:order-2 order-1 frame">
+      <div class="reveal-wrap overflow-hidden" style="clip-path:inset(100% 0 0 0)">
+        <div class="reveal-img skewable w-full bg-[#F6FAF9] text-[#103438] p-6 md:p-9 flex flex-col" style="transform:scale(1.15)">
+          <div class="flex items-end justify-between gap-4">
+            <div>
+              <p class="text-[11px] uppercase tracking-[0.2em] text-[#3A9295]">Thursday · L'Éclat</p>
+              <p class="mt-3 text-2xl md:text-4xl font-medium tracking-tight">Open times</p>
+            </div>
+            <p class="text-sm text-[#3A9295] text-right">Hydrafacial Glow<br>60 min · Rs 195.00</p>
+          </div>
+          <div class="mt-6 grid gap-3">
+            <div class="flex items-center justify-between rounded-full border border-[#105F68]/15 bg-white px-5 py-3.5 text-sm"><span class="tabular-nums">09:30</span><span class="text-[#3A9295]">Open</span></div>
+            <div class="flex items-center justify-between rounded-full bg-[#105F68] px-5 py-3.5 text-sm text-white"><span class="tabular-nums">11:00</span><span>Held</span></div>
+            <div class="flex items-center justify-between rounded-full border border-[#105F68]/15 bg-white px-5 py-3.5 text-sm"><span class="tabular-nums">14:15</span><span class="text-[#3A9295]">Open</span></div>
+            <div class="flex items-center justify-between rounded-full border border-[#105F68]/15 bg-white px-5 py-3.5 text-sm"><span class="tabular-nums">16:40</span><span class="text-[#3A9295]">Open</span></div>
+          </div>
+          <p class="mt-6 text-sm text-[#3A9295]">No account. The hour is held when they confirm.</p>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <!-- project 03 -->
+  <article id="work-tarn" class="grid md:grid-cols-12 gap-8 items-end">
+    <div class="md:col-span-7 frame">
+      <div class="reveal-wrap overflow-hidden" style="clip-path:inset(100% 0 0 0)">
+        <div class="reveal-img skewable w-full bg-[#0D4F57] text-[#F6FAF9] p-6 md:p-9 flex flex-col" style="transform:scale(1.15)">
+          <div class="flex items-center justify-between text-[11px] uppercase tracking-[0.2em] text-[#C8E6E2]">
+            <span>WhatsApp · L'Éclat Studio</span>
+            <span>24h before</span>
+          </div>
+          <div class="mt-8 flex flex-col justify-end gap-3">
+            <div class="mr-auto max-w-[20rem] rounded-[22px] rounded-bl-md bg-white/10 px-4 py-3 text-sm leading-relaxed">Tomorrow, 11:00<br><span class="text-[#C8E6E2]">Hydrafacial Glow · 60 min</span></div>
+            <div class="ml-auto max-w-[16rem] rounded-[22px] rounded-br-md bg-[#105F68] px-4 py-3 text-sm leading-relaxed">Reply 1 to confirm<br>Reply 2 to reschedule</div>
+          </div>
+          <div class="mt-6 grid grid-cols-2 gap-3">
+            <span class="rounded-full bg-white py-3 text-center text-sm text-[#0D4F57]">1 · Confirm</span>
+            <span class="rounded-full border border-white/30 py-3 text-center text-sm">2 · Move it</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="md:col-span-5 md:pl-8">
+      <p class="text-xs uppercase tracking-[0.3em] text-[var(--accent)] mb-4">03</p>
+      <h3 class="text-3xl md:text-5xl font-medium tracking-tight leading-tight">Remind</h3>
+      <p class="mt-3 text-sm text-[#103438]/60">WhatsApp, not another app</p>
+      <p class="mt-6 text-sm md:text-base text-[#103438]/70 leading-relaxed max-w-sm border-t border-[#103438]/15 pt-6">A message asks them to reply 1 to confirm, or 2 to move the appointment.</p>
+    </div>
+  </article>
+</section>
+
+<!-- ░░ VELOCITY MARQUEE — direction flips with scroll, speed tracks Lenis velocity ░░ -->
+<section class="py-6 md:py-8 border-y border-[#103438]/10 overflow-hidden select-none" aria-hidden="true">
+  <div id="marquee" class="flex whitespace-nowrap will-change-transform">
+    <div class="marquee-track flex items-center shrink-0 text-5xl md:text-8xl font-medium tracking-tight uppercase">
+      <span class="px-8">Quote</span><span class="text-[var(--accent)] px-2">—</span>
+      <span class="px-8">Book</span><span class="text-[var(--accent)] px-2">—</span>
+      <span class="px-8">Remind</span><span class="text-[var(--accent)] px-2">—</span>
+      <span class="px-8">Invoice</span><span class="text-[var(--accent)] px-2">—</span>
+      <span class="px-8">Paid</span><span class="text-[var(--accent)] px-2">—</span>
+    </div>
+    <div class="marquee-track flex items-center shrink-0 text-5xl md:text-8xl font-medium tracking-tight uppercase" aria-hidden="true">
+      <span class="px-8">Quote</span><span class="text-[var(--accent)] px-2">—</span>
+      <span class="px-8">Book</span><span class="text-[var(--accent)] px-2">—</span>
+      <span class="px-8">Remind</span><span class="text-[var(--accent)] px-2">—</span>
+      <span class="px-8">Invoice</span><span class="text-[var(--accent)] px-2">—</span>
+      <span class="px-8">Paid</span><span class="text-[var(--accent)] px-2">—</span>
+    </div>
+  </div>
+</section>
+
+<!-- ░░ PROCESS — horizontal pinned gallery, scrubbed sideways ░░ -->
+<section id="process" class="relative">
+  <div id="h-stage" class="h-[100svh] overflow-hidden flex flex-col justify-center">
+    <div class="px-6 md:px-12 pb-8 md:pb-12 flex items-end justify-between">
+      <div>
+        <p class="text-xs uppercase tracking-[0.3em] text-[#103438]/40 mb-3">The loop — in order</p>
+        <h2 class="text-4xl md:text-7xl font-medium tracking-tight leading-none">From quote to paid</h2>
+      </div>
+      <p class="hidden md:flex items-center gap-3 text-xs uppercase tracking-[0.25em] text-[#103438]/40" style="font-family:'IBM Plex Mono',monospace">Scroll <iconify-icon icon="solar:arrow-right-linear" width="14" stroke-width="1.5"></iconify-icon></p>
+    </div>
+    <div id="h-track" class="flex gap-5 md:gap-8 px-6 md:px-12 w-max items-stretch">
+      <figure class="h-track-panel w-[78vw] md:w-[42vw] shrink-0">
+        <div class="overflow-hidden"><div class="relative w-full aspect-[4/3]"><img src="/landing/img/room.jpg" alt="Treatment room prepared for a quoted session" class="shot" style="object-position:center 45%"></div></div>
+        <figcaption class="mt-4 flex items-baseline justify-between" style="font-family:'IBM Plex Mono',monospace">
+          <span class="text-xs uppercase tracking-[0.25em] text-[#103438]/60">01 — Quote</span>
+          <span class="text-xs text-[var(--accent)]">·</span>
+        </figcaption>
+        <p class="mt-1 text-sm text-[#103438]/60 max-w-xs">A proposal they can sign, ready to become the invoice.</p>
+      </figure>
+      <figure class="h-track-panel w-[78vw] md:w-[42vw] shrink-0">
+        <div class="overflow-hidden"><div class="relative w-full aspect-[4/3]"><img src="/landing/img/barber-b.jpg" alt="Barber chairs open for a booking" class="shot" style="object-position:center 70%"></div></div>
+        <figcaption class="mt-4 flex items-baseline justify-between" style="font-family:'IBM Plex Mono',monospace">
+          <span class="text-xs uppercase tracking-[0.25em] text-[#103438]/60">02 — Book</span>
+          <span class="text-xs text-[var(--accent)]">·</span>
+        </figcaption>
+        <p class="mt-1 text-sm text-[#103438]/60 max-w-xs">They choose a time on your Ovelink. No app to install.</p>
+      </figure>
+      <figure class="h-track-panel w-[78vw] md:w-[42vw] shrink-0">
+        <div class="overflow-hidden"><div class="relative w-full aspect-[4/3]"><img src="/landing/img/counter.jpg" alt="A client confirming the hour at a salon desk" class="shot" style="object-position:center 40%"></div></div>
+        <figcaption class="mt-4 flex items-baseline justify-between" style="font-family:'IBM Plex Mono',monospace">
+          <span class="text-xs uppercase tracking-[0.25em] text-[#103438]/60">03 — Remind</span>
+          <span class="text-xs text-[var(--accent)]">·</span>
+        </figcaption>
+        <p class="mt-1 text-sm text-[#103438]/60 max-w-xs">WhatsApp asks them to confirm, or to move the hour.</p>
+      </figure>
+      <figure class="h-track-panel w-[78vw] md:w-[42vw] shrink-0">
+        <div class="overflow-hidden"><div class="relative w-full aspect-[4/3]"><img src="/landing/img/desk.jpg" alt="Salon reception where the bill is settled" class="shot"></div></div>
+        <figcaption class="mt-4 flex items-baseline justify-between" style="font-family:'IBM Plex Mono',monospace">
+          <span class="text-xs uppercase tracking-[0.25em] text-[#103438]/60">04 — Invoice</span>
+          <span class="text-xs text-[var(--accent)]">·</span>
+        </figcaption>
+        <p class="mt-1 text-sm text-[#103438]/60 max-w-xs">The deposit is already credited. Tax is already on the bill.</p>
+      </figure>
+      <figure class="h-track-panel w-[78vw] md:w-[42vw] shrink-0">
+        <div class="overflow-hidden"><div class="relative w-full aspect-[4/3]"><img src="/landing/img/salon-c.jpg" alt="Salon floor the payment belongs to" class="shot" style="object-position:center 60%"></div></div>
+        <figcaption class="mt-4 flex items-baseline justify-between" style="font-family:'IBM Plex Mono',monospace">
+          <span class="text-xs uppercase tracking-[0.25em] text-[#103438]/60">05 — Paid</span>
+          <span class="text-xs text-[var(--accent)]">·</span>
+        </figcaption>
+        <p class="mt-1 text-sm text-[#103438]/60 max-w-xs">The payment settles to the account you connect.</p>
+      </figure>
+      <figure class="h-track-panel w-[78vw] md:w-[42vw] shrink-0">
+        <div class="overflow-hidden"><div class="relative w-full aspect-[4/3]"><img src="/landing/img/floor.jpg" alt="A salon floor that stays with the owner" class="shot" style="object-position:center 55%"></div></div>
+        <figcaption class="mt-4 flex items-baseline justify-between" style="font-family:'IBM Plex Mono',monospace">
+          <span class="text-xs uppercase tracking-[0.25em] text-[#103438]/60">06 — Yours</span>
+          <span class="text-xs text-[var(--accent)]">·</span>
+        </figcaption>
+        <p class="mt-1 text-sm text-[#103438]/60 max-w-xs">Ovel’s commission on that payment is zero.</p>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ░░ THE CATALOGUE — hover-reveal index; a preview follows the cursor ░░ -->
+<section id="catalogue" class="px-6 md:px-12 py-24 md:py-40 border-t border-[#103438]/10">
+  <div class="mb-12 md:mb-20">
+    <p class="text-xs uppercase tracking-[0.3em] text-[#103438]/40 mb-4">Selected steps</p>
+    <h2 class="text-4xl md:text-7xl font-medium tracking-tight leading-none">The loop.</h2>
+  </div>
+  <ul class="cat-list border-t border-[#103438]/15">
+    <li><a class="cat-row" href="#works" data-img="/landing/img/room.jpg">
+      <span class="cat-no">00</span><span class="cat-name">Quote</span>
+      <span class="cat-thumb" aria-hidden="true"></span>
+      <span class="cat-meta">A proposal they sign</span>
+    </a></li>
+    <li><a class="cat-row" href="#work-kalk" data-img="/landing/img/barber-b.jpg">
+      <span class="cat-no">01</span><span class="cat-name">Book</span>
+      <span class="cat-thumb" aria-hidden="true"></span>
+      <span class="cat-meta">A time on your link</span>
+    </a></li>
+    <li><a class="cat-row" href="#work-tarn" data-img="/landing/img/counter.jpg">
+      <span class="cat-no">02</span><span class="cat-name">Remind</span>
+      <span class="cat-thumb" aria-hidden="true"></span>
+      <span class="cat-meta">WhatsApp, both ways</span>
+    </a></li>
+    <li><a class="cat-row" href="#process" data-img="/landing/img/desk.jpg">
+      <span class="cat-no">03</span><span class="cat-name">Invoice</span>
+      <span class="cat-thumb" aria-hidden="true"></span>
+      <span class="cat-meta">Deposit already credited</span>
+    </a></li>
+    <li><a class="cat-row" href="#process" data-img="/landing/img/salon-c.jpg">
+      <span class="cat-no">04</span><span class="cat-name">Paid</span>
+      <span class="cat-thumb" aria-hidden="true"></span>
+      <span class="cat-meta">Settles to your account</span>
+    </a></li>
+    <li><a class="cat-row" href="#studio" data-img="/landing/img/floor.jpg">
+      <span class="cat-no">05</span><span class="cat-name">Yours</span>
+      <span class="cat-thumb" aria-hidden="true"></span>
+      <span class="cat-meta">0% on every plan</span>
+    </a></li>
+  </ul>
+  <div class="cat-preview" aria-hidden="true"></div>
+</section>
+
+<!-- ░░ MANIFESTO — dark, full-bleed, with a parallax image behind the text ░░ -->
+<section id="studio" class="relative overflow-hidden border-t border-[#103438]/10 text-[#F6FAF9]">
+  <!-- parallax backdrop: scaled so it never gaps as it drifts -->
+  <div id="studio-bg" class="absolute inset-0" style="background-image:url('/landing/img/dentist-b.jpg');background-size:cover;background-position:center;transform:scale(1.25)"></div>
+  <div class="absolute inset-0 bg-[#103438]/55"></div>
+  <div class="relative px-6 md:px-12 py-32 md:py-56 grid md:grid-cols-12 gap-8">
+    <p class="md:col-span-3 text-xs uppercase tracking-[0.3em] text-[#F6FAF9]/50">The difference</p>
+    <p class="manifesto md:col-span-9 text-2xl md:text-5xl font-normal tracking-tight leading-[1.15] max-w-4xl">Client payments settle to the account you connect. <span class="text-[#C8E6E2]">Ovel does not take a percentage.</span></p>
+  </div>
+</section>
+
+<!-- ░░ FOOTER — magnetic enquire ░░ -->
+<footer id="contact" class="relative z-[91] bg-[#103438] text-[#F6FAF9] overflow-hidden">
+  <!-- top: call-to-action (left) + structured contact (right) -->
+  <div class="relative px-6 md:px-12 pt-24 md:pt-40 pb-16 md:pb-24 grid md:grid-cols-12 gap-y-14 gap-x-8 items-start">
+    <div class="md:col-span-7">
+      <p class="text-xs uppercase tracking-[0.3em] text-[#F6FAF9]/40 mb-8">Starter is free</p>
+      <h2 class="footer-cta text-5xl md:text-8xl font-medium tracking-tight leading-[0.92]">
+        <span class="block overflow-hidden pb-[0.05em]"><span class="cta-line inline-block">Open the link.</span></span>
+        <span class="block overflow-hidden pb-[0.05em]"><span class="cta-line inline-block">Start <span class="cta-better">free<span class="cta-underline"></span></span>.</span></span>
+      </h2>
+      <div class="mt-12 md:mt-16">
+        <a id="magnet" href="/signup" class="group inline-flex items-center justify-center gap-4 rounded-full border border-[#F6FAF9]/25 hover:border-[#C8E6E2] px-10 h-16 md:h-20 transition-colors duration-500">
+          <span class="text-lg md:text-2xl font-medium tracking-tight">Start free</span>
+          <iconify-icon icon="solar:arrow-right-up-linear" width="22" stroke-width="1.5" class="text-[#C8E6E2]"></iconify-icon>
+        </a>
+      </div>
+    </div>
+    <div class="md:col-span-5 md:pl-8 grid grid-cols-2 gap-8 text-sm">
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.25em] text-[#F6FAF9]/35 mb-5">Plans</p>
+        <p class="text-[#F6FAF9]/80 leading-relaxed">Starter · LKR 0</p>
+        <p class="mt-3 text-[#F6FAF9]/80 leading-relaxed">Growth · LKR 500</p>
+        <p class="mt-3 text-[#F6FAF9]/80 leading-relaxed">Scale · LKR 1,500</p>
+      </div>
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.25em] text-[#F6FAF9]/35 mb-5">Contact</p>
+        <a href="mailto:hello@ovel.lk" class="block text-[#F6FAF9]/80 hover:text-[#F6FAF9] transition-colors">hello@ovel.lk</a>
+        <a href="/login" class="block mt-2 text-[#F6FAF9]/80 hover:text-[#F6FAF9] transition-colors">Sign in</a>
+        <p class="text-[10px] uppercase tracking-[0.25em] text-[#F6FAF9]/35 mt-8 mb-5">Sample</p>
+        <a href="/l/leclat" class="block text-[#F6FAF9]/80 hover:text-[#F6FAF9] transition-colors">L’Éclat Studio</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- faint oversized signature wordmark -->
+  <div class="px-6 md:px-12 select-none pointer-events-none">
+    <h2 class="font-medium tracking-tight leading-[0.8] text-[20vw] text-[#F6FAF9]/[0.05] whitespace-nowrap">OVEL<span style="color:#C8E6E2;opacity:.45">—</span></h2>
+  </div>
+
+  <!-- bottom meta -->
+  <div class="px-6 md:px-12 py-8 border-t border-[#F6FAF9]/10 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between text-xs uppercase tracking-[0.2em] text-[#F6FAF9]/40" style="font-family:'IBM Plex Mono',monospace">
+    <p>Ovel<span class="text-[#C8E6E2]">—</span> © 2026</p>
+    <p id="footer-clock" class="text-[#F6FAF9]/55">0% commission · no lock-in</p>
+    <p>Quote to paid</p>
+  </div>
+</footer>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   TUNING — adjust everything from here
+   ═══════════════════════════════════════════════════════════════ */
+const CONFIG = {
+  scrollLerp: 0.12,        // Lenis smoothing — lower = floatier, higher = tighter
+  ease: 'power3.out',      // single easing personality, everywhere
+  grainOpacity: 0.05,      // film grain strength
+  revealDuration: 1.1,     // clip-path image-reveal timing (seconds)
+  loaderDuration: 2.0,     // counter 0 → 100 duration
+  marqueeDuration: 24,     // base seconds for one marquee loop (idle speed)
+  skewMax: 2.5,            // max skewY (deg) at peak scroll velocity — subtle lean, not a wave
+  skewFactor: 0.14         // how strongly velocity maps to skew
+};
+
+gsap.registerPlugin(ScrollTrigger, SplitText);
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+document.getElementById('grain').style.opacity = CONFIG.grainOpacity;
+
+/* ═══════════════════════════════════════════════════════════════
+   LENIS ↔ SCROLLTRIGGER SYNC
+   One scroll position, one clock: Lenis is driven by GSAP's
+   ticker, and ScrollTrigger.update() fires on every Lenis scroll.
+   lagSmoothing(0) prevents the two from drifting apart.
+   ═══════════════════════════════════════════════════════════════ */
+const lenis = new Lenis({ lerp: CONFIG.scrollLerp, autoRaf: false });
+lenis.on('scroll', ScrollTrigger.update);
+gsap.ticker.add((t) => lenis.raf(t * 1000));
+gsap.ticker.lagSmoothing(0);
+// Hold the wheel until the intro finishes. Stopping Lenis (instead of
+// overflow:hidden on the body) keeps the document as the scroll container,
+// so the first wheel event after the loader actually moves the page.
+if (!reduceMotion) lenis.stop();
+window.__odeRelease = function () {
+  document.body.style.overflow = '';
+  lenis.start();
+  lenis.resize();
+  ScrollTrigger.refresh();
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   LENIS-DRIVEN GLOBALS — one scroll handler feeds three readers:
+   • progress bar  (lenis.progress 0→1)
+   • velocity skew (lenis.velocity → skewY on .skewable)
+   • marquee       (lenis.direction flips it, velocity speeds it)
+   ═══════════════════════════════════════════════════════════════ */
+const progressEl = document.getElementById('progress');
+const headerEl = document.getElementById('site-header');
+const setSkew = reduceMotion ? null
+  : gsap.quickTo('.skewable', 'skewY', { duration: 0.7, ease: 'power3.out' });
+const clampSkew = gsap.utils.clamp(-CONFIG.skewMax, CONFIG.skewMax);
+
+let marqueeTl = null;
+const marqueeTrack = document.querySelector('#marquee');
+if (marqueeTrack && !reduceMotion) {
+  marqueeTl = gsap.to('.marquee-track', {
+    xPercent: -100, repeat: -1, duration: CONFIG.marqueeDuration, ease: 'none'
+  });
+}
+
+lenis.on('scroll', (e) => {
+  // progress bar
+  progressEl.style.transform = `scaleX(${e.progress || 0})`;
+  // header: frosted glass once we leave the very top
+  headerEl.classList.toggle('is-scrolled', (e.scroll || 0) > 40);
+  if (reduceMotion) return;
+  // velocity → skew (settles back to 0 as velocity decays)
+  if (setSkew) setSkew(clampSkew((e.velocity || 0) * CONFIG.skewFactor));
+  // marquee direction + a touch of velocity-driven speed
+  if (marqueeTl) {
+    const dir = e.direction || 1;
+    const boost = 1 + Math.min(Math.abs(e.velocity || 0) * 0.06, 4);
+    marqueeTl.timeScale(dir * boost);
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   NAV — animated smooth-scroll to sections (Lenis)
+   Intercept in-page anchors so a tab glides to its target instead
+   of jumping — Lenis animates the whole travel, naturally up or
+   down. Offset by the header height so the section clears the nav.
+   ═══════════════════════════════════════════════════════════════ */
+document.querySelectorAll('a[href^="#"]').forEach((a) => {
+  a.addEventListener('click', (e) => {
+    const href = a.getAttribute('href');
+    e.preventDefault();
+    if (href === '#') { lenis.scrollTo(0, { duration: 1.2, immediate: reduceMotion }); return; }
+    const target = document.querySelector(href);
+    if (!target) return;
+    const headerH = headerEl ? headerEl.offsetHeight : 80;
+    lenis.scrollTo(target, {
+      offset: -headerH,
+      duration: 1.5,
+      easing: (t) => 1 - Math.pow(1 - t, 3), // easeOutCubic — weighted glide
+      immediate: reduceMotion
+    });
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE MENU — full-screen overlay (the nav is hidden on phones)
+   Opens/closes with a fade + staggered link rise. Link clicks are
+   already smooth-scrolled by the handler above, so we just close.
+   ═══════════════════════════════════════════════════════════════ */
+{
+  const menu = document.getElementById('mobile-menu');
+  const btn = document.getElementById('menu-btn');
+  const closeBtn = document.getElementById('menu-close');
+  if (menu && btn && closeBtn) {
+    const open = () => {
+      btn.setAttribute('aria-expanded', 'true');
+      lenis.stop();
+      menu.classList.remove('hidden'); menu.classList.add('flex');
+      gsap.set(menu, { visibility: 'visible' });
+      gsap.fromTo(menu, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4, ease: 'power2.out' });
+      gsap.fromTo('#mobile-menu .mobile-link', { y: 24, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: 0.5, stagger: 0.05, ease: 'power3.out', delay: 0.05 });
+    };
+    const close = () => {
+      btn.setAttribute('aria-expanded', 'false');
+      lenis.start();
+      gsap.to(menu, { autoAlpha: 0, duration: 0.3, ease: 'power2.in',
+        onComplete: () => { menu.classList.add('hidden'); menu.classList.remove('flex'); } });
+    };
+    btn.addEventListener('click', open);
+    closeBtn.addEventListener('click', close);
+    menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', close));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NAV — active-tab scroll-spy
+   Each nav target marks its tab active while that section owns the
+   viewport centre, so the header always reflects where you are.
+   ═══════════════════════════════════════════════════════════════ */
+document.querySelectorAll('#site-header nav a[href^="#"]').forEach((link) => {
+  const sec = document.querySelector(link.getAttribute('href'));
+  if (!sec) return;
+  ScrollTrigger.create({
+    trigger: sec, start: 'top center', end: 'bottom center',
+    onToggle: (self) => link.classList.toggle('nav-active', self.isActive)
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   LOADER → HERO TIMELINE
+   1. Counter ticks to 100 on the baseline (no fade flourish)
+   2. Loader cuts upward — a clean wipe
+   3. Hero headline assembles via SplitText, chars rising
+   ═══════════════════════════════════════════════════════════════ */
+const counter = { v: 0 };
+const counterEl = document.getElementById('counter');
+
+// The loader covers the screen. Fonts load first so SplitText measures
+// the final glyph metrics and the headline never reflows.
+document.fonts.ready.then(() => {
+  let split1 = { chars: [] };
+  try { split1 = new SplitText('.hero-line', { type: 'chars', charsClass: 'inline-block' }); }
+  catch (err) { split1 = { chars: gsap.utils.toArray('.hero-line') }; }
+  gsap.set('.hero-line', { overflow: 'hidden' });
+
+  if (reduceMotion) {
+    document.getElementById('loader').style.display = 'none';
+    gsap.set('.reveal-wrap', { clipPath: 'inset(0% 0 0 0)' });
+    gsap.set('.reveal-img', { scale: 1 });
+    window.__odeIntroDone = true;
+    window.__odeRelease();
+  } else {
+    const intro = gsap.timeline({
+      defaults: { ease: CONFIG.ease },
+      onComplete: () => { window.__odeIntroDone = true; window.__odeRelease(); }
+    });
+    intro
+      .to(counter, {
+        v: 100, duration: CONFIG.loaderDuration, ease: 'power2.inOut',
+        onUpdate: () => counterEl.textContent = String(Math.round(counter.v)).padStart(3, '0')
+      })
+      .to('#loader', { yPercent: -100, duration: 0.9, ease: 'power3.inOut' }, '+=0.15')
+      .from(split1.chars, { yPercent: 110, duration: 1.1, stagger: 0.028 }, '-=0.45')
+      .from('.hero-sub', { y: 24, autoAlpha: 0, duration: 0.9, stagger: 0.12 }, '-=0.7');
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   PINNED SELECTED-WORK SECTION
+   The stage pins for 150% of viewport scroll. While held:
+   image settles from 1.08 → 1, caption lines rise one by one
+   (each wrapped in overflow-hidden), then scrolling resumes.
+   Scrubbed — tied directly to scroll position, no drift.
+   ═══════════════════════════════════════════════════════════════ */
+if (!reduceMotion) {
+  gsap.timeline({
+    defaults: { ease: 'none' },
+    scrollTrigger: {
+      trigger: '#pin-stage',
+      start: 'top top',
+      end: '+=150%',
+      pin: true,
+      scrub: 0.6
+    }
+  })
+  .to('#pin-img', { scale: 1, duration: 2 }, 0)
+  .from('.pin-line', { yPercent: 110, duration: 1, stagger: 0.35 }, 0.2);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   STATS — count up on enter, once. Uses the same padded/locale
+   formatting as the loader so the motif rhymes.
+   ═══════════════════════════════════════════════════════════════ */
+document.querySelectorAll('[data-count]').forEach((el) => {
+  const target = +el.dataset.count;
+  const suffix = el.dataset.suffix || '';
+  const render = (n) => el.textContent = Math.round(n).toLocaleString('en-US') + suffix;
+  if (reduceMotion) { render(target); return; }
+  const obj = { v: 0 };
+  ScrollTrigger.create({
+    trigger: el, start: 'top 88%', once: true,
+    onEnter: () => gsap.to(obj, {
+      v: target, duration: 1.8, ease: 'power2.out', onUpdate: () => render(obj.v)
+    })
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   PROCESS — HORIZONTAL PINNED GALLERY
+   The stage pins, and the track translates left by exactly its
+   overflow width. end is computed from that width so the last
+   panel lands flush; invalidateOnRefresh recomputes on resize.
+   ═══════════════════════════════════════════════════════════════ */
+const hStage = document.getElementById('h-stage');
+const hTrack = document.getElementById('h-track');
+if (hTrack) {
+  const overflow = () => Math.max(0, hTrack.scrollWidth - window.innerWidth);
+  if (reduceMotion) {
+    // Fallback: let it scroll horizontally by hand, no pin
+    hStage.style.height = 'auto';
+    hStage.style.overflowX = 'auto';
+  } else {
+    gsap.to(hTrack, {
+      x: () => -overflow(),
+      ease: 'none',
+      scrollTrigger: {
+        trigger: hStage,
+        start: 'top top',
+        end: () => '+=' + overflow(),
+        pin: true,
+        scrub: 0.6,
+        invalidateOnRefresh: true
+      }
+    });
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CLIP-PATH IMAGE REVEALS
+   Wrapper starts as inset(100% 0 0 0) — fully masked from the
+   bottom — and unmasks to inset(0%): a crisp wipe, never a fade.
+   The inner image counter-scales 1.15 → 1 for weight.
+   Subtle parallax: the image drifts -6% across its scroll range.
+   ═══════════════════════════════════════════════════════════════ */
+document.querySelectorAll('.reveal-wrap').forEach((wrap) => {
+  const img = wrap.querySelector('.reveal-img');
+  if (!reduceMotion) {
+    gsap.timeline({
+      defaults: { ease: CONFIG.ease, duration: CONFIG.revealDuration },
+      scrollTrigger: { trigger: wrap, start: 'top 78%' }
+    })
+    .to(wrap, { clipPath: 'inset(0% 0 0 0)' })
+    .to(img, { scale: 1.05 }, 0);
+    // very subtle parallax, scrubbed
+    gsap.to(img, {
+      yPercent: -6, ease: 'none',
+      scrollTrigger: { trigger: wrap, start: 'top bottom', end: 'bottom top', scrub: true }
+    });
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   ARCHIVE GRID — staggered rise on enter
+   ═══════════════════════════════════════════════════════════════ */
+if (!reduceMotion) {
+  gsap.from('#archive .archive-item', {
+    y: 60, autoAlpha: 0, duration: 1, stagger: 0.1, ease: CONFIG.ease,
+    scrollTrigger: { trigger: '#archive', start: 'top 75%' }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   THE CATALOGUE — hover-reveal index
+   A monochrome preview floats at the cursor (positioned by one
+   quickTo pair) and swaps to the hovered row's photo; CSS handles
+   dimming the other rows and shifting the hovered name. On touch
+   there's no hover, so each row's inline thumbnail carries the
+   image instead. Reproduced from VOLUM's .index-list.
+   ═══════════════════════════════════════════════════════════════ */
+{
+  const rows = gsap.utils.toArray('.cat-row');
+  const preview = document.querySelector('.cat-preview');
+
+  // touch / no-hover: wire each row's inline thumbnail
+  rows.forEach((row) => {
+    const thumb = row.querySelector('.cat-thumb');
+    if (thumb && row.dataset.img) thumb.style.backgroundImage = `url('${row.dataset.img}')`;
+  });
+
+  if (!reduceMotion) {
+    gsap.from('.cat-row', {
+      autoAlpha: 0, y: 24, duration: 0.9, stagger: 0.08,
+      clearProps: 'opacity,visibility,transform', // let the CSS hover-dim take over after
+      scrollTrigger: { trigger: '.cat-list', start: 'top 82%' }
+    });
+  }
+
+  // desktop: preview follows the cursor, and only while the pointer is
+  // actually on the list. Scroll moves the rows under a still cursor, which
+  // would otherwise leave the card on screen or pop it open mid-page.
+  if (preview && window.matchMedia('(hover:hover) and (pointer:fine)').matches && !reduceMotion) {
+    gsap.set(preview, { xPercent: -50, yPercent: -50, scale: 0.9, autoAlpha: 0 });
+    const px = gsap.quickTo(preview, 'x', { duration: 0.55, ease: 'power3' });
+    const py = gsap.quickTo(preview, 'y', { duration: 0.55, ease: 'power3' });
+    const list = document.querySelector('.cat-list');
+    let scrolling = false;
+    let scrollTimer = 0;
+
+    const hidePreview = () => {
+      gsap.killTweensOf(preview, 'autoAlpha,scale');
+      gsap.set(preview, { autoAlpha: 0, scale: 0.9 });
+    };
+    const showFor = (row) => {
+      if (scrolling || !row) return;
+      const name = row.querySelector('.cat-name');
+      preview.style.backgroundColor = '#103438';
+      preview.style.backgroundImage = row.dataset.img
+        ? `linear-gradient(to top, rgba(16,52,56,.58), transparent 52%), url('${row.dataset.img}')`
+        : 'none';
+      preview.style.color = '#F6FAF9';
+      preview.textContent = name ? name.textContent : '';
+      gsap.to(preview, { autoAlpha: 1, scale: 1, duration: 0.35, ease: 'power3', overwrite: 'auto' });
+    };
+
+    list.addEventListener('mouseleave', hidePreview);
+    list.addEventListener('mousemove', (e) => {
+      if (scrolling) return;
+      px(e.clientX);
+      py(e.clientY);
+      showFor(e.target.closest('.cat-row'));
+    });
+
+    lenis.on('scroll', () => {
+      scrolling = true;
+      hidePreview();
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => { scrolling = false; }, 180);
+    });
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   THE PLATES — pinned full-bleed cinematic cross-dissolve
+   The section pins for n·90% of viewport. Each frame's opacity is
+   max(0, 1 − |p − i|) as scrubbed progress p sweeps 0 → n−1, so
+   adjacent frames cross-fade over a slow collective zoom-out
+   (1.12 → 1.00). Counter + caption track the rounded index.
+   Reproduced from VOLUM's .plates.
+   ═══════════════════════════════════════════════════════════════ */
+{
+  const platesEl = document.querySelector('.plates');
+  const frames = gsap.utils.toArray('.plate-frame');
+  const imgs = gsap.utils.toArray('.plate-img');
+  const caps = gsap.utils.toArray('.plate-cap');
+  const nowEl = document.querySelector('.pl-now');
+  const n = frames.length;
+
+  if (n && reduceMotion) {
+    platesEl.classList.add('is-reduced'); // stacked fallback, no pin
+  } else if (n) {
+    gsap.set(frames, { opacity: (i) => (i === 0 ? 1 : 0) });
+    ScrollTrigger.create({
+      trigger: '.plates', start: 'top top', end: '+=' + (n * 90) + '%',
+      pin: true, scrub: 1, anticipatePin: 1, // 1s catch-up → controlled dissolve speed even on fast scroll
+      onUpdate: (self) => {
+        const p = self.progress * (n - 1);   // 0 … n−1
+        const idx = Math.round(p);
+        frames.forEach((f, i) => gsap.set(f, { opacity: Math.max(0, 1 - Math.abs(p - i)) }));
+        gsap.set(imgs, { scale: 1.12 - 0.12 * self.progress }); // slow collective drift
+        caps.forEach((c, i) => c.classList.toggle('is-on', i === idx));
+        if (nowEl) nowEl.textContent = String(idx + 1).padStart(2, '0');
+      }
+    });
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PRINCIPLES — SCRUB-LINKED WORD FILL
+   Each word starts ink-faded and fills to solid as a function of
+   scroll position (scrub:true). Different from the rise-on-enter
+   manifesto below — this one is welded to the scrollbar.
+   ═══════════════════════════════════════════════════════════════ */
+const fillEl = document.querySelector('.fill-text');
+if (fillEl) {
+  const fillSplit = new SplitText(fillEl, { type: 'words', wordsClass: 'inline-block' });
+  if (reduceMotion) {
+    gsap.set(fillSplit.words, { opacity: 1 });
+  } else {
+    gsap.set(fillSplit.words, { opacity: 0.15 });
+    gsap.to(fillSplit.words, {
+      opacity: 1, ease: 'none', stagger: 0.5,
+      scrollTrigger: { trigger: fillEl, start: 'top 80%', end: 'bottom 55%', scrub: true }
+    });
+  }
+}
+
+/* Manifesto — quiet line rise + scrubbed parallax on the backdrop image.
+   The image is scaled 1.25, so a ±7% drift never exposes an edge. */
+if (!reduceMotion) {
+  gsap.from('.manifesto', {
+    y: 40, autoAlpha: 0, duration: 1.2, ease: CONFIG.ease,
+    scrollTrigger: { trigger: '.manifesto', start: 'top 80%' }
+  });
+  gsap.fromTo('#studio-bg', { yPercent: -7 }, {
+    yPercent: 7, ease: 'none',
+    scrollTrigger: { trigger: '#studio', start: 'top bottom', end: 'bottom top', scrub: true }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FOOTER CTA — "Build less. / Build better."
+   Each line rises out of its own clip in sequence, then a thin
+   accent underline draws in under "better" to land the line.
+   ═══════════════════════════════════════════════════════════════ */
+if (reduceMotion) {
+  gsap.set('.cta-underline', { scaleX: 1 });
+} else {
+  gsap.timeline({ scrollTrigger: { trigger: '.footer-cta', start: 'top 82%' } })
+    .from('.footer-cta .cta-line', { yPercent: 115, duration: 1, stagger: 0.18, ease: CONFIG.ease })
+    .to('.cta-underline', { scaleX: 1, duration: 0.7, ease: CONFIG.ease }, '-=0.15');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MAGNETIC BUTTON — footer "Enquire"
+   Pulls toward the pointer at 35% strength, releases with the
+   same weighted ease. Desktop only.
+   ═══════════════════════════════════════════════════════════════ */
+const magnet = document.getElementById('magnet');
+if (window.matchMedia('(pointer:fine)').matches && !reduceMotion) {
+  magnet.addEventListener('mousemove', (e) => {
+    const r = magnet.getBoundingClientRect();
+    gsap.to(magnet, {
+      x: (e.clientX - r.left - r.width / 2) * 0.35,
+      y: (e.clientY - r.top - r.height / 2) * 0.35,
+      duration: 0.6, ease: CONFIG.ease
+    });
+  });
+  magnet.addEventListener('mouseleave', () =>
+    gsap.to(magnet, { x: 0, y: 0, duration: 0.8, ease: CONFIG.ease }));
+}
+
+/* ═══ FOOTER — live local time (Oslo & Zürich share the same zone) ═══ */
+const clockEl = document.getElementById('footer-clock');
+if (clockEl) clockEl.textContent = '0% commission · no lock-in';
+
+/* ═══ CUSTOM CURSOR — crosshair ring via quickTo (no rAF jitter) ═══ */
+if (window.matchMedia('(pointer:fine)').matches) {
+  document.body.style.cursor = 'none';
+  document.querySelectorAll('a').forEach(a => a.style.cursor = 'none');
+  const cur = document.getElementById('cursor');
+  const xTo = gsap.quickTo(cur, 'x', { duration: 0.18, ease: 'power3.out' });
+  const yTo = gsap.quickTo(cur, 'y', { duration: 0.18, ease: 'power3.out' });
+  window.addEventListener('mousemove', (e) => { xTo(e.clientX); yTo(e.clientY); });
+  document.querySelectorAll('a').forEach(a => {
+    a.addEventListener('mouseenter', () => cur.firstElementChild.style.transform = 'scale(1.6)');
+    a.addEventListener('mouseleave', () => cur.firstElementChild.style.transform = 'scale(1)');
+  });
+}
+
+/* (WebGL hero shader removed — the hero is now clean flat bone) */
+
+/* Recompute pin/horizontal measurements once images have loaded */
+window.addEventListener('load', () => ScrollTrigger.refresh());
+</script>
+
+
+</body></html>
