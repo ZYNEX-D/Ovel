@@ -63,15 +63,20 @@ export default function BrandSettingsPage() {
   const currentSlug = profile?.organizationSlug || "my-brand";
   const [initialSlug, setInitialSlug] = useState<string>(currentSlug);
 
-  const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType>(() => {
-    return profile?.businessType || (
-      typeof window !== "undefined"
-        ? (localStorage.getItem(`ovel_business_type_${profile?.organizationId || currentSlug}`) as BusinessType)
-          || (localStorage.getItem("ovel_selected_business_type") as BusinessType)
-          || "both"
-        : "both"
-    );
-  });
+  const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType>(
+    () => profile?.businessType || "both"
+  );
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored =
+        (localStorage.getItem(`ovel_business_type_${profile?.organizationId || currentSlug}`) as BusinessType) ||
+        (localStorage.getItem("ovel_selected_business_type") as BusinessType);
+      if (stored && !profile?.businessType) {
+        setSelectedBusinessType(stored);
+      }
+    }
+  }, [profile?.businessType, profile?.organizationId, currentSlug]);
 
   const storedBrand = useClientStore(
     () => getOvelink(currentSlug, profile?.organizationName, profile?.organizationId),

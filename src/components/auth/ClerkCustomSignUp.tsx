@@ -4,27 +4,21 @@ import React, { useEffect, useState } from "react";
 import { useSignUp } from "@clerk/nextjs/legacy";
 import { SignUp } from "@clerk/nextjs";
 import { 
-  Building2, 
   Mail, 
   Lock, 
-  User, 
   ArrowRight, 
-  Sparkles, 
   AlertCircle,
   KeyRound,
-  ShoppingBag,
-  Layers
+  ShieldCheck,
+  Zap,
+  CreditCard
 } from "lucide-react";
 import { useAudio } from "@/components/AudioController";
-import { BusinessType } from "@/lib/auth-context";
 
 export default function ClerkCustomSignUp() {
   const { isLoaded, signUp, setActive } = useSignUp();
   const { playClick, playSuccess } = useAudio();
 
-  const [fullName, setFullName] = useState("");
-  const [businessName, setBusinessName] = useState("");
-  const [businessType, setBusinessType] = useState<BusinessType>("both");
   const [email, setEmail] = useState("");
   const clerkEmail = isLoaded && signUp?.emailAddress ? signUp.emailAddress : "";
   const visibleEmail = email || clerkEmail;
@@ -47,8 +41,6 @@ export default function ClerkCustomSignUp() {
     !needsAccountDetails
   );
 
-  // Clerk keeps an unfinished registration across refreshes. Resume its code
-  // step instead of trying to create the same account again.
   useEffect(() => {
     if (!needsAccountDetails) return;
     if (!window.location.hash || window.location.hash === "#/") {
@@ -61,16 +53,10 @@ export default function ClerkCustomSignUp() {
     await setActive({
       session: sessionId,
       navigate: ({ session, decorateUrl }) => {
-        // The sign-in component handles any remaining Clerk session tasks.
-        // A full navigation also discards cached signed-out route state.
-        window.location.replace(decorateUrl(session.currentTask ? "/login" : "/auth/redirect"));
+        window.location.replace(decorateUrl(session.currentTask ? "/login" : "/onboarding/offering"));
       },
     });
   };
-
-  const businessSlug = businessName
-    ? businessName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
-    : "my-studio";
 
   const handleStartSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,27 +66,19 @@ export default function ClerkCustomSignUp() {
     setErrorMsg(null);
     playClick();
 
-    const nameParts = fullName.trim().split(/\s+/);
-    const firstName = nameParts[0] || "Owner";
-    const lastName = nameParts.slice(1).join(" ") || firstName;
-
     try {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("ovel_selected_business_type", businessType);
-      }
       let result = await signUp.create({
         emailAddress: email.trim(),
         password: password,
-        firstName,
-        lastName,
+        firstName: "Owner",
+        lastName: "Owner",
         unsafeMetadata: {
-          businessName: businessName || "My Business",
-          businessSlug,
-          businessType,
+          businessName: "My Business",
+          businessSlug: "my-studio",
+          businessType: "both",
         },
       });
 
-      // If username or other fields are immediately flagged as missing by Clerk, auto-fill what we can
       if (result.missingFields?.includes("username")) {
         try {
           const autoUsername = (email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "") + Math.floor(100 + Math.random() * 900)).slice(0, 20);
@@ -115,7 +93,6 @@ export default function ClerkCustomSignUp() {
         return;
       }
 
-      // Send Clerk verification code to email
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
       playSuccess();
       setVerifying(true);
@@ -137,7 +114,6 @@ export default function ClerkCustomSignUp() {
     playClick();
 
     try {
-      // 1. If email is already verified on Clerk, reuse current signUp state
       const isEmailAlreadyVerified = (signUp.verifications as unknown as { emailAddress?: { status?: string } })?.emailAddress?.status === "verified";
       const completeSignUp = isEmailAlreadyVerified
         ? signUp
@@ -145,21 +121,18 @@ export default function ClerkCustomSignUp() {
             code: code.trim(),
           });
 
-      // 2. Success with complete status and created session
       if (completeSignUp.status === "complete" && completeSignUp.createdSessionId) {
         playSuccess();
         await finishSignUp(completeSignUp.createdSessionId);
         return;
       }
 
-      // 3. Session created even if additional optional steps exist
       if (completeSignUp.createdSessionId) {
         playSuccess();
         await finishSignUp(completeSignUp.createdSessionId);
         return;
       }
 
-      // 4. Handle missing requirements (e.g. Username, LastName, Legal Terms configured in Clerk Dashboard)
       if (completeSignUp.status === "missing_requirements") {
         const missing = (completeSignUp as unknown as { missingFields?: string[] }).missingFields || [];
         const updatePayload: Record<string, unknown> = {};
@@ -169,11 +142,10 @@ export default function ClerkCustomSignUp() {
           updatePayload.username = `${base}${Math.floor(1000 + Math.random() * 9000)}`;
         }
         if (missing.includes("last_name")) {
-          const nameParts = fullName.trim().split(/\s+/);
-          updatePayload.lastName = nameParts.slice(1).join(" ") || nameParts[0] || "Owner";
+          updatePayload.lastName = "Owner";
         }
         if (missing.includes("first_name")) {
-          updatePayload.firstName = fullName.trim().split(/\s+/)[0] || "Owner";
+          updatePayload.firstName = "Owner";
         }
 
         if (Object.keys(updatePayload).length > 0) {
@@ -199,7 +171,6 @@ export default function ClerkCustomSignUp() {
       const clerkError = err as { errors?: Array<{ message: string; longMessage?: string; code?: string }> };
       const firstError = clerkError?.errors?.[0];
 
-      // If already verified, activate session if available
       if (
         firstError?.code === "verification_already_verified" ||
         (signUp.verifications as unknown as { emailAddress?: { status?: string } })?.emailAddress?.status === "verified"
@@ -241,16 +212,10 @@ export default function ClerkCustomSignUp() {
     setErrorMsg(null);
     playClick();
     try {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("ovel_selected_business_type", businessType);
-      }
       await signUp.authenticateWithRedirect({
         strategy,
         redirectUrl: "/sso-callback",
         redirectUrlComplete: "/auth/redirect",
-        unsafeMetadata: businessName.trim()
-          ? { businessName: businessName.trim(), businessSlug, businessType }
-          : { businessType },
       });
     } catch (err: unknown) {
       const error = err as { errors?: Array<{ longMessage?: string; message?: string }> };
@@ -260,41 +225,51 @@ export default function ClerkCustomSignUp() {
     }
   };
 
-  // Google can verify the email while other required account fields remain.
-  // Resume that registration with Clerk instead of creating it again or
-  // asking for an email code that Google users were never sent.
   if (needsAccountDetails) {
-    return <SignUp routing="hash" signInUrl="/login" forceRedirectUrl="/auth/redirect"
-      signInForceRedirectUrl="/auth/redirect"
-      appearance={{ variables: { colorPrimary: "#105F68", borderRadius: "1rem" }, elements: {
-        rootBox: "w-full", cardBox: "w-full shadow-none", card: "shadow-none border-0 p-0",
-        footer: { display: "none" },
-      } }} />;
+    return (
+      <div className="bg-white p-6 rounded-2xl border border-[#103438]/10 shadow-sm">
+        <SignUp
+          routing="hash"
+          signInUrl="/login"
+          forceRedirectUrl="/onboarding/offering"
+          signInForceRedirectUrl="/onboarding/offering"
+          appearance={{
+            variables: { colorPrimary: "#103438", borderRadius: "0.75rem" },
+            elements: {
+              rootBox: "w-full",
+              cardBox: "w-full shadow-none",
+              card: "shadow-none border-0 p-0",
+              footer: { display: "none" },
+            },
+          }}
+        />
+      </div>
+    );
   }
 
   if (verifying || resumeVerification) {
     return (
-      <form onSubmit={handleVerifyCode} className="space-y-4">
-        <div className="text-center space-y-1">
-          <div className="w-10 h-10 rounded-2xl bg-[#C8E6E2]/50 text-[#105F68] flex items-center justify-center mx-auto mb-2">
-            <KeyRound className="w-5 h-5" />
+      <form onSubmit={handleVerifyCode} className="space-y-6 bg-white p-8 sm:p-10 rounded-2xl border border-[#103438]/10 shadow-sm">
+        <div className="text-center space-y-2">
+          <div className="w-12 h-12 rounded-2xl bg-[#105F68]/10 text-[#105F68] flex items-center justify-center mx-auto mb-3 shadow-xs">
+            <KeyRound className="w-6 h-6" />
           </div>
-          <h3 className="text-base font-semibold text-[#105F68]">Verify Your Email</h3>
-          <p className="text-xs text-[#3A9295]">
-            We sent a 6-digit confirmation code to <b>{visibleEmail}</b> via Clerk.
+          <h3 className="text-xl font-semibold text-[#103438] tracking-tight">Verify Your Email</h3>
+          <p className="text-xs text-[#103438]/70 max-w-xs mx-auto leading-relaxed">
+            We sent a 6-digit confirmation code to <span className="font-semibold text-[#103438]">{visibleEmail}</span>
           </p>
         </div>
 
         {errorMsg && (
-          <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 animate-shake">
+          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200/80 text-red-700 text-xs flex items-center gap-2.5">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{errorMsg}</span>
+            <span className="leading-snug">{errorMsg}</span>
           </div>
         )}
 
         <div>
-          <label className="text-xs text-[#3A9295] font-medium block mb-1.5 text-center">
-            Verification Code
+          <label className="text-xs text-[#103438]/80 font-medium block mb-2 text-center uppercase tracking-wider">
+            6-Digit Verification Code
           </label>
           <input
             type="text"
@@ -304,30 +279,30 @@ export default function ClerkCustomSignUp() {
             inputMode="numeric"
             autoComplete="one-time-code"
             pattern="[0-9]{6}"
-            placeholder="123456"
+            placeholder="······"
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            className="w-full text-center tracking-[0.5em] text-lg font-mono py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-[#105F68] focus:outline-none focus:border-[#105F68]"
+            className="w-full text-center tracking-[0.6em] text-2xl font-mono py-3.5 px-4 rounded-xl bg-white border border-[#103438]/20 text-[#103438] focus:outline-none focus:border-[#105F68] focus:ring-4 focus:ring-[#105F68]/10 shadow-xs transition-all"
           />
         </div>
 
         <button
           type="submit"
           disabled={loading || !isLoaded}
-          className="w-full py-3.5 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-light tracking-wide transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+          className="w-full py-3.5 px-6 rounded-xl bg-[#103438] hover:bg-[#0c272a] text-white text-sm font-medium tracking-wide transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 group disabled:opacity-50 cursor-pointer"
         >
-          <span>{loading ? "Verifying with Clerk..." : "Complete Setup & Enter Dashboard"}</span>
-          <ArrowRight className="w-4 h-4 text-[#63C1BB]" />
+          <span>{loading ? "Verifying code..." : "Complete Setup & Continue"}</span>
+          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </button>
 
-        <div className="flex items-center justify-between text-xs pt-2 px-1">
+        <div className="flex items-center justify-between text-xs pt-1 border-t border-[#103438]/10">
           <button
             type="button"
             onClick={handleResendCode}
             disabled={resending}
-            className="text-[#105F68] font-medium hover:underline disabled:opacity-50"
+            className="text-[#105F68] font-medium hover:underline disabled:opacity-50 cursor-pointer"
           >
-            {resending ? "Sending new code..." : resendSuccess ? "✓ New code sent!" : "Resend code"}
+            {resending ? "Sending new code..." : resendSuccess ? "✓ Code sent!" : "Resend code"}
           </button>
           <button
             type="button"
@@ -336,9 +311,9 @@ export default function ClerkCustomSignUp() {
               setCode("");
               setErrorMsg(null);
             }}
-            className="text-[#3A9295] hover:underline"
+            className="text-[#103438]/60 hover:text-[#103438] transition-colors cursor-pointer"
           >
-            Back to edit email
+            Change email address
           </button>
         </div>
       </form>
@@ -346,216 +321,121 @@ export default function ClerkCustomSignUp() {
   }
 
   return (
-    <form onSubmit={handleStartSignUp} className="space-y-4">
+    <form onSubmit={handleStartSignUp} className="space-y-5">
       {errorMsg && (
-        <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 animate-shake">
+        <div className="p-3.5 rounded-xl bg-red-50 border border-red-200/80 text-red-700 text-xs flex items-center gap-2.5">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span>{errorMsg}</span>
+          <span className="leading-snug">{errorMsg}</span>
         </div>
       )}
 
-      {/* Social OAuth with Clerk */}
-      <div className="pb-1">
-        <button
-          type="button"
-          disabled={!isLoaded || loading}
-          onClick={() => handleOAuth("oauth_google")}
-          className="w-full py-2.5 px-4 rounded-2xl border border-black/10 bg-[#FBFDFD] hover:bg-[#F6FAF9] text-xs text-[#105F68] font-medium transition-all flex items-center justify-center gap-2.5 shadow-sm"
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24">
-            <path
-              fill="#4285F4"
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-            />
-            <path
-              fill="#EA4335"
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-            />
-          </svg>
-          <span>Continue with Google</span>
-        </button>
-      </div>
-
-      <div className="flex items-center gap-2 text-xs text-[#3A9295] my-2">
-        <div className="flex-1 h-px bg-black/5" />
-        <span className="text-[10px] uppercase tracking-wider">or registration</span>
-        <div className="flex-1 h-px bg-black/5" />
-      </div>
-
-      <div>
-        <label className="text-xs text-[#3A9295] font-medium block mb-1">
-          Full Name
-        </label>
-        <div className="relative">
-          <input
-            type="text"
-            required
-            placeholder="e.g. Elena Rostova"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68] transition-colors"
+      {/* Social Google OAuth Button */}
+      <button
+        type="button"
+        disabled={!isLoaded || loading}
+        onClick={() => handleOAuth("oauth_google")}
+        className="w-full py-3 px-4 rounded-xl border border-[#103438]/15 bg-white hover:bg-[#F6FAF9] text-sm text-[#103438] font-medium transition-all flex items-center justify-center gap-3 shadow-xs hover:shadow-sm cursor-pointer"
+      >
+        <svg className="w-4 h-4" viewBox="0 0 24 24">
+          <path
+            fill="#4285F4"
+            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
           />
-          <User className="w-4 h-4 text-[#3A9295] absolute left-3.5 top-3.5" />
-        </div>
-      </div>
-
-      <div>
-        <label className="text-xs text-[#3A9295] font-medium block mb-1">
-          Business Name
-        </label>
-        <div className="relative">
-          <input
-            type="text"
-            required
-            placeholder="e.g. Lumina Skin & Body Studio"
-            value={businessName}
-            onChange={(e) => setBusinessName(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68] transition-colors"
+          <path
+            fill="#34A853"
+            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
           />
-          <Building2 className="w-4 h-4 text-[#3A9295] absolute left-3.5 top-3.5" />
-        </div>
-        <div className="mt-1 flex items-center justify-between text-[11px] text-[#3A9295]">
-          <span>Your Public Ovelink:</span>
-          <span className="font-mono text-[#105F68] font-medium">ovel.lk/l/{businessSlug}</span>
-        </div>
-      </div>
-
-      <div>
-        <label className="text-xs text-[#3A9295] font-medium block mb-1.5">
-          What does your business offer?
-        </label>
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              playClick();
-              setBusinessType("services");
-            }}
-            className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
-              businessType === "services"
-                ? "border-[#105F68] bg-[#C8E6E2]/40 text-[#105F68] shadow-xs"
-                : "border-black/10 bg-[#F6FAF9] text-slate-600 hover:border-black/20"
-            }`}
-          >
-            <div className="flex items-center justify-between w-full mb-1">
-              <Sparkles className={`w-4 h-4 ${businessType === "services" ? "text-[#105F68]" : "text-slate-400"}`} />
-              {businessType === "services" && <span className="w-1.5 h-1.5 rounded-full bg-[#105F68]" />}
-            </div>
-            <div>
-              <span className="block text-xs font-semibold">Services</span>
-              <span className="block text-[10px] text-slate-500 leading-tight mt-0.5">Appointments & bookings</span>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              playClick();
-              setBusinessType("products");
-            }}
-            className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
-              businessType === "products"
-                ? "border-[#105F68] bg-[#C8E6E2]/40 text-[#105F68] shadow-xs"
-                : "border-black/10 bg-[#F6FAF9] text-slate-600 hover:border-black/20"
-            }`}
-          >
-            <div className="flex items-center justify-between w-full mb-1">
-              <ShoppingBag className={`w-4 h-4 ${businessType === "products" ? "text-[#105F68]" : "text-slate-400"}`} />
-              {businessType === "products" && <span className="w-1.5 h-1.5 rounded-full bg-[#105F68]" />}
-            </div>
-            <div>
-              <span className="block text-xs font-semibold">Products</span>
-              <span className="block text-[10px] text-slate-500 leading-tight mt-0.5">Retail & physical goods</span>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              playClick();
-              setBusinessType("both");
-            }}
-            className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
-              businessType === "both"
-                ? "border-[#105F68] bg-[#C8E6E2]/40 text-[#105F68] shadow-xs"
-                : "border-black/10 bg-[#F6FAF9] text-slate-600 hover:border-black/20"
-            }`}
-          >
-            <div className="flex items-center justify-between w-full mb-1">
-              <Layers className={`w-4 h-4 ${businessType === "both" ? "text-[#105F68]" : "text-slate-400"}`} />
-              {businessType === "both" && <span className="w-1.5 h-1.5 rounded-full bg-[#105F68]" />}
-            </div>
-            <div>
-              <span className="block text-xs font-semibold">Both</span>
-              <span className="block text-[10px] text-slate-500 leading-tight mt-0.5">Services & retail</span>
-            </div>
-          </button>
-        </div>
-        <p className="text-[10px] text-[#3A9295] mt-1.5">
-          {businessType === "services" && "Hides inventory & products tabs to focus on appointments."}
-          {businessType === "products" && "Hides appointment calendars & rosters to focus on products & orders."}
-          {businessType === "both" && "Enables complete suite: services, products, bookings & inventory."}
-        </p>
-      </div>
-
-      <div>
-        <label className="text-xs text-[#3A9295] font-medium block mb-1">
-          Work Email
-        </label>
-        <div className="relative">
-          <input
-            type="email"
-            required
-            placeholder="elena@luminaskin.co"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68] transition-colors"
+          <path
+            fill="#FBBC05"
+            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
           />
-          <Mail className="w-4 h-4 text-[#3A9295] absolute left-3.5 top-3.5" />
-        </div>
-      </div>
-
-      <div>
-        <label className="text-xs text-[#3A9295] font-medium block mb-1">
-          Password
-        </label>
-        <div className="relative">
-          <input
-            type="password"
-            required
-            minLength={8}
-            placeholder="••••••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68] transition-colors"
+          <path
+            fill="#EA4335"
+            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
           />
-          <Lock className="w-4 h-4 text-[#3A9295] absolute left-3.5 top-3.5" />
+        </svg>
+        <span>Continue with Google</span>
+      </button>
+
+      {/* Modern Hairline Divider */}
+      <div className="relative flex items-center justify-center my-2">
+        <div className="w-full border-t border-[#103438]/10" />
+        <span className="absolute bg-[#F6FAF9] px-3 text-[11px] uppercase tracking-wider text-[#103438]/50 font-medium">
+          or sign up with email
+        </span>
+      </div>
+
+      {/* Form Fields: Work Email & Password */}
+      <div className="space-y-4">
+        {/* Work Email */}
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wider text-[#103438] block mb-1.5">
+            Work Email Address
+          </label>
+          <div className="relative">
+            <Mail className="w-4 h-4 text-[#103438]/45 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="email"
+              required
+              placeholder="elena@luminaskin.co"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-[#103438]/15 text-sm text-[#103438] placeholder:text-[#103438]/35 shadow-xs focus:outline-none focus:border-[#105F68] focus:ring-4 focus:ring-[#105F68]/10 transition-all"
+            />
+          </div>
+        </div>
+
+        {/* Password */}
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wider text-[#103438] block mb-1.5">
+            Create Password
+          </label>
+          <div className="relative">
+            <Lock className="w-4 h-4 text-[#103438]/45 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="password"
+              required
+              minLength={8}
+              placeholder="Minimum 8 characters"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-[#103438]/15 text-sm text-[#103438] placeholder:text-[#103438]/35 shadow-xs focus:outline-none focus:border-[#105F68] focus:ring-4 focus:ring-[#105F68]/10 transition-all"
+            />
+          </div>
         </div>
       </div>
 
-      <div className="p-3.5 rounded-2xl bg-[#C8E6E2]/25 border border-[#9ED5D1]/40 text-xs text-[#105F68] flex items-center gap-2">
-        <Sparkles className="w-4 h-4 text-[#63C1BB] flex-shrink-0" />
-        <span>14-day free pilot • 0% platform transaction take-rate • No credit card required.</span>
+      {/* Minimalist Trust Grid */}
+      <div className="grid grid-cols-3 gap-2 py-1 text-center">
+        <div className="px-2 py-2 rounded-lg bg-[#105F68]/5 border border-[#105F68]/10 flex flex-col items-center justify-center">
+          <ShieldCheck className="w-3.5 h-3.5 text-[#105F68] mb-0.5" />
+          <span className="text-[11px] font-medium text-[#103438]">14-Day Free Pilot</span>
+        </div>
+        <div className="px-2 py-2 rounded-lg bg-[#105F68]/5 border border-[#105F68]/10 flex flex-col items-center justify-center">
+          <Zap className="w-3.5 h-3.5 text-[#105F68] mb-0.5" />
+          <span className="text-[11px] font-medium text-[#103438]">0% Commission</span>
+        </div>
+        <div className="px-2 py-2 rounded-lg bg-[#105F68]/5 border border-[#105F68]/10 flex flex-col items-center justify-center">
+          <CreditCard className="w-3.5 h-3.5 text-[#105F68] mb-0.5" />
+          <span className="text-[11px] font-medium text-[#103438]">No Card Needed</span>
+        </div>
       </div>
 
       <div id="clerk-captcha" />
 
+      {/* Primary CTA */}
       <button
         type="submit"
         disabled={loading || !isLoaded}
-        className="w-full mt-2 py-3.5 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs font-light tracking-wide transition-all shadow-md hover:scale-[1.01] flex items-center justify-center gap-2 disabled:opacity-50"
+        className="w-full py-3.5 px-6 rounded-xl bg-[#103438] hover:bg-[#0c272a] text-white text-sm font-medium tracking-wide transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 group disabled:opacity-50 cursor-pointer"
       >
-        <span>{loading ? "Registering with Clerk..." : "Create Merchant Account"}</span>
-        <ArrowRight className="w-4 h-4 text-[#63C1BB]" />
+        <span>{loading ? "Creating your account..." : "Continue"}</span>
+        <ArrowRight className="w-4 h-4 text-[#C8E6E2] group-hover:translate-x-1 transition-transform" />
       </button>
+
+      <p className="text-[11px] text-center text-[#103438]/50 leading-relaxed pt-1">
+        By registering, you agree to Ovel's Terms of Service and Merchant Agreement.
+      </p>
     </form>
   );
 }

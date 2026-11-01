@@ -12,12 +12,12 @@ export default function BusinessBioStep() {
   const handleContinue = (e: React.FormEvent) => {
     e.preventDefault();
     playClick();
-    goNext(2, "/onboarding/offering");
+    goNext(3, "/onboarding/logo");
   };
 
   const handleSkip = () => {
     playClick();
-    skipStep(2, "/onboarding/offering");
+    skipStep(3, "/onboarding/logo");
   };
 
   const handleBack = () => {

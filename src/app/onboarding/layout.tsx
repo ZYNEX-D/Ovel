@@ -8,9 +8,9 @@ import { OnboardingProvider, useOnboarding } from "@/lib/onboarding-context";
 import { ArrowRight } from "lucide-react";
 
 const STEPS = [
-  { path: "/onboarding/name", label: "Business Name", step: 1 },
-  { path: "/onboarding/bio", label: "Bio & Tagline", step: 2 },
-  { path: "/onboarding/offering", label: "Offering Type", step: 3 },
+  { path: "/onboarding/offering", label: "Offering Type", step: 1 },
+  { path: "/onboarding/name", label: "Business Name", step: 2 },
+  { path: "/onboarding/bio", label: "Bio & Tagline", step: 3 },
   { path: "/onboarding/logo", label: "Brand Logo", step: 4 },
   { path: "/onboarding/greetings", label: "Welcome to Ovel", step: 5 },
 ];

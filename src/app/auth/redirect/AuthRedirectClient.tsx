@@ -42,7 +42,7 @@ export default function AuthRedirectClient() {
           );
 
           if (!isCompleted) {
-            window.location.replace("/onboarding/name");
+            window.location.replace("/onboarding/offering");
             return;
           }
         }

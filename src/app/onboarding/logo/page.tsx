@@ -37,7 +37,7 @@ export default function BrandLogoStep() {
 
   const handleBack = () => {
     playClick();
-    goBack("/onboarding/offering");
+    goBack("/onboarding/bio");
   };
 
   const handleAvatarUpload = async (

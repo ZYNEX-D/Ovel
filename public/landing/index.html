@@ -212,7 +212,7 @@ background: var(--accent); transform: scaleX(0); transform-origin: left center;
   <div class="flex items-center justify-between px-6 md:px-12 h-16 md:h-20">
     <a href="/" class="text-sm font-medium tracking-[-0.05em]">Ovel<span class="text-[var(--accent)]">—</span></a>
     <nav class="hidden md:flex items-center gap-10 text-xs uppercase tracking-[0.2em] opacity-70">
-      <a href="#process" class="hover:opacity-100">The loop</a>
+      <a href="#process" class="hover:opacity-100 hidden">The loop</a>
       <a href="#catalogue" class="hover:opacity-100">Index</a>
       <a href="#pricing" class="hover:opacity-100">Pricing</a>
       <a href="#studio" class="hover:opacity-100">Promise</a>
@@ -236,7 +236,7 @@ background: var(--accent); transform: scaleX(0); transform-origin: left center;
     </button>
   </div>
   <nav class="flex-1 flex flex-col justify-center gap-2">
-    <a href="#process" class="mobile-link text-5xl font-medium tracking-tight">The loop</a>
+    <a href="#process" class="mobile-link text-5xl font-medium tracking-tight hidden">The loop</a>
     <a href="#catalogue" class="mobile-link text-5xl font-medium tracking-tight">Index</a>
     <a href="#pricing" class="mobile-link text-5xl font-medium tracking-tight">Pricing</a>
     <a href="#studio" class="mobile-link text-5xl font-medium tracking-tight">Promise</a>
@@ -485,7 +485,7 @@ background: var(--accent); transform: scaleX(0); transform-origin: left center;
 </section>
 
 <!-- ░░ PROCESS — horizontal pinned gallery, scrubbed sideways ░░ -->
-<section id="process" class="relative">
+<section id="process" class="relative hidden" style="display: none;">
   <div id="h-stage" class="h-[100svh] overflow-hidden flex flex-col justify-center">
     <div class="px-6 md:px-12 pb-8 md:pb-12 flex items-end justify-between">
       <div>
@@ -569,12 +569,12 @@ background: var(--accent); transform: scaleX(0); transform-origin: left center;
       <span class="cat-thumb" aria-hidden="true"></span>
       <span class="cat-meta">WhatsApp, both ways</span>
     </a></li>
-    <li><a class="cat-row" href="#process" data-img="/landing/img/desk.jpg">
+    <li><a class="cat-row" href="#catalogue" data-img="/landing/img/desk.jpg">
       <span class="cat-no">03</span><span class="cat-name">Invoice</span>
       <span class="cat-thumb" aria-hidden="true"></span>
       <span class="cat-meta">Deposit already credited</span>
     </a></li>
-    <li><a class="cat-row" href="#process" data-img="/landing/img/salon-c.jpg">
+    <li><a class="cat-row" href="#catalogue" data-img="/landing/img/salon-c.jpg">
       <span class="cat-no">04</span><span class="cat-name">Paid</span>
       <span class="cat-thumb" aria-hidden="true"></span>
       <span class="cat-meta">Settles to your account</span>
@@ -877,7 +877,7 @@ document.querySelectorAll('[data-count]').forEach((el) => {
    ═══════════════════════════════════════════════════════════════ */
 const hStage = document.getElementById('h-stage');
 const hTrack = document.getElementById('h-track');
-if (hTrack) {
+if (hTrack && hStage && !hStage.closest('.hidden') && getComputedStyle(hStage).display !== 'none') {
   const overflow = () => Math.max(0, hTrack.scrollWidth - window.innerWidth);
   if (reduceMotion) {
     // Fallback: let it scroll horizontally by hand, no pin

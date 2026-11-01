@@ -66,12 +66,19 @@ export default function DashboardLayout({
     () => getOvelink(ovelinkSlug, profile?.organizationName, profile?.organizationId),
   );
 
-  const businessType: BusinessType = profile?.businessType || (
-    typeof window !== "undefined"
-      ? (localStorage.getItem(`ovel_business_type_${profile?.organizationId || ovelinkSlug}`) as BusinessType)
-      || (localStorage.getItem("ovel_selected_business_type") as BusinessType)
-      || "both"
-      : "both"
+  const businessType: BusinessType = useClientStore(
+    () => {
+      if (profile?.businessType) return profile.businessType;
+      if (typeof window !== "undefined") {
+        return (
+          (localStorage.getItem(`ovel_business_type_${profile?.organizationId || ovelinkSlug}`) as BusinessType) ||
+          (localStorage.getItem("ovel_selected_business_type") as BusinessType) ||
+          "both"
+        );
+      }
+      return "both";
+    },
+    () => profile?.businessType || "both",
   );
 
   const navSections: NavSection[] = React.useMemo(() => {

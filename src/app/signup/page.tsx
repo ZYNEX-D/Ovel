@@ -4,17 +4,17 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
-  Building2, 
   Mail, 
   Lock, 
-  User, 
   ArrowRight, 
+  ArrowLeft,
   ShieldCheck, 
-  Sparkles,
-  ShoppingBag,
-  Layers 
+  Zap,
+  CreditCard,
+  TrendingUp,
+  Percent
 } from "lucide-react";
-import { useAuth, BusinessType } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth-context";
 import { useAudio } from "@/components/AudioController";
 
 import ClerkCustomSignUp from "@/components/auth/ClerkCustomSignUp";
@@ -30,251 +30,226 @@ export default function SignUpPage() {
     !publishableKey?.includes("placeholder") &&
     publishableKey?.startsWith("pk_");
 
-  const [businessName, setBusinessName] = useState("");
-  const [businessType, setBusinessType] = useState<BusinessType>("both");
-  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [category, setCategory] = useState("Aesthetic Clinic");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !businessName) return;
+    if (!email || !password) return;
 
     setLoading(true);
     setErrorMsg(null);
     playClick();
 
     if (typeof window !== "undefined") {
-      localStorage.setItem("ovel_selected_business_type", businessType);
+      localStorage.setItem("ovel_selected_business_type", "both");
     }
-    const { error } = await signUpWithPassword(email, password, fullName || "Owner", businessName);
+    const { error } = await signUpWithPassword(email, password, "Owner", "My Business");
     setLoading(false);
 
     if (error) {
       setErrorMsg(error);
     } else {
       playSuccess();
-      router.push("/onboarding/name");
+      router.push("/onboarding/offering");
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#F6FAF9] text-[#103438] antialiased selection:bg-[#105F68] selection:text-white font-['Kaleko_105',sans-serif] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Ambient background glows */}
-      <div className="absolute top-1/4 -right-20 w-96 h-96 bg-[#C8E6E2]/60 rounded-full blur-[100px] pointer-events-none -z-10" />
-      <div className="absolute bottom-1/4 -left-20 w-96 h-96 bg-[#9ED5D1]/50 rounded-full blur-[110px] pointer-events-none -z-10" />
+    <div className="min-h-screen bg-[#F6FAF9] text-[#103438] antialiased selection:bg-[#105F68] selection:text-white grid lg:grid-cols-12">
+      {/* ░░ LEFT COLUMN: Editorial Showcase & Brand Story (Desktop) ░░ */}
+      <div className="hidden lg:flex lg:col-span-5 bg-[#103438] text-[#F6FAF9] p-10 xl:p-14 flex-col justify-between relative overflow-hidden select-none">
+        {/* Ambient lighting glows */}
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-[#105F68]/60 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-[#63C1BB]/25 rounded-full blur-[120px] pointer-events-none" />
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-3">
-        <Link href="/" className="inline-flex items-center justify-center group">
-          <span className="font-['Disolve'] text-4xl text-[#105F68] tracking-tight">Ovel</span>
-        </Link>
-        <h2 className="text-2xl sm:text-3xl font-light text-[#105F68] tracking-tight">
-          Start Commission-Free Today
-        </h2>
+        {/* Subtle grid pattern */}
+        <div 
+          className="absolute inset-0 opacity-[0.03] pointer-events-none"
+          style={{
+            backgroundImage: "radial-gradient(#F6FAF9 1px, transparent 1px)",
+            backgroundSize: "24px 24px"
+          }}
+        />
 
+        {/* Top brand header */}
+        <div className="relative z-10">
+          <Link href="/" className="inline-flex items-center gap-1 group">
+            <span className="font-['Disolve'] text-3xl xl:text-4xl text-[#F6FAF9] tracking-tight group-hover:opacity-90 transition-opacity">
+              Ovel<span className="text-[#63C1BB]">—</span>
+            </span>
+          </Link>
+          <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] font-mono uppercase tracking-[0.2em] text-[#C8E6E2]">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>0% Commission Platform</span>
+          </div>
+        </div>
+
+        {/* Middle Value Proposition */}
+        <div className="relative z-10 my-8 space-y-6">
+          <div className="space-y-3">
+            <h2 className="text-3xl xl:text-4xl font-medium tracking-tight text-white leading-tight">
+              Keep 100% of what your studio earns.
+            </h2>
+            <p className="text-sm xl:text-base text-[#F6FAF9]/75 font-light leading-relaxed">
+              The unified operating system that replaces fragmented booking software, quote tools, deposit processors, and reminder bots with zero marketplace tax.
+            </p>
+          </div>
+
+          {/* Key Feature Pillars */}
+          <div className="grid grid-cols-2 gap-3 text-xs text-[#F6FAF9]/80 font-light pt-4 border-t border-white/10">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-[#63C1BB] shrink-0" />
+              <span>Instant Bank Payouts</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Percent className="w-4 h-4 text-[#63C1BB] shrink-0" />
+              <span>Zero Transaction Take</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-[#63C1BB] shrink-0" />
+              <span>Direct Client Ownership</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-[#63C1BB] shrink-0" />
+              <span>WhatsApp Automations</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Guarantee */}
+        <div className="relative z-10 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-[#F6FAF9]/60 font-mono">
+          <span>Ovel © 2026</span>
+          <span>14-day free pilot · No card required</span>
+        </div>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-6 sm:px-10 rounded-[2.5rem] border border-[#105F68]/15 shadow-xl space-y-5">
+      {/* ░░ RIGHT COLUMN: Clean, Streamlined Registration ░░ */}
+      <div className="col-span-12 lg:col-span-7 flex flex-col justify-center px-6 py-10 sm:px-12 xl:px-20 min-h-screen overflow-y-auto">
+        <div className="max-w-xl mx-auto w-full space-y-6">
+          {/* Top navigation row */}
+          <div className="flex items-center justify-between">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-xs uppercase font-mono tracking-wider text-[#103438]/60 hover:text-[#103438] transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to home</span>
+            </Link>
+
+            <div className="text-xs text-[#103438]/70">
+              Already a merchant?{" "}
+              <Link href="/login" className="text-[#105F68] font-semibold hover:underline">
+                Sign In →
+              </Link>
+            </div>
+          </div>
+
+          {/* Mobile brand header (< lg) */}
+          <div className="lg:hidden text-center space-y-2 pt-2">
+            <Link href="/" className="inline-flex items-center justify-center">
+              <span className="font-['Disolve'] text-3xl text-[#105F68] tracking-tight">
+                Ovel<span className="text-[#63C1BB]">—</span>
+              </span>
+            </Link>
+          </div>
+
+          {/* Heading */}
+          <div className="space-y-1.5">
+            <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-[#105F68] font-semibold">
+              Get Started Free
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#103438]">
+              Create your account
+            </h1>
+            <p className="text-xs sm:text-sm text-[#103438]/65 leading-relaxed">
+              Enter your work email to begin your 14-day free pilot.
+            </p>
+          </div>
+
+          {/* Sign up form */}
           {isClerkActive ? (
             <ClerkCustomSignUp />
           ) : (
-            <>
-              {/* Notice when Clerk keys are waiting to be pasted in .env.local */}
-              <div className="p-3.5 rounded-2xl bg-[#C8E6E2]/30 border border-[#9ED5D1]/50 text-xs text-[#105F68] space-y-1">
-                <div className="flex items-center gap-1.5 font-medium">
-                  <Sparkles className="w-4 h-4 text-[#105F68]" />
-                  <span>Clerk Ready: Paste Keys into .env.local</span>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {errorMsg && (
+                <div className="p-3.5 rounded-xl bg-red-50 border border-red-200/80 text-red-700 text-xs flex items-center gap-2.5">
+                  <span className="leading-snug">{errorMsg}</span>
                 </div>
-                <p className="text-[11px] text-[#3A9295] leading-relaxed">
-                  Add <code>NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> and <code>CLERK_SECRET_KEY</code> to enable live Clerk registration.
-                </p>
-              </div>
+              )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-4">
+                {/* Work Email */}
                 <div>
-                  <label className="text-xs uppercase tracking-wider text-[#3A9295] font-light block mb-1">
-                    Business / Studio Name
+                  <label className="text-xs font-semibold uppercase tracking-wider text-[#103438] block mb-1.5">
+                    Work Email Address
                   </label>
                   <div className="relative">
-                    <Building2 className="w-4 h-4 text-[#3A9295] absolute left-3.5 top-3.5" />
+                    <Mail className="w-4 h-4 text-[#103438]/45 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
-                      type="text"
+                      type="email"
                       required
-                      placeholder="e.g. Atelier Aesthetics"
-                      value={businessName}
-                      onChange={(e) => setBusinessName(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
+                      placeholder="elena@luminaskin.co"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-[#103438]/15 text-sm text-[#103438] placeholder:text-[#103438]/35 shadow-xs focus:outline-none focus:border-[#105F68] focus:ring-4 focus:ring-[#105F68]/10 transition-all"
                     />
                   </div>
                 </div>
 
+                {/* Password */}
                 <div>
-                  <label className="text-xs uppercase tracking-wider text-[#3A9295] font-light block mb-1.5">
-                    Business Offering Type
+                  <label className="text-xs font-semibold uppercase tracking-wider text-[#103438] block mb-1.5">
+                    Create Password
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        playClick();
-                        setBusinessType("services");
-                      }}
-                      className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
-                        businessType === "services"
-                          ? "border-[#105F68] bg-[#C8E6E2]/40 text-[#105F68] shadow-xs"
-                          : "border-black/10 bg-[#F6FAF9] text-slate-600 hover:border-black/20"
-                      }`}
-                    >
-                      <Sparkles className={`w-4 h-4 mb-1.5 ${businessType === "services" ? "text-[#105F68]" : "text-slate-400"}`} />
-                      <div>
-                        <span className="block text-xs font-semibold">Services</span>
-                        <span className="block text-[10px] text-slate-500 leading-tight">Appointments</span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        playClick();
-                        setBusinessType("products");
-                      }}
-                      className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
-                        businessType === "products"
-                          ? "border-[#105F68] bg-[#C8E6E2]/40 text-[#105F68] shadow-xs"
-                          : "border-black/10 bg-[#F6FAF9] text-slate-600 hover:border-black/20"
-                      }`}
-                    >
-                      <ShoppingBag className={`w-4 h-4 mb-1.5 ${businessType === "products" ? "text-[#105F68]" : "text-slate-400"}`} />
-                      <div>
-                        <span className="block text-xs font-semibold">Products</span>
-                        <span className="block text-[10px] text-slate-500 leading-tight">Retail goods</span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        playClick();
-                        setBusinessType("both");
-                      }}
-                      className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
-                        businessType === "both"
-                          ? "border-[#105F68] bg-[#C8E6E2]/40 text-[#105F68] shadow-xs"
-                          : "border-black/10 bg-[#F6FAF9] text-slate-600 hover:border-black/20"
-                      }`}
-                    >
-                      <Layers className={`w-4 h-4 mb-1.5 ${businessType === "both" ? "text-[#105F68]" : "text-slate-400"}`} />
-                      <div>
-                        <span className="block text-xs font-semibold">Both</span>
-                        <span className="block text-[10px] text-slate-500 leading-tight">Services &amp; Products</span>
-                      </div>
-                    </button>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-[#103438]/45 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="password"
+                      required
+                      minLength={8}
+                      placeholder="Minimum 8 characters"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-[#103438]/15 text-sm text-[#103438] placeholder:text-[#103438]/35 shadow-xs focus:outline-none focus:border-[#105F68] focus:ring-4 focus:ring-[#105F68]/10 transition-all"
+                    />
                   </div>
                 </div>
+              </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs uppercase tracking-wider text-[#3A9295] font-light block mb-1">
-                  Owner Name
-                </label>
-                <div className="relative">
-                  <User className="w-4 h-4 text-[#3A9295] absolute left-3.5 top-3.5" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="Your Name"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full pl-10 pr-3 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
-                  />
+              {/* Minimalist Trust Grid */}
+              <div className="grid grid-cols-3 gap-2 py-1 text-center">
+                <div className="px-2 py-2 rounded-lg bg-[#105F68]/5 border border-[#105F68]/10 flex flex-col items-center justify-center">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#105F68] mb-0.5" />
+                  <span className="text-[11px] font-medium text-[#103438]">14-Day Free Pilot</span>
+                </div>
+                <div className="px-2 py-2 rounded-lg bg-[#105F68]/5 border border-[#105F68]/10 flex flex-col items-center justify-center">
+                  <Zap className="w-3.5 h-3.5 text-[#105F68] mb-0.5" />
+                  <span className="text-[11px] font-medium text-[#103438]">0% Commission</span>
+                </div>
+                <div className="px-2 py-2 rounded-lg bg-[#105F68]/5 border border-[#105F68]/10 flex flex-col items-center justify-center">
+                  <CreditCard className="w-3.5 h-3.5 text-[#105F68] mb-0.5" />
+                  <span className="text-[11px] font-medium text-[#103438]">No Card Needed</span>
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs uppercase tracking-wider text-[#3A9295] font-light block mb-1">
-                  Industry
-                </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none"
-                >
-                  <option value="Aesthetic Clinic">Aesthetic Clinic</option>
-                  <option value="Salon & Spa">Salon &amp; Spa</option>
-                  <option value="Mobile Detailing">Mobile Detailing</option>
-                  <option value="Consultant">Consultant</option>
-                  <option value="Wellness">Wellness</option>
-                </select>
-              </div>
-            </div>
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 px-6 rounded-xl bg-[#103438] hover:bg-[#0c272a] text-white text-sm font-medium tracking-wide transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 group disabled:opacity-50 cursor-pointer"
+              >
+                <span>{loading ? "Creating your account..." : "Continue"}</span>
+                <ArrowRight className="w-4 h-4 text-[#C8E6E2] group-hover:translate-x-1 transition-transform" />
+              </button>
 
-            <div>
-              <label className="text-xs uppercase tracking-wider text-[#3A9295] font-light block mb-1">
-                Work Email Address
-              </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-[#3A9295] absolute left-3.5 top-3.5" />
-                <input
-                  type="email"
-                  required
-                  placeholder="contact@atelieraesthetics.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs uppercase tracking-wider text-[#3A9295] font-light block mb-1">
-                Create Secure Password
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-[#3A9295] absolute left-3.5 top-3.5" />
-                <input
-                  type="password"
-                  required
-                  placeholder="At least 8 characters..."
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-2xl bg-[#F6FAF9] border border-black/10 text-xs text-[#105F68] focus:outline-none focus:border-[#105F68]"
-                />
-              </div>
-            </div>
-
-            {errorMsg && (
-              <div className="p-3 rounded-xl bg-red-50 text-red-700 text-xs border border-red-100">
-                {errorMsg}
-              </div>
-            )}
-
-            <div className="p-3.5 rounded-2xl bg-[#C8E6E2]/25 border border-[#9ED5D1]/40 flex items-center gap-2.5 text-[11px] text-[#105F68]">
-              <ShieldCheck className="w-4 h-4 text-[#105F68] flex-shrink-0" />
-              <span>Includes 30 days trial + Zero Setup Fee + 0% Marketplace Take</span>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3.5 rounded-full bg-[#105F68] hover:bg-[#0D4F57] text-white text-xs sm:text-sm font-light tracking-tight transition-all flex items-center justify-center gap-2 shadow-md mt-2"
-            >
-              <span>{loading ? "Creating Organization..." : "Create Account & Launch"}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </form>
-          </>
-        )}
-
-        <div className="text-center pt-2 text-xs text-[#3A9295]">
-            <span>Already have an account? </span>
-            <Link href="/login" className="text-[#105F68] font-medium hover:underline">
-              Sign In
-            </Link>
-          </div>
+              <p className="text-[11px] text-center text-[#103438]/50 leading-relaxed pt-1">
+                By registering, you agree to Ovel's Terms of Service and Merchant Agreement.
+              </p>
+            </form>
+          )}
         </div>
       </div>
     </div>

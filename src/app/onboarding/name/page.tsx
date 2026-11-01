@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useOnboarding } from "@/lib/onboarding-context";
-import { Building2, ArrowRight, Globe, Sparkles, Check, Edit2 } from "lucide-react";
+import { Building2, ArrowRight, ArrowLeft, Globe, Sparkles, Check, Edit2 } from "lucide-react";
 import { useAudio } from "@/components/AudioController";
 import { validateSlug, sanitizeSlug } from "@/lib/ovelink-store";
 import { useAuth } from "@/lib/auth-context";
@@ -83,7 +83,7 @@ export default function BusinessNameStep() {
     }
     setError(null);
     playClick();
-    goNext(1, "/onboarding/bio");
+    goNext(2, "/onboarding/bio");
   };
 
   const handleSkip = () => {
@@ -91,7 +91,12 @@ export default function BusinessNameStep() {
     if (!cleanName) {
       updateData({ businessName: "My Business", businessSlug: "my-business" });
     }
-    skipStep(1, "/onboarding/bio");
+    skipStep(2, "/onboarding/bio");
+  };
+
+  const handleBack = () => {
+    playClick();
+    goNext(1, "/onboarding/offering");
   };
 
   return (
@@ -220,7 +225,14 @@ export default function BusinessNameStep() {
 
           {/* Minimal Action Bar */}
           <div className="pt-4 border-t border-black/[0.06] flex items-center justify-between">
-            <div />
+            <button
+              type="button"
+              onClick={handleBack}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-slate-500 hover:text-[#105F68] hover:bg-black/[0.03] transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back</span>
+            </button>
             <div className="flex items-center gap-2">
               <button
                 type="button"
